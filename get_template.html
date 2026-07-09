@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Download SAHI Template</title>
+</head>
+<body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+    <h2 style="color: #87CEEB;">SAHI London - Template Downloader</h2>
+    <p>Click the button below to download the correct SAHI Item Master CSV template.</p>
+    <button onclick="downloadTemplate()" style="padding: 15px 30px; font-size: 16px; background: #87CEEB; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 20px;">
+        ⬇ Download Format (CSV)
+    </button>
+
+    <script>
+        function downloadTemplate() {
+            let csvContent = "Item No.,Friendly Name,Color,Material,UNIT PRICE\n";
+            // Add a clear example row so the new employee knows exactly how to fill it
+            csvContent += "DF26-EC001,Glacial Sphere EC001,SLV,GLASS,4.48\n";
+            csvContent += "DF26-EC003,Champagne Glitter Ball,GLD,GLASS,4.48\n";
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'sahi_upload_template.csv';
+            link.click();
+        }
+    </script>
+</body>
+</html>

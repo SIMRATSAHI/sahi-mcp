@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - New Invoice</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 600px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        select, input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #87CEEB; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #6bc3de; }
+        #result { margin-top: 20px; display: none; }
+        .success-box { background: #e6fffa; border: 1px solid #87CEEB; padding: 15px; text-align: center; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .logo .l2 { font-size: 9px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="company-header">
+        <div class="info">
+            <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+            <div class="l2">飒鹤（上海）贸易有限公司</div>
+            <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+        </div>
+        <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+    </div>
+    <div class="nav" style="display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap;">
+        <a href="/" style="text-decoration: none; color: #000; font-weight: bold;">Sell (Invoice)</a>
+        <a href="/create-po.html" style="text-decoration: none; color: #87CEEB; font-weight: bold;">Create PO</a>
+        <a href="/receive-po.html" style="text-decoration: none; color: #87CEEB; font-weight: bold;">Receive Stock</a>
+        <a href="/items.html" style="text-decoration: none; color: #87CEEB; font-weight: bold;">Item Master</a>
+        <a href="/transfer.html" style="text-decoration: none; color: #87CEEB; font-weight: bold;">Transfer Stock</a>
+        <a href="/accounts.html" style="text-decoration: none; color: #87CEEB; font-weight: bold;">Accounts</a>
+        <a href="/admin-users.html" style="text-decoration: none; color: #87CEEB; font-weight: bold;">Manage Users</a>
+    </div>
+        <h2 style="color:#333;">Create Customer Invoice</h2>
+        <div class="form-group">
+            <label>PO Reference</label>
+            <input type="text" id="poRef" value="C880001" placeholder="e.g., C880001">
+        </div>
+        <div class="form-group">
+            <label>Select Buyer</label>
+            <select id="buyerSelect"></select>
+        </div>
+        <div class="form-group">
+            <label>Select Item (SKU)</label>
+            <select id="itemSelect"></select>
+        </div>
+        <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" id="qtyInput" value="100" min="1">
+        </div>
+        <div class="form-group">
+            <label>Manual Markup % (e.g., 5 for 5%)</label>
+            <input type="number" id="markupInput" value="2.5" step="0.1">
+        </div>
+        <button onclick="generateInvoice()">Generate Sales Invoice PDF</button>
+
+        <div id="result">
+            <div class="success-box">
+                <h3 style="color:#333;">✅ Invoice Created!</h3>
+                <p id="summaryText"></p>
+                <button onclick="downloadPDF()" style="background: #FFB7C5; margin-top:5px;">Download Invoice PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+
+        // Load Buyers and Items on load
+        fetch('/api/buyers').then(r=>r.json()).then(data => {
+            const sel = document.getElementById('buyerSelect');
+            data.forEach(b => {
+                let opt = document.createElement('option');
+                opt.value = b.code; opt.innerText = `${b.name} (${b.currency})`;
+                sel.appendChild(opt);
+            });
+        });
+
+        fetch('/api/items').then(r=>r.json()).then(data => {
+            const sel = document.getElementById('itemSelect');
+            data.forEach(i => {
+                let opt = document.createElement('option');
+                opt.value = i.sku; 
+                opt.innerText = `${i.sku} - ${i.friendly_name}`;
+                opt.dataset.cost = i.std_cost_usd;
+                opt.dataset.name = i.friendly_name; // Capture the item name for the backend
+                sel.appendChild(opt);
+            });
+        });
+
+        async function generateInvoice() {
+            const buyer = document.getElementById('buyerSelect').value;
+            const po = document.getElementById('poRef').value;
+            const sku = document.getElementById('itemSelect').value;
+            const qty = parseInt(document.getElementById('qtyInput').value);
+            const markup = parseFloat(document.getElementById('markupInput').value);
+            
+            const selectedOpt = document.getElementById('itemSelect').selectedOptions[0];
+            const cost = parseFloat(selectedOpt.dataset.cost);
+            const itemName = selectedOpt.dataset.name;
+
+            if (!buyer || !sku || !qty || isNaN(markup)) {
+                alert("Please fill in all fields correctly.");
+                return;
+            }
+
+            const payload = { 
+                buyer_code: buyer, 
+                po_reference: po, 
+                sku, 
+                item_name: itemName,
+                qty, 
+                markup_percent: markup, 
+                std_cost_usd: cost 
+            };
+
+            const res = await fetch('/api/create-invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                currentData = data;
+                document.getElementById('summaryText').innerHTML = `
+                    <b>Order ID:</b> ${data.order_id}<br>
+                    <b>Item:</b> ${data.item_name}<br>
+                    <b>Total:</b> ${data.currency} ${data.total_local}<br>
+                    <b>Markup Applied:</b> ${data.markup_percent}%
+                `;
+                document.getElementById('result').style.display = 'block';
+            } else {
+                alert("Error: " + data.error);
+            }
+        }
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const data = currentData;
+
+            // Sky Blue Header
+            doc.setFillColor('#87CEEB');
+            doc.rect(0, 0, 210, 35, 'F');
+            doc.setTextColor(0,0,0).setFontSize(20).setFont("helvetica", "bold");
+            doc.text("SAHI LONDON", 105, 22, { align: "center" });
+            doc.setFontSize(12).setFont("helvetica", "normal");
+            doc.text("SALES INVOICE", 105, 32, { align: "center" });
+
+            // Details
+            doc.setFontSize(10);
+            doc.text(`Invoice #: ${data.order_id}`, 14, 50);
+            doc.text(`PO Ref: ${data.po_reference}`, 14, 57);
+            doc.text(`Buyer: ${data.buyer_name}`, 14, 64);
+            doc.text(`Markup: ${data.markup_percent}%`, 14, 71);
+
+            // Table
+            doc.autoTable({
+                startY: 80,
+                head: [['SKU', 'Item', 'Qty', 'Price', 'Total']],
+                body: [[
+                    data.sku, 
+                    data.item_name, 
+                    data.qty, 
+                    `${data.currency} ${data.unit_price_local}`, 
+                    `${data.currency} ${data.total_local}`
+                ]],
+                theme: 'grid',
+                headStyles: { fillColor: '#87CEEB', textColor: 0 },
+                didParseCell: function(data) {
+                    if (data.section === 'body' && data.column.index === 4) {
+                        data.cell.styles.halign = 'right';
+                    }
+                }
+            });
+
+            // Grand Total
+            let finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(12).setFont("helvetica", "bold");
+            doc.text("GRAND TOTAL: " + data.currency + " " + data.total_local, 195, finalY, { align: "right" });
+
+            doc.save(`SAHI_Invoice_${data.order_id}.pdf`);
+        }
+    </script>
+    <script>
+        // --- Auth / role-based nav (shared pattern across all pages) ---
+        const NAV_PERMISSIONS = {
+            '/': ['ADMIN'],
+            '/create-po.html': ['ADMIN', 'BUYER'],
+            '/items.html': ['ADMIN', 'BUYER'],
+            '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
+            '/transfer.html': ['ADMIN'],
+            '/accounts.html': ['ADMIN', 'ACCOUNTS'],
+            '/admin-users.html': ['ADMIN']
+        };
+        async function initAuthNav() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) { window.location.href = '/login.html'; return; }
+                const me = await res.json();
+                document.querySelectorAll('.nav a').forEach(a => {
+                    const href = a.getAttribute('href');
+                    const allowed = NAV_PERMISSIONS[href];
+                    if (allowed && !allowed.includes(me.role)) a.style.display = 'none';
+                });
+                const nav = document.querySelector('.nav');
+                if (nav) {
+                    const badge = document.createElement('span');
+                    badge.style.marginLeft = 'auto';
+                    badge.style.color = '#666';
+                    badge.style.fontSize = '13px';
+                    badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                    nav.appendChild(badge);
+                    document.getElementById('logoutLink').addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login.html';
+                    });
+                }
+            } catch (e) { window.location.href = '/login.html'; }
+        }
+        initAuthNav();
+    </script>
+</body>
+</html>

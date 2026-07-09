@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - Accounts</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 1100px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; }
+        .nav a.active { color: #000; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th { background: #87CEEB; color: #000; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #eee; }
+        .status-badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .status-issued { background: #fff3cd; color: #856404; }
+        .status-partial { background: #cce5ff; color: #004085; }
+        .status-received { background: #d4edda; color: #155724; }
+        .totals-row { font-weight: bold; background: #f9f9f9; }
+        #loadStatus { margin-top: 10px; color: #666; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="company-header">
+            <div class="info">
+                <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+                <div class="l2">飒鹤（上海）贸易有限公司</div>
+                <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+            </div>
+            <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+        </div>
+        <div class="nav">
+            <a href="/">Sell (Invoice)</a>
+            <a href="/create-po.html">Create PO</a>
+            <a href="/receive-po.html">Receive Stock</a>
+            <a href="/items.html">Item Master</a>
+            <a href="/transfer.html">Transfer</a>
+            <a href="/accounts.html" class="active">Accounts</a>
+            <a href="/admin-users.html">Manage Users</a>
+        </div>
+
+        <h2 style="color:#333;">Purchase Orders - Financial Overview</h2>
+        <p style="color:#666; font-size:14px;">Read-only view of all purchase orders, with 30% deposit / 70% balance breakdown.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>PO Number</th>
+                    <th>Vendor</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Total (RMB)</th>
+                    <th>Total (USD)</th>
+                    <th>Deposit 30% (RMB)</th>
+                    <th>Balance 70% (RMB)</th>
+                </tr>
+            </thead>
+            <tbody id="poTableBody"></tbody>
+        </table>
+        <div id="loadStatus"></div>
+    </div>
+
+    <script>
+        function statusClass(status) {
+            if (status === 'RECEIVED') return 'status-received';
+            if (status === 'PARTIAL') return 'status-partial';
+            return 'status-issued';
+        }
+
+        async function loadPOs() {
+            const statusEl = document.getElementById('loadStatus');
+            statusEl.textContent = 'Loading...';
+            try {
+                const pos = await fetch('/api/purchase-orders').then(r => r.json());
+                const tbody = document.getElementById('poTableBody');
+                tbody.innerHTML = '';
+
+                let totalRmb = 0, totalUsd = 0, totalDeposit = 0, totalBalance = 0;
+
+                pos.forEach(po => {
+                    const rmb = parseFloat(po.total_rmb) || 0;
+                    const usd = parseFloat(po.total_usd) || 0;
+                    const deposit = rmb * 0.30;
+                    const balance = rmb * 0.70;
+                    totalRmb += rmb; totalUsd += usd; totalDeposit += deposit; totalBalance += balance;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><b>${po.po_id}</b></td>
+                        <td>${po.vendor_code}</td>
+                        <td>${po.po_date}</td>
+                        <td><span class="status-badge ${statusClass(po.status)}">${po.status}</span></td>
+                        <td>¥${rmb.toFixed(2)}</td>
+                        <td>$${usd.toFixed(2)}</td>
+                        <td>¥${deposit.toFixed(2)}</td>
+                        <td>¥${balance.toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                const totalsRow = document.createElement('tr');
+                totalsRow.className = 'totals-row';
+                totalsRow.innerHTML = `
+                    <td colspan="4">TOTAL (${pos.length} POs)</td>
+                    <td>¥${totalRmb.toFixed(2)}</td>
+                    <td>$${totalUsd.toFixed(2)}</td>
+                    <td>¥${totalDeposit.toFixed(2)}</td>
+                    <td>¥${totalBalance.toFixed(2)}</td>
+                `;
+                tbody.appendChild(totalsRow);
+
+                statusEl.textContent = `${pos.length} purchase order(s) loaded.`;
+            } catch (e) {
+                statusEl.textContent = 'Failed to load purchase orders.';
+            }
+        }
+        loadPOs();
+    </script>
+    <script>
+        // --- Auth / role-based nav (shared pattern across all pages) ---
+        const NAV_PERMISSIONS = {
+            '/': ['ADMIN'],
+            '/create-po.html': ['ADMIN', 'BUYER'],
+            '/items.html': ['ADMIN', 'BUYER'],
+            '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
+            '/transfer.html': ['ADMIN'],
+            '/accounts.html': ['ADMIN', 'ACCOUNTS'],
+            '/admin-users.html': ['ADMIN']
+        };
+        async function initAuthNav() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) { window.location.href = '/login.html'; return; }
+                const me = await res.json();
+                document.querySelectorAll('.nav a').forEach(a => {
+                    const href = a.getAttribute('href');
+                    const allowed = NAV_PERMISSIONS[href];
+                    if (allowed && !allowed.includes(me.role)) a.style.display = 'none';
+                });
+                const nav = document.querySelector('.nav');
+                if (nav) {
+                    const badge = document.createElement('span');
+                    badge.style.marginLeft = 'auto';
+                    badge.style.color = '#666';
+                    badge.style.fontSize = '13px';
+                    badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                    nav.appendChild(badge);
+                    document.getElementById('logoutLink').addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login.html';
+                    });
+                }
+            } catch (e) { window.location.href = '/login.html'; }
+        }
+        initAuthNav();
+    </script>
+</body>
+</html>
