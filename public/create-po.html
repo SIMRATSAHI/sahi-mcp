@@ -96,11 +96,31 @@
 
         <div id="result">
             <div class="success-box">
-                <h3 style="color:#333; margin-top:0;">✅ PO Created!</h3>
+                <h3 style="color:#333; margin-top:0;">PO Created (Draft)</h3>
                 <p id="summaryText"></p>
-                <button onclick="downloadPDF()" style="background:#FFB7C5;">Download PO PDF</button>
+                <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+                    <button onclick="downloadPDF()" style="background:#FFB7C5;">Download PO PDF</button>
+                    <button id="submitBtn" onclick="submitForApproval()" style="background:#4CAF50; color:white;">Submit for Approval</button>
+                </div>
+                <div id="poStatusBadge" style="display:inline-block; margin-top:10px; padding:4px 12px; background:#fff3cd; color:#856404; border-radius:12px; font-size:12px; font-weight:bold;">DRAFT</div>
             </div>
         </div>
+
+        <hr style="margin:30px 0; border:none; border-top:1px solid #ddd;">
+
+        <h3 style="color:#333;">Purchase Orders</h3>
+        <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+            <button class="po-filter-btn" onclick="loadPOList()" style="padding:6px 14px; background:#87CEEB; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">All</button>
+            <button class="po-filter-btn" onclick="loadPOList('DRAFT')" style="padding:6px 14px; background:#D3D3D3; border:none; border-radius:4px; cursor:pointer;">Draft</button>
+            <button class="po-filter-btn" onclick="loadPOList('SUBMITTED')" style="padding:6px 14px; background:#FFB7C5; border:none; border-radius:4px; cursor:pointer;">Submitted</button>
+            <button class="po-filter-btn" onclick="loadPOList('APPROVED')" style="padding:6px 14px; background:#C8E6C9; border:none; border-radius:4px; cursor:pointer;">Approved</button>
+            <button class="po-filter-btn" onclick="loadPOList('ISSUED')" style="padding:6px 14px; background:#B3E5FC; border:none; border-radius:4px; cursor:pointer;">Issued</button>
+            <button class="po-filter-btn" onclick="loadPOList('RECEIVED')" style="padding:6px 14px; background:#E8F5E9; border:none; border-radius:4px; cursor:pointer;">Received</button>
+        </div>
+        <table id="poListTable" style="margin-top:10px;">
+            <thead><tr><th>PO Number</th><th>Vendor</th><th>Date</th><th>Status</th><th>Total (RMB)</th><th>Created By</th><th>Actions</th></tr></thead>
+            <tbody id="poListBody"></tbody>
+        </table>
     </div>
 
     <script>
@@ -296,6 +316,132 @@
         async function downloadPDF() {
             if (lastPO) await generatePDF(lastPO);
         }
+
+        // --- PO State Machine: submit, approve, reject, issue ---
+
+        async function submitForApproval() {
+            if (!lastPO) return;
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true; btn.innerText = 'Submitting...';
+            try {
+                const res = await fetch(`/api/purchase-orders/${lastPO.po_id}/submit`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert('PO submitted for approval! Admins have been notified.');
+                    document.getElementById('poStatusBadge').innerText = 'SUBMITTED';
+                    document.getElementById('poStatusBadge').style.background = '#FFB7C5';
+                    document.getElementById('poStatusBadge').style.color = '#880E4F';
+                    btn.style.display = 'none';
+                    loadPOList();
+                } else { alert('Error: ' + data.error); btn.disabled = false; btn.innerText = 'Submit for Approval'; }
+            } catch (e) { alert('Connection error'); btn.disabled = false; btn.innerText = 'Submit for Approval'; }
+        }
+
+        const STATUS_COLORS = {
+            DRAFT:     { bg: '#fff3cd', color: '#856404' },
+            SUBMITTED: { bg: '#FFB7C5', color: '#880E4F' },
+            APPROVED:  { bg: '#C8E6C9', color: '#1B5E20' },
+            REJECTED:  { bg: '#FFCDD2', color: '#B71C1C' },
+            ISSUED:    { bg: '#B3E5FC', color: '#01579B' },
+            PARTIAL:   { bg: '#FFE0B2', color: '#E65100' },
+            RECEIVED:  { bg: '#E8F5E9', color: '#2E7D32' },
+            CLOSED:    { bg: '#E0E0E0', color: '#424242' }
+        };
+
+        async function loadPOList(statusFilter) {
+            let url = '/api/purchase-orders';
+            if (statusFilter) url += `?status=${statusFilter}`;
+            try {
+                const res = await fetch(url);
+                const pos = await res.json();
+                const tbody = document.getElementById('poListBody');
+                tbody.innerHTML = '';
+                if (pos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#999; padding:20px;">No POs found.</td></tr>';
+                    return;
+                }
+                const me = await fetch('/api/me').then(r => r.json());
+                pos.forEach(po => {
+                    const sc = STATUS_COLORS[po.status] || { bg: '#E0E0E0', color: '#424242' };
+                    let actions = '';
+                    // Submit button: DRAFT, creator or admin
+                    if (po.status === 'DRAFT' && (me.role === 'ADMIN' || po.created_by === me.email)) {
+                        actions += `<button onclick="submitPOFromList('${po.po_id}')" style="padding:4px 8px; background:#4CAF50; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Submit</button> `;
+                    }
+                    // Approve/Reject: SUBMITTED, admin only
+                    if (po.status === 'SUBMITTED' && me.role === 'ADMIN') {
+                        actions += `<button onclick="approvePO('${po.po_id}')" style="padding:4px 8px; background:#2196F3; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Approve</button> `;
+                        actions += `<button onclick="rejectPO('${po.po_id}')" style="padding:4px 8px; background:#f44336; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Reject</button> `;
+                    }
+                    // Issue: APPROVED
+                    if (po.status === 'APPROVED') {
+                        actions += `<button onclick="issuePO('${po.po_id}')" style="padding:4px 8px; background:#FF9800; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Issue to Supplier</button> `;
+                    }
+                    // View PDF
+                    actions += `<button onclick="viewPOPDF('${po.po_id}')" style="padding:4px 8px; background:#D3D3D3; border:none; border-radius:3px; cursor:pointer; font-size:11px;">View</button>`;
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${po.po_id}</strong></td>
+                            <td>${po.vendor_code}</td>
+                            <td>${po.po_date ? new Date(po.po_date).toLocaleDateString() : ''}</td>
+                            <td><span style="padding:3px 10px; border-radius:10px; font-size:11px; font-weight:bold; background:${sc.bg}; color:${sc.color};">${po.status}</span></td>
+                            <td>${parseFloat(po.total_rmb).toFixed(2)}</td>
+                            <td>${po.created_by || ''}</td>
+                            <td>${actions}</td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                document.getElementById('poListBody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:#d32f2f;">Failed to load POs.</td></tr>';
+            }
+        }
+
+        async function submitPOFromList(poId) {
+            const res = await fetch(`/api/purchase-orders/${poId}/submit`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { alert('PO submitted for approval!'); loadPOList(); }
+            else alert('Error: ' + data.error);
+        }
+
+        async function approvePO(poId) {
+            if (!confirm('Approve this PO?')) return;
+            const res = await fetch(`/api/purchase-orders/${poId}/approve`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { alert('PO approved! It can now be issued to the supplier.'); loadPOList(); }
+            else alert('Error: ' + data.error);
+        }
+
+        async function rejectPO(poId) {
+            const reason = prompt('Reason for rejection:');
+            if (reason === null) return;
+            const res = await fetch(`/api/purchase-orders/${poId}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason })
+            });
+            const data = await res.json();
+            if (data.success) { alert('PO rejected and sent back to creator.'); loadPOList(); }
+            else alert('Error: ' + data.error);
+        }
+
+        async function issuePO(poId) {
+            if (!confirm('Issue this PO to the supplier? This will finalize it.')) return;
+            const res = await fetch(`/api/purchase-orders/${poId}/issue`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { alert('PO issued to supplier! Stock can now be received.'); loadPOList(); }
+            else alert('Error: ' + data.error);
+        }
+
+        async function viewPOPDF(poId) {
+            const res = await fetch(`/api/purchase-orders/${poId}/full`);
+            const data = await res.json();
+            if (data.success) { lastPO = data; await generatePDF(data); }
+            else alert('Error: ' + data.error);
+        }
+
+        // Load PO list on page load.
+        loadPOList();
     </script>
     <script>
         // --- Auth / role-based nav (shared pattern across all pages) ---
@@ -324,7 +470,17 @@
                     badge.style.marginLeft = 'auto';
                     badge.style.color = '#666';
                     badge.style.fontSize = '13px';
-                    badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                    badge.style.display = 'flex';
+                    badge.style.alignItems = 'center';
+                    badge.style.gap = '10px';
+                    badge.innerHTML = `
+                        <span style="position:relative; cursor:pointer;" onclick="toggleNotif()">
+                            <span style="font-size:18px;">&#128276;</span>
+                            <span id="notifBadge" style="position:absolute; top:-8px; right:-8px; background:#d32f2f; color:white; font-size:10px; font-weight:bold; border-radius:10px; padding:1px 6px; display:none;">0</span>
+                        </span>
+                        ${me.name || me.email} (${me.role}) &nbsp;
+                        <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>
+                    `;
                     nav.appendChild(badge);
                     document.getElementById('logoutLink').addEventListener('click', async (e) => {
                         e.preventDefault();
@@ -332,7 +488,20 @@
                         window.location.href = '/login.html';
                     });
                 }
+                updateNotifBadge();
+                setInterval(updateNotifBadge, 30000);
             } catch (e) { window.location.href = '/login.html'; }
+        }
+        async function updateNotifBadge() {
+            try {
+                const r = await fetch('/api/notifications/unread-count');
+                const d = await r.json();
+                const b = document.getElementById('notifBadge');
+                if (b) { b.style.display = d.count > 0 ? 'inline-block' : 'none'; b.innerText = d.count > 99 ? '99+' : d.count; }
+            } catch (e) {}
+        }
+        function toggleNotif() {
+            alert('View notifications on the Item Master page.'); // Simplified for create-po
         }
         initAuthNav();
     </script>

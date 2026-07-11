@@ -112,6 +112,45 @@
         </table>
     </div>
 
+    <!-- Edit Modal -->
+    <div id="editModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:flex-start; padding-top:40px;">
+        <div style="background:white; border-radius:8px; padding:30px; width:500px; max-height:85vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="margin:0; color:#333;">Edit Item</h3>
+                <button onclick="closeEditModal()" style="background:#FFB7C5; padding:4px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+            <div id="lockWarning" style="display:none; background:#fff3cd; border:1px solid #ffc107; padding:10px; border-radius:4px; margin-bottom:15px; font-size:13px; color:#856404;"></div>
+            <input type="hidden" id="editSku">
+            <input type="hidden" id="editVersion">
+            <div class="form-group"><label>Friendly Name</label><input type="text" id="editFriendlyName"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="form-group"><label>Category Code</label><input type="text" id="editCategoryCode"></div>
+                <div class="form-group"><label>Color Code</label><input type="text" id="editColorCode"></div>
+                <div class="form-group"><label>Material</label><input type="text" id="editMaterial"></div>
+                <div class="form-group"><label>HS Code</label><input type="text" id="editHsCode"></div>
+                <div class="form-group"><label>Std Cost (RMB)</label><input type="number" step="0.01" id="editStdCostRmb"></div>
+                <div class="form-group"><label>Status</label>
+                    <select id="editStatus"><option value="ACTIVE">ACTIVE</option><option value="DISCONTINUED">DISCONTINUED</option></select>
+                </div>
+            </div>
+            <div class="form-group"><label>Description</label><textarea id="editDescription" rows="3" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;"></textarea></div>
+            <div style="background:#f8f9fa; padding:10px; border-radius:4px; margin-bottom:15px;">
+                <strong>Barcode:</strong> <span id="editBarcode"></span><br>
+                <strong>Vendor Item #:</strong> <span id="editVendorItem"></span>
+            </div>
+            <button id="saveEditBtn" onclick="saveItemEdit()" style="width:100%; padding:12px; background:#87CEEB; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Notification Dropdown -->
+    <div id="notifDropdown" style="display:none; position:fixed; top:50px; right:20px; background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width:350px; max-height:400px; overflow-y:auto; z-index:1000;">
+        <div style="padding:12px 15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <strong>Notifications</strong>
+            <a href="#" onclick="markAllRead(); return false;" style="font-size:12px; color:#87CEEB; text-decoration:none;">Mark all read</a>
+        </div>
+        <div id="notifList"></div>
+    </div>
+
     <script>
         let currentPreviewItems = [];
         let existingSkuMap = [];
@@ -250,7 +289,162 @@
             });
         }
 
-        function editItem(sku) { alert(`Edit details for ${sku} coming soon.`); }
+        let editLockRenewInterval = null;
+
+        async function editItem(sku) {
+            // Fetch the item details.
+            const res = await fetch(`/api/items/${encodeURIComponent(sku)}`);
+            if (!res.ok) { alert('Failed to fetch item details.'); return; }
+            const item = await res.json();
+
+            // Check if locked by someone else.
+            if (item.locked_by && item.locked_by.locked_by_email !== currentUserEmail) {
+                document.getElementById('lockWarning').style.display = 'block';
+                document.getElementById('lockWarning').innerText =
+                    `This item is being edited by ${item.locked_by.locked_by_name || item.locked_by.locked_by_email}. Please wait for them to finish.`;
+                document.getElementById('saveEditBtn').disabled = true;
+            } else {
+                document.getElementById('lockWarning').style.display = 'none';
+                document.getElementById('saveEditBtn').disabled = false;
+
+                // Try to acquire a lock.
+                if (!item.locked_by || item.locked_by.locked_by_email === currentUserEmail) {
+                    const lockRes = await fetch(`/api/items/${encodeURIComponent(sku)}/lock`, { method: 'POST' });
+                    const lockData = await lockRes.json();
+                    if (!lockRes.ok && !lockData.success) {
+                        document.getElementById('lockWarning').style.display = 'block';
+                        document.getElementById('lockWarning').innerText = lockData.error || 'Could not acquire edit lock.';
+                        document.getElementById('saveEditBtn').disabled = true;
+                    } else {
+                        // Start heartbeat to renew the lock every 5 minutes.
+                        if (editLockRenewInterval) clearInterval(editLockRenewInterval);
+                        editLockRenewInterval = setInterval(() => renewEditLock(sku), 5 * 60 * 1000);
+                    }
+                }
+            }
+
+            // Populate the modal.
+            document.getElementById('editSku').value = item.sku;
+            document.getElementById('editVersion').value = item.version;
+            document.getElementById('editFriendlyName').value = item.friendly_name || '';
+            document.getElementById('editCategoryCode').value = item.category_code || '';
+            document.getElementById('editColorCode').value = item.color_code || '';
+            document.getElementById('editMaterial').value = item.material || '';
+            document.getElementById('editHsCode').value = item.hs_code || '';
+            document.getElementById('editStdCostRmb').value = item.std_cost_rmb || 0;
+            document.getElementById('editStatus').value = item.status || 'ACTIVE';
+            document.getElementById('editDescription').value = item.description || '';
+            document.getElementById('editBarcode').innerText = item.barcode || 'N/A';
+            document.getElementById('editVendorItem').innerText = item.vendor_item_number || 'N/A';
+
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        async function renewEditLock(sku) {
+            try {
+                await fetch(`/api/items/${encodeURIComponent(sku)}/lock/renew`, { method: 'POST' });
+            } catch (e) { /* silent */ }
+        }
+
+        async function closeEditModal() {
+            const sku = document.getElementById('editSku').value;
+            if (sku) {
+                await fetch(`/api/items/${encodeURIComponent(sku)}/lock`, { method: 'DELETE' });
+            }
+            if (editLockRenewInterval) { clearInterval(editLockRenewInterval); editLockRenewInterval = null; }
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        async function saveItemEdit() {
+            const sku = document.getElementById('editSku').value;
+            const version = parseInt(document.getElementById('editVersion').value);
+            const payload = {
+                friendly_name: document.getElementById('editFriendlyName').value.trim(),
+                category_code: document.getElementById('editCategoryCode').value.trim(),
+                color_code: document.getElementById('editColorCode').value.trim(),
+                material: document.getElementById('editMaterial').value.trim(),
+                hs_code: document.getElementById('editHsCode').value.trim(),
+                std_cost_rmb: parseFloat(document.getElementById('editStdCostRmb').value),
+                status: document.getElementById('editStatus').value,
+                description: document.getElementById('editDescription').value.trim(),
+                version: version
+            };
+
+            const res = await fetch(`/api/items/${encodeURIComponent(sku)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (res.status === 409) {
+                alert('This item was modified by another user while you were editing. Please close, refresh, and try again.');
+                return;
+            }
+            if (!data.success) { alert('Error: ' + (data.error || 'Unknown error')); return; }
+
+            alert('Item updated successfully!');
+            if (editLockRenewInterval) { clearInterval(editLockRenewInterval); editLockRenewInterval = null; }
+            document.getElementById('editModal').style.display = 'none';
+            loadMasterList();
+        }
+
+        // --- Notifications ---
+        let currentUserEmail = '';
+
+        async function loadNotifications() {
+            try {
+                const res = await fetch('/api/notifications');
+                const notifs = await res.json();
+                const list = document.getElementById('notifList');
+                if (notifs.length === 0) {
+                    list.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">No notifications</div>';
+                } else {
+                    list.innerHTML = notifs.map(n => `
+                        <div style="padding:10px 15px; border-bottom:1px solid #f0f0f0; cursor:pointer; ${n.is_read ? 'opacity:0.6;' : ''}"
+                             onclick="markRead(${n.id})">
+                            <div style="font-weight:${n.is_read ? '400' : '600'}; font-size:13px;">${n.title}</div>
+                            ${n.body ? `<div style="font-size:12px; color:#666; margin-top:2px;">${n.body}</div>` : ''}
+                            <div style="font-size:11px; color:#aaa; margin-top:3px;">${new Date(n.created_at).toLocaleString()}</div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) { /* silent */ }
+        }
+
+        async function updateNotifBadge() {
+            try {
+                const res = await fetch('/api/notifications/unread-count');
+                const data = await res.json();
+                const badge = document.getElementById('notifBadge');
+                if (badge) {
+                    badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+                    badge.innerText = data.count > 99 ? '99+' : data.count;
+                }
+            } catch (e) { /* silent */ }
+        }
+
+        function toggleNotifDropdown() {
+            const dd = document.getElementById('notifDropdown');
+            if (dd.style.display === 'none' || !dd.style.display) {
+                dd.style.display = 'block';
+                loadNotifications();
+            } else {
+                dd.style.display = 'none';
+            }
+        }
+
+        async function markRead(id) {
+            await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
+            loadNotifications();
+            updateNotifBadge();
+        }
+
+        async function markAllRead() {
+            await fetch('/api/notifications/read-all', { method: 'POST' });
+            loadNotifications();
+            updateNotifBadge();
+        }
 
         function downloadTemplate() {
             const blob = new Blob(["Item No.,Friendly Name,Color,Material,UNIT PRICE\nDF26-EC001,Glacial Sphere EC001,SLV,GLASS,0.66"], { type: 'text/csv' });
@@ -287,6 +481,7 @@
                 const res = await fetch('/api/me');
                 if (!res.ok) { window.location.href = '/login.html'; return; }
                 const me = await res.json();
+                currentUserEmail = me.email;
                 document.querySelectorAll('.nav a').forEach(a => {
                     const href = a.getAttribute('href');
                     const allowed = NAV_PERMISSIONS[href];
@@ -298,7 +493,17 @@
                     badge.style.marginLeft = 'auto';
                     badge.style.color = '#666';
                     badge.style.fontSize = '13px';
-                    badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                    badge.style.display = 'flex';
+                    badge.style.alignItems = 'center';
+                    badge.style.gap = '10px';
+                    badge.innerHTML = `
+                        <span style="position:relative; cursor:pointer;" onclick="toggleNotifDropdown()">
+                            <span style="font-size:18px;">&#128276;</span>
+                            <span id="notifBadge" style="position:absolute; top:-8px; right:-8px; background:#d32f2f; color:white; font-size:10px; font-weight:bold; border-radius:10px; padding:1px 6px; display:none;">0</span>
+                        </span>
+                        ${me.name || me.email} (${me.role}) &nbsp;
+                        <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>
+                    `;
                     nav.appendChild(badge);
                     document.getElementById('logoutLink').addEventListener('click', async (e) => {
                         e.preventDefault();
@@ -306,6 +511,9 @@
                         window.location.href = '/login.html';
                     });
                 }
+                // Start polling for notification badge.
+                updateNotifBadge();
+                setInterval(updateNotifBadge, 30000);
             } catch (e) { window.location.href = '/login.html'; }
         }
         initAuthNav();

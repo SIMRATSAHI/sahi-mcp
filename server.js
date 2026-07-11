@@ -70,6 +70,74 @@ async function ensureSchema() {
   } catch (err) {
     console.error('activity_log migration warning:', err.message);
   }
+
+  // --- Phase 1: Collaboration workflow schema additions ---
+
+  // Optimistic locking: version column on editable tables.
+  // Every update must WHERE-clause on the current version and increment it.
+  // If the row was changed by someone else, the UPDATE affects 0 rows and the
+  // server returns a 409 Conflict.
+  try {
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0`);
+  } catch (err) {
+    console.error('version column migration warning:', err.message);
+  }
+
+  // PO approval workflow: new statuses beyond ISSUED/PARTIAL/RECEIVED.
+  // DRAFT = creator is still editing (only creator can see/edit)
+  // SUBMITTED = sent for approval (locked, approver acts next)
+  // APPROVED = manager approved, ready to dispatch to supplier
+  // REJECTED = sent back to creator for changes
+  // ISSUED = dispatched to supplier (existing behaviour, now requires APPROVED first)
+  try {
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approved_by TEXT`);
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
+  } catch (err) {
+    console.error('PO approval columns migration warning:', err.message);
+  }
+
+  // Pessimistic record locking: when a user opens an item for editing, a row is
+  // inserted here. Other users see "locked by X" and cannot edit until the lock
+  // is released or auto-expires (15-minute TTL).
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS record_locks (
+        id SERIAL PRIMARY KEY,
+        table_name TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        locked_by_email TEXT NOT NULL,
+        locked_by_name TEXT,
+        locked_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL,
+        UNIQUE (table_name, record_id)
+      )
+    `);
+  } catch (err) {
+    console.error('record_locks migration warning:', err.message);
+  }
+
+  // In-app notifications: created when a PO changes hands between roles.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        target_email TEXT NOT NULL,
+        target_role TEXT,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT,
+        reference_id TEXT,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications (target_email, is_read) WHERE is_read = false`);
+  } catch (err) {
+    console.error('notifications migration warning:', err.message);
+  }
 }
 ensureSchema();
 
@@ -169,6 +237,109 @@ async function adjustInventory(client, sku, org_id, delta) {
 async function getOnHand(client, sku, org_id) {
   const r = await client.query("SELECT quantity_on_hand FROM inventory WHERE sku = $1 AND org_id = $2", [sku, org_id]);
   return r.rows.length > 0 ? parseFloat(r.rows[0].quantity_on_hand) : 0;
+}
+
+// --- Record locking helpers (pessimistic lock for concurrent edit protection) ---
+const LOCK_TTL_MINUTES = 15;
+
+// Try to acquire a lock on a record. Returns true on success, or the current
+// holder's info if the lock is held by someone else (and not expired).
+async function acquireLock(tableName, recordId, user) {
+  // First, purge expired locks for this record.
+  await pool.query(`DELETE FROM record_locks WHERE table_name = $1 AND record_id = $2 AND expires_at < NOW()`, [tableName, recordId]);
+
+  try {
+    await pool.query(
+      `INSERT INTO record_locks (table_name, record_id, locked_by_email, locked_by_name, expires_at)
+       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '${LOCK_TTL_MINUTES} minutes')`,
+      [tableName, recordId, user.email, user.name || user.email]
+    );
+    return { success: true };
+  } catch (err) {
+    if (err.code === '23505') {
+      // Unique constraint violation - lock already held.
+      const existing = await pool.query(
+        `SELECT locked_by_email, locked_by_name, expires_at FROM record_locks WHERE table_name = $1 AND record_id = $2`,
+        [tableName, recordId]
+      );
+      return { success: false, lockedBy: existing.rows[0] };
+    }
+    throw err;
+  }
+}
+
+// Release a lock - only the holder (or an admin) can release.
+async function releaseLock(tableName, recordId, user) {
+  if (user.role === 'ADMIN') {
+    await pool.query(`DELETE FROM record_locks WHERE table_name = $1 AND record_id = $2`, [tableName, recordId]);
+  } else {
+    await pool.query(`DELETE FROM record_locks WHERE table_name = $1 AND record_id = $2 AND locked_by_email = $3`, [tableName, recordId, user.email]);
+  }
+}
+
+// Check who holds the lock (if anyone). Returns null if unlocked.
+async function checkLock(tableName, recordId) {
+  // Purge expired locks first.
+  await pool.query(`DELETE FROM record_locks WHERE table_name = $1 AND record_id = $2 AND expires_at < NOW()`, [tableName, recordId]);
+  const r = await pool.query(
+    `SELECT locked_by_email, locked_by_name, expires_at FROM record_locks WHERE table_name = $1 AND record_id = $2`,
+    [tableName, recordId]
+  );
+  return r.rows.length > 0 ? r.rows[0] : null;
+}
+
+// Renew (refresh) an existing lock so it doesn't expire while the user is still editing.
+async function renewLock(tableName, recordId, user) {
+  const r = await pool.query(
+    `UPDATE record_locks SET expires_at = NOW() + INTERVAL '${LOCK_TTL_MINUTES} minutes'
+     WHERE table_name = $1 AND record_id = $2 AND locked_by_email = $3 RETURNING expires_at`,
+    [tableName, recordId, user.email]
+  );
+  return r.rows.length > 0;
+}
+
+// --- Notification helpers ---
+async function createNotification(targetEmail, targetRole, type, title, body, referenceId) {
+  try {
+    await pool.query(
+      `INSERT INTO notifications (target_email, target_role, type, title, body, reference_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [targetEmail, targetRole || null, type, title, body || null, referenceId || null]
+    );
+  } catch (err) {
+    console.error('Failed to create notification:', err.message);
+  }
+}
+
+// Notify all users with a given role (e.g., all ADMINs when a PO is submitted).
+async function notifyRole(pool, role, type, title, body, referenceId) {
+  try {
+    const users = await pool.query('SELECT email FROM users WHERE role = $1 AND is_active = true', [role]);
+    for (const u of users.rows) {
+      await createNotification(u.email, role, type, title, body, referenceId);
+    }
+  } catch (err) {
+    console.error('Failed to notify role:', err.message);
+  }
+}
+
+// --- PO status state machine ---
+// Defines which transitions are legal and who can trigger them.
+const PO_TRANSITIONS = {
+  DRAFT:     { SUBMITTED: ['ADMIN', 'BUYER'] },
+  SUBMITTED: { APPROVED: ['ADMIN'], REJECTED: ['ADMIN'] },
+  APPROVED:  { ISSUED: ['ADMIN', 'BUYER'] },
+  REJECTED:  { SUBMITTED: ['ADMIN', 'BUYER'], DRAFT: ['ADMIN', 'BUYER'] },
+  ISSUED:    { PARTIAL: ['ADMIN', 'BUYER', 'LOGISTICS'], RECEIVED: ['ADMIN', 'BUYER', 'LOGISTICS'] },
+  PARTIAL:   { RECEIVED: ['ADMIN', 'BUYER', 'LOGISTICS'] },
+  RECEIVED:  { CLOSED: ['ADMIN'] },
+  CLOSED:    {}
+};
+
+function canTransitionPO(currentStatus, newStatus, userRole) {
+  const allowed = PO_TRANSITIONS[currentStatus];
+  if (!allowed || !allowed[newStatus]) return false;
+  return allowed[newStatus].includes(userRole);
 }
 
 const app = express();
@@ -488,7 +659,7 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
 
     await pool.query(
       `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'ISSUED', $6, $7, $8, $9, $10)`,
+       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10)`,
       [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email]
     );
 
@@ -513,16 +684,17 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     const deposit_rmb = deposit_usd * exchange_rate_to_rmb;
     const balance_rmb = balance_usd * exchange_rate_to_rmb;
 
-    logActivity(req.user, 'PO_CREATED', po_id, { vendor_code, total_rmb: total_rmb.toFixed(2), total_usd: total_usd.toFixed(2), line_count: items.length });
+    logActivity(req.user, 'PO_CREATED', po_id, { vendor_code, total_rmb: total_rmb.toFixed(2), total_usd: total_usd.toFixed(2), line_count: items.length, status: 'DRAFT' });
 
     res.json({
       success: true,
       po_id,
-      vendor_code, 
-      po_date, 
-      po_currency, 
+      vendor_code,
+      po_date,
+      po_currency,
       exchange_rate_to_rmb,
-      total_usd: total_usd.toFixed(2), 
+      status: 'DRAFT',
+      total_usd: total_usd.toFixed(2),
       total_rmb: total_rmb.toFixed(2),
       deposit_usd: deposit_usd.toFixed(2),
       balance_usd: balance_usd.toFixed(2),
@@ -603,10 +775,20 @@ app.post('/api/transfer-stock', requireAuthApi(['ADMIN']), async (req, res) => {
 
 app.get('/api/purchase-orders', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT po_id, vendor_code, po_date, status, total_usd, total_rmb
+    const { status } = req.query;
+    let query = `
+      SELECT po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version
       FROM purchase_orders ORDER BY po_date DESC, po_id DESC
-    `);
+    `;
+    let params = [];
+    if (status) {
+      query = `
+        SELECT po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version
+        FROM purchase_orders WHERE status = $1 ORDER BY po_date DESC, po_id DESC
+      `;
+      params = [status];
+    }
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -677,6 +859,11 @@ app.delete('/api/purchase-orders/:po_id', requireAuthApi(['ADMIN']), async (req,
     const poId = req.params.po_id;
     const check = await client.query("SELECT po_id, status FROM purchase_orders WHERE po_id = $1", [poId]);
     if (check.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: "PO not found" }); }
+    // Only DRAFT POs can be deleted. Once submitted/approved/issued, they must be voided via an amendment.
+    if (!['DRAFT', 'REJECTED'].includes(check.rows[0].status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Cannot delete a PO with status ${check.rows[0].status}. Only DRAFT or REJECTED POs can be deleted.` });
+    }
     const receivedCheck = await client.query("SELECT COALESCE(SUM(received_qty), 0) AS total_received FROM po_line_items WHERE po_id = $1", [poId]);
     if (parseFloat(receivedCheck.rows[0].total_received) > 0) {
       await client.query('ROLLBACK');
@@ -707,6 +894,15 @@ app.post('/api/receive-po', requireAuthApi(['ADMIN', 'BUYER', 'LOGISTICS']), asy
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // State machine guard: can only receive against ISSUED or PARTIAL POs.
+    const poStatusRes = await client.query('SELECT status FROM purchase_orders WHERE po_id = $1', [po_id]);
+    if (poStatusRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: "PO not found" }); }
+    if (!['ISSUED', 'PARTIAL'].includes(poStatusRes.rows[0].status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: `Cannot receive against a PO with status ${poStatusRes.rows[0].status}. PO must be ISSUED first.` });
+    }
+
     const receivedLines = [];
 
     for (const line of lines) {
@@ -744,6 +940,14 @@ app.post('/api/receive-po', requireAuthApi(['ADMIN', 'BUYER', 'LOGISTICS']), asy
 
     await client.query('COMMIT');
     logActivity(req.user, 'STOCK_RECEIVED', po_id, { status: newStatus, lines: receivedLines });
+
+    // Notify the PO creator that stock has been received.
+    const creatorRes = await pool.query('SELECT created_by FROM purchase_orders WHERE po_id = $1', [po_id]);
+    if (creatorRes.rows[0]?.created_by && creatorRes.rows[0].created_by !== req.user.email) {
+      await createNotification(creatorRes.rows[0].created_by, null, 'STOCK_RECEIVED',
+        `Stock received for PO ${po_id}`, `${newStatus === 'RECEIVED' ? 'Fully received' : 'Partially received'} by ${req.user.name || req.user.email}`, po_id);
+    }
+
     res.json({ success: true, po_id, status: newStatus, received: receivedLines });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -751,6 +955,285 @@ app.post('/api/receive-po', requireAuthApi(['ADMIN', 'BUYER', 'LOGISTICS']), asy
     res.status(500).json({ error: "Failed to receive PO" });
   } finally {
     client.release();
+  }
+});
+
+// --- PO State Machine: submit, approve, reject, issue ---
+
+// Submit a DRAFT PO for approval. Notifies all ADMINs.
+app.post('/api/purchase-orders/:po_id/submit', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT status, created_by, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'PO not found' });
+    const po = r.rows[0];
+    if (!canTransitionPO(po.status, 'SUBMITTED', req.user.role)) {
+      return res.status(409).json({ error: `Cannot submit a PO with status ${po.status}` });
+    }
+    // Only the creator or an admin can submit.
+    if (po.created_by !== req.user.email && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only the PO creator or an admin can submit it' });
+    }
+    await pool.query(
+      `UPDATE purchase_orders SET status = 'SUBMITTED', submitted_at = NOW(), version = version + 1 WHERE po_id = $1`,
+      [req.params.po_id]
+    );
+    logActivity(req.user, 'PO_SUBMITTED', req.params.po_id, { previous_status: po.status });
+    await notifyRole(pool, 'ADMIN', 'PO_SUBMITTED', `PO ${req.params.po_id} awaiting approval`, `Submitted by ${req.user.name || req.user.email}`, req.params.po_id);
+    res.json({ success: true, po_id: req.params.po_id, status: 'SUBMITTED' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to submit PO' });
+  }
+});
+
+// Approve a SUBMITTED PO. Only ADMIN can approve.
+app.post('/api/purchase-orders/:po_id/approve', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT status, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'PO not found' });
+    const po = r.rows[0];
+    if (!canTransitionPO(po.status, 'APPROVED', req.user.role)) {
+      return res.status(409).json({ error: `Cannot approve a PO with status ${po.status}` });
+    }
+    await pool.query(
+      `UPDATE purchase_orders SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), version = version + 1 WHERE po_id = $2`,
+      [req.user.email, req.params.po_id]
+    );
+    logActivity(req.user, 'PO_APPROVED', req.params.po_id, null);
+
+    // Notify the creator that their PO was approved.
+    const creatorRes = await pool.query('SELECT created_by FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
+    if (creatorRes.rows[0]?.created_by) {
+      await createNotification(creatorRes.rows[0].created_by, null, 'PO_APPROVED', `PO ${req.params.po_id} approved`, `Approved by ${req.user.name || req.user.email}. Ready to issue.`, req.params.po_id);
+    }
+    res.json({ success: true, po_id: req.params.po_id, status: 'APPROVED', approved_by: req.user.email });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to approve PO' });
+  }
+});
+
+// Reject a SUBMITTED PO. Sends it back to DRAFT with a reason.
+app.post('/api/purchase-orders/:po_id/reject', requireAuthApi(['ADMIN']), async (req, res) => {
+  const { reason } = req.body;
+  try {
+    const r = await pool.query('SELECT status, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'PO not found' });
+    const po = r.rows[0];
+    if (!canTransitionPO(po.status, 'REJECTED', req.user.role)) {
+      return res.status(409).json({ error: `Cannot reject a PO with status ${po.status}` });
+    }
+    await pool.query(
+      `UPDATE purchase_orders SET status = 'REJECTED', rejection_reason = $1, version = version + 1 WHERE po_id = $2`,
+      [reason || null, req.params.po_id]
+    );
+    logActivity(req.user, 'PO_REJECTED', req.params.po_id, { reason });
+
+    // Notify the creator that their PO was rejected.
+    const creatorRes = await pool.query('SELECT created_by FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
+    if (creatorRes.rows[0]?.created_by) {
+      await createNotification(creatorRes.rows[0].created_by, null, 'PO_REJECTED', `PO ${req.params.po_id} rejected`, reason ? `Reason: ${reason}` : `Rejected by ${req.user.name || req.user.email}`, req.params.po_id);
+    }
+    res.json({ success: true, po_id: req.params.po_id, status: 'REJECTED', reason });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to reject PO' });
+  }
+});
+
+// Issue an APPROVED PO to the supplier (dispatch). Transitions to ISSUED.
+app.post('/api/purchase-orders/:po_id/issue', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT status, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'PO not found' });
+    const po = r.rows[0];
+    if (!canTransitionPO(po.status, 'ISSUED', req.user.role)) {
+      return res.status(409).json({ error: `Cannot issue a PO with status ${po.status}. Must be APPROVED first.` });
+    }
+    await pool.query(
+      `UPDATE purchase_orders SET status = 'ISSUED', version = version + 1 WHERE po_id = $1`,
+      [req.params.po_id]
+    );
+    logActivity(req.user, 'PO_ISSUED', req.params.po_id, null);
+    res.json({ success: true, po_id: req.params.po_id, status: 'ISSUED' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to issue PO' });
+  }
+});
+
+// --- Item Master: single-item fetch, edit with optimistic locking, record locking ---
+
+// Get a single item for editing (includes version for optimistic locking).
+app.get('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name,
+              color_code, material, std_cost_rmb, status, barcode, vendor_item_number, hs_code, description, version
+       FROM item_master WHERE sku = $1`,
+      [req.params.sku]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+
+    // Attach lock info so the frontend knows if someone else is editing.
+    const lock = await checkLock('item_master', req.params.sku);
+    res.json({ ...r.rows[0], locked_by: lock });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch item' });
+  }
+});
+
+// Update an item with optimistic locking. The client must send the version it
+// last read; if the server's version is higher, return 409 Conflict.
+app.put('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { friendly_name, category_code, year_code, collection_code, department_code, department_name,
+          color_code, material, std_cost_rmb, status, hs_code, description, version } = req.body;
+
+  if (version === undefined || version === null) {
+    return res.status(400).json({ error: 'version is required for optimistic locking' });
+  }
+
+  try {
+    const r = await pool.query(
+      `UPDATE item_master SET
+         friendly_name = COALESCE($1, friendly_name),
+         category_code = COALESCE($2, category_code),
+         year_code = COALESCE($3, year_code),
+         collection_code = COALESCE($4, collection_code),
+         department_code = COALESCE($5, department_code),
+         department_name = COALESCE($6, department_name),
+         color_code = COALESCE($7, color_code),
+         material = COALESCE($8, material),
+         std_cost_rmb = COALESCE($9, std_cost_rmb),
+         status = COALESCE($10, status),
+         hs_code = COALESCE($11, hs_code),
+         description = COALESCE($12, description),
+         version = version + 1
+       WHERE sku = $13 AND version = $14
+       RETURNING sku, friendly_name, version`,
+      [friendly_name, category_code, year_code, collection_code, department_code, department_name,
+       color_code, material, std_cost_rmb, status, hs_code, description, req.params.sku, version]
+    );
+
+    if (r.rows.length === 0) {
+      // Either the row doesn't exist, or the version doesn't match (someone else edited it).
+      const exists = await pool.query('SELECT sku FROM item_master WHERE sku = $1', [req.params.sku]);
+      if (exists.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+      return res.status(409).json({
+        error: 'This item was modified by another user. Please refresh and try again.',
+        conflict: true
+      });
+    }
+
+    logActivity(req.user, 'ITEM_UPDATED', req.params.sku, { updated_fields: Object.keys(req.body).filter(k => k !== 'version') });
+
+    // Release the edit lock on save.
+    await releaseLock('item_master', req.params.sku, req.user);
+
+    res.json({ success: true, item: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// Acquire an edit lock on an item (pessimistic locking).
+app.post('/api/items/:sku/lock', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const result = await acquireLock('item_master', req.params.sku, req.user);
+    if (result.success) {
+      logActivity(req.user, 'ITEM_LOCKED', req.params.sku, null);
+      res.json({ success: true, locked_by: { email: req.user.email, name: req.user.name || req.user.email } });
+    } else {
+      res.status(409).json({
+        error: `This item is being edited by ${result.lockedBy.locked_by_name || result.lockedBy.locked_by_email}`,
+        locked_by: result.lockedBy
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to acquire lock' });
+  }
+});
+
+// Release an edit lock.
+app.delete('/api/items/:sku/lock', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    await releaseLock('item_master', req.params.sku, req.user);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to release lock' });
+  }
+});
+
+// Renew (heartbeat) an edit lock so it doesn't expire while the user is still editing.
+app.post('/api/items/:sku/lock/renew', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const renewed = await renewLock('item_master', req.params.sku, req.user);
+    if (renewed) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'No active lock found for this user on this item' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to renew lock' });
+  }
+});
+
+// --- Notifications ---
+
+// Get the current user's notifications (most recent 50).
+app.get('/api/notifications', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, type, title, body, reference_id, is_read, created_at
+       FROM notifications WHERE target_email = $1
+       ORDER BY created_at DESC LIMIT 50`,
+      [req.user.email]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Get unread notification count (for the nav badge).
+app.get('/api/notifications/unread-count', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM notifications WHERE target_email = $1 AND is_read = false',
+      [req.user.email]
+    );
+    res.json({ count: r.rows[0].count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch unread count' });
+  }
+});
+
+// Mark a single notification as read.
+app.post('/api/notifications/:id/read', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    await pool.query('UPDATE notifications SET is_read = true WHERE id = $1 AND target_email = $2', [req.params.id, req.user.email]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Mark all notifications as read.
+app.post('/api/notifications/read-all', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    await pool.query('UPDATE notifications SET is_read = true WHERE target_email = $1 AND is_read = false', [req.user.email]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to mark all as read' });
   }
 });
 
