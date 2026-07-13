@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - Invoice to PO</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 1100px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; }
+        .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; }
+        .nav a.active { color: #000; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        select, input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .input-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .input-row .form-group { flex: 1; min-width: 160px; }
+        button { padding: 10px 16px; background: #87CEEB; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #6bc3de; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        button.btn-green { background: #4caf50; color: white; }
+        button.btn-green:hover { background: #45a049; }
+        button.btn-red { background: #f44336; color: white; }
+        button.btn-red:hover { background: #d32f2f; }
+        button.btn-orange { background: #ff9800; color: white; }
+        button.btn-orange:hover { background: #e68a00; }
+        button.btn-small { padding: 4px 10px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }
+        th { background: #87CEEB; color: #000; padding: 8px; text-align: left; }
+        td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .logo .l2 { font-size: 9px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .badge-green { background: #c8e6c9; color: #2e7d32; }
+        .badge-yellow { background: #fff9c4; color: #f57f17; }
+        .badge-red { background: #ffcdd2; color: #c62828; }
+        .badge-blue { background: #bbdefb; color: #1565c0; }
+        .badge-purple { background: #e1bee7; color: #7b1fa2; }
+        .badge-gray { background: #e0e0e0; color: #424242; }
+        .upload-area { border: 2px dashed #87CEEB; border-radius: 8px; padding: 30px; text-align: center; margin: 15px 0; cursor: pointer; transition: background 0.2s; }
+        .upload-area:hover { background: #f0f8ff; }
+        .upload-area.dragover { background: #e3f2fd; border-color: #2196f3; }
+        .success-box { background: #e6fffa; border: 1px solid #4caf50; padding: 15px; border-radius: 4px; margin: 10px 0; }
+        .error-box { background: #fde8e8; border: 1px solid #e57373; padding: 12px; border-radius: 4px; margin-top: 10px; color: #b71c1c; font-weight: bold; }
+        .review-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; overflow-y: auto; }
+        .review-modal-content { background: white; margin: 20px auto; padding: 30px; border-radius: 8px; max-width: 1100px; width: 90%; }
+        .confidence-bar { width: 60px; height: 8px; background: #e0e0e0; border-radius: 4px; display: inline-block; vertical-align: middle; margin-right: 5px; }
+        .confidence-fill { height: 100%; border-radius: 4px; }
+        .search-dropdown { position: absolute; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; z-index: 100; width: 300px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .search-dropdown div { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 12px; }
+        .search-dropdown div:hover { background: #f0f8ff; }
+        .stat-card { display: inline-block; background: #f5f5f5; border-radius: 8px; padding: 10px 20px; margin: 5px; text-align: center; }
+        .stat-card .num { font-size: 24px; font-weight: bold; }
+        .stat-card .lbl { font-size: 11px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="company-header">
+            <div class="info">
+                <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+                <div class="l2">飒鹤（上海）贸易有限公司</div>
+                <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+            </div>
+            <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+        </div>
+        <div class="nav">
+            <a href="/">Sell (Invoice)</a>
+            <a href="/create-po.html">Create PO</a>
+            <a href="/invoices.html" class="active">Invoice to PO</a>
+            <a href="/receive-po.html">Receive Stock</a>
+            <a href="/items.html">Item Master</a>
+            <a href="/transfer.html">Transfer</a>
+            <a href="/accounts.html">Accounts</a>
+            <a href="/admin-users.html">Manage Users</a>
+            <span style="margin-left:auto; position:relative; cursor:pointer;" onclick="toggleNotifDropdown()">
+                <span style="font-size:18px;">&#128276;</span>
+                <span id="notifBadge" style="position:absolute; top:-8px; right:-8px; background:#d32f2f; color:white; font-size:10px; font-weight:bold; border-radius:10px; padding:1px 6px; display:none;">0</span>
+            </span>
+        </div>
+
+        <!-- Notification Dropdown -->
+        <div id="notifDropdown" style="display:none; position:fixed; top:50px; right:20px; background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width:350px; max-height:400px; overflow-y:auto; z-index:1000;">
+            <div style="padding:10px 15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                <strong>Notifications</strong>
+                <button class="btn-small" onclick="markAllRead()">Mark all read</button>
+            </div>
+            <div id="notifList"></div>
+        </div>
+
+        <h2 style="color:#333;">Invoice to PO Agent</h2>
+        <p style="color:#666; font-size:14px;">Upload a vendor invoice (Excel/CSV or image). The system automatically extracts line items, matches them to your Item Master, and generates a draft PO for review.</p>
+
+        <!-- Upload Section -->
+        <div style="background:#fafafa; border:1px solid #eee; border-radius:8px; padding:20px; margin-bottom:20px;">
+            <h3 style="margin-top:0; color:#333;">Upload Vendor Invoice</h3>
+            <div class="input-row">
+                <div class="form-group">
+                    <label>Vendor</label>
+                    <select id="vendorSelect"><option value="">Select vendor...</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Invoice Date</label>
+                    <input type="date" id="invoiceDate">
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <select id="currency">
+                        <option value="RMB" selected>RMB (Yuan)</option>
+                        <option value="USD">USD ($)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <p style="margin:0; color:#666; font-size:14px;">Click to select or drag & drop a file here</p>
+                <p style="margin:5px 0 0; color:#999; font-size:12px;">Supported: Excel (.xlsx, .xls, .csv) or Image (.png, .jpg, .jpeg)</p>
+                <p id="fileName" style="margin:5px 0 0; color:#87CEEB; font-weight:bold; font-size:13px;"></p>
+            </div>
+            <input type="file" id="fileInput" style="display:none;" accept=".xlsx,.xls,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp">
+            <button id="uploadBtn" onclick="uploadInvoice()" disabled style="width:100%;">Upload & Auto-Match</button>
+            <div id="uploadError"></div>
+            <div id="uploadSuccess"></div>
+        </div>
+
+        <!-- Invoice List -->
+        <h3 style="color:#333;">Uploaded Invoices</h3>
+        <table id="invoiceTable">
+            <thead>
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Vendor</th>
+                    <th>Date</th>
+                    <th>File</th>
+                    <th>Items</th>
+                    <th>Auto-Matched</th>
+                    <th>Review Needed</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="invoiceList">
+                <tr><td colspan="10" style="text-align:center; color:#999;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Review Modal -->
+    <div class="review-modal" id="reviewModal">
+        <div class="review-modal-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0; color:#333;" id="reviewTitle">Review Invoice</h2>
+                <button onclick="closeReview()" style="background:#ccc;">Close</button>
+            </div>
+
+            <div id="reviewStats" style="margin-bottom:15px;"></div>
+
+            <table id="reviewTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Vendor Item #</th>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>Unit Price</th>
+                        <th>Line Total</th>
+                        <th>Matched SKU</th>
+                        <th>Confidence</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reviewItems"></tbody>
+            </table>
+
+            <!-- PO Creation Section -->
+            <div id="poSection" style="margin-top:20px; background:#fafafa; padding:15px; border-radius:8px;">
+                <h3 style="margin-top:0; color:#333;">Create PO from This Invoice</h3>
+                <div class="input-row">
+                    <div class="form-group">
+                        <label>PO Date</label>
+                        <input type="date" id="poDate">
+                    </div>
+                    <div class="form-group">
+                        <label>PO Currency</label>
+                        <select id="poCurrency">
+                            <option value="RMB" selected>RMB (Yuan)</option>
+                            <option value="USD">USD ($)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Exchange Rate (to RMB)</label>
+                        <input type="number" id="poExchangeRate" value="7.0" step="0.01">
+                    </div>
+                </div>
+                <button class="btn-green" onclick="createPOFromInvoice()" id="createPOBtn">Create Draft PO</button>
+                <p style="font-size:12px; color:#999; margin-top:5px;">Only confirmed and auto-matched items will be included. Items marked as "New Item" will be created in the Item Master automatically.</p>
+            </div>
+
+            <div id="poResult"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let currentInvoiceId = null;
+        let currentLineItems = [];
+
+        // --- Init ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadVendors();
+            loadInvoices();
+            document.getElementById('invoiceDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('poDate').value = new Date().toISOString().split('T')[0];
+
+            // File input
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    selectedFile = e.target.files[0];
+                    document.getElementById('fileName').textContent = selectedFile.name;
+                    document.getElementById('uploadBtn').disabled = false;
+                }
+            });
+
+            // Drag & drop
+            const dropZone = document.getElementById('uploadArea');
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    selectedFile = e.dataTransfer.files[0];
+                    document.getElementById('fileName').textContent = selectedFile.name;
+                    document.getElementById('uploadBtn').disabled = false;
+                }
+            });
+
+            // Notifications
+            updateNotifBadge();
+            setInterval(updateNotifBadge, 30000);
+        });
+
+        async function loadVendors() {
+            try {
+                const res = await fetch('/api/vendors');
+                const vendors = await res.json();
+                const sel = document.getElementById('vendorSelect');
+                vendors.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.vendor_code;
+                    opt.textContent = `${v.vendor_code} - ${v.vendor_name}`;
+                    sel.appendChild(opt);
+                });
+            } catch (err) { console.error('Failed to load vendors:', err); }
+        }
+
+        // --- Upload ---
+        async function uploadInvoice() {
+            const vendor_code = document.getElementById('vendorSelect').value;
+            const currency = document.getElementById('currency').value;
+            const invoice_date = document.getElementById('invoiceDate').value;
+            const errorDiv = document.getElementById('uploadError');
+            const successDiv = document.getElementById('uploadSuccess');
+            errorDiv.innerHTML = '';
+            successDiv.innerHTML = '';
+
+            if (!vendor_code) { errorDiv.innerHTML = '<div class="error-box">Please select a vendor.</div>'; return; }
+            if (!selectedFile) { errorDiv.innerHTML = '<div class="error-box">Please select a file.</div>'; return; }
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            const formData = new FormData();
+            formData.append('invoiceFile', selectedFile);
+            formData.append('vendor_code', vendor_code);
+            formData.append('currency', currency);
+            formData.append('invoice_date', invoice_date);
+
+            try {
+                const res = await fetch('/api/invoices/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+                successDiv.innerHTML = `<div class="success-box">
+                    <strong>Invoice processed successfully!</strong><br>
+                    Total items: ${data.total_items} |
+                    Auto-matched: ${data.auto_matched} |
+                    Need review: ${data.review_needed} |
+                    Total amount: ${data.total_amount}
+                    <br><br>
+                    <button onclick="openReview(${data.invoice_id})">Review & Create PO</button>
+                </div>`;
+
+                // Reset upload area
+                selectedFile = null;
+                document.getElementById('fileName').textContent = '';
+                document.getElementById('fileInput').value = '';
+                btn.disabled = true;
+                btn.textContent = 'Upload & Auto-Match';
+
+                loadInvoices();
+            } catch (err) {
+                errorDiv.innerHTML = `<div class="error-box">${err.message}</div>`;
+                btn.disabled = false;
+                btn.textContent = 'Upload & Auto-Match';
+            }
+        }
+
+        // --- Invoice List ---
+        async function loadInvoices() {
+            try {
+                const res = await fetch('/api/invoices');
+                const invoices = await res.json();
+                const tbody = document.getElementById('invoiceList');
+
+                if (invoices.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:#999;">No invoices uploaded yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = invoices.map(inv => {
+                    const statusBadge = getStatusBadge(inv.status);
+                    const reviewBtn = inv.status === 'MATCHED' || inv.status === 'REVIEWED'
+                        ? `<button class="btn-small btn-orange" onclick="openReview(${inv.id})">Review</button>`
+                        : inv.status === 'PO_CREATED'
+                        ? `<span style="color:#4caf50; font-weight:bold;">PO: ${inv.po_id}</span>`
+                        : inv.status === 'ERROR'
+                        ? `<span style="color:#f44336; font-size:11px;" title="${inv.error_message || ''}">Error</span>`
+                        : '';
+                    return `<tr>
+                        <td>${inv.invoice_number || '-'}</td>
+                        <td>${inv.vendor_name || inv.vendor_code}</td>
+                        <td>${inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString() : '-'}</td>
+                        <td style="font-size:11px;">${inv.file_name}</td>
+                        <td>${inv.total_items || 0}</td>
+                        <td><span class="badge badge-green">${inv.auto_matched || 0}</span></td>
+                        <td><span class="badge badge-yellow">${inv.review_needed || 0}</span></td>
+                        <td>${inv.total_amount ? parseFloat(inv.total_amount).toFixed(2) : '-'} ${inv.currency || ''}</td>
+                        <td>${statusBadge}</td>
+                        <td>${reviewBtn}</td>
+                    </tr>`;
+                }).join('');
+            } catch (err) {
+                console.error('Failed to load invoices:', err);
+            }
+        }
+
+        function getStatusBadge(status) {
+            const map = {
+                'UPLOADED': '<span class="badge badge-gray">Uploaded</span>',
+                'PROCESSING': '<span class="badge badge-blue">Processing</span>',
+                'MATCHED': '<span class="badge badge-blue">Matched</span>',
+                'REVIEWED': '<span class="badge badge-purple">Reviewed</span>',
+                'PO_CREATED': '<span class="badge badge-green">PO Created</span>',
+                'ERROR': '<span class="badge badge-red">Error</span>'
+            };
+            return map[status] || `<span class="badge badge-gray">${status}</span>`;
+        }
+
+        // --- Review Modal ---
+        async function openReview(invoiceId) {
+            currentInvoiceId = invoiceId;
+            document.getElementById('reviewModal').style.display = 'block';
+
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}`);
+                const data = await res.json();
+                currentLineItems = data.line_items || [];
+
+                document.getElementById('reviewTitle').textContent = `Review: ${data.invoice_number || 'Invoice #' + data.id} - ${data.vendor_name || data.vendor_code}`;
+
+                // Stats
+                const autoMatched = currentLineItems.filter(i => i.match_status === 'AUTO_MATCHED').length;
+                const confirmed = currentLineItems.filter(i => i.match_status === 'CONFIRMED').length;
+                const reviewNeeded = currentLineItems.filter(i => i.match_status === 'REVIEW_NEEDED').length;
+                const rejected = currentLineItems.filter(i => i.match_status === 'REJECTED').length;
+                const newItem = currentLineItems.filter(i => i.match_status === 'NEW_ITEM').length;
+                const total = currentLineItems.length;
+
+                document.getElementById('reviewStats').innerHTML = `
+                    <div class="stat-card"><div class="num" style="color:#333;">${total}</div><div class="lbl">Total Items</div></div>
+                    <div class="stat-card"><div class="num" style="color:#4caf50;">${autoMatched + confirmed}</div><div class="lbl">Ready for PO</div></div>
+                    <div class="stat-card"><div class="num" style="color:#f57f17;">${reviewNeeded}</div><div class="lbl">Need Review</div></div>
+                    <div class="stat-card"><div class="num" style="color:#7b1fa2;">${newItem}</div><div class="lbl">New Items</div></div>
+                    <div class="stat-card"><div class="num" style="color:#c62828;">${rejected}</div><div class="lbl">Rejected</div></div>
+                `;
+
+                renderReviewItems();
+
+                // Show/hide PO section
+                const poSection = document.getElementById('poSection');
+                poSection.style.display = data.status === 'PO_CREATED' ? 'none' : 'block';
+                document.getElementById('poResult').innerHTML = data.status === 'PO_CREATED'
+                    ? `<div class="success-box">PO already created: <strong>${data.po_id}</strong></div>` : '';
+
+            } catch (err) {
+                alert('Failed to load invoice details: ' + err.message);
+            }
+        }
+
+        function renderReviewItems() {
+            const tbody = document.getElementById('reviewItems');
+            tbody.innerHTML = currentLineItems.map((item, idx) => {
+                const confColor = item.match_confidence >= 80 ? '#4caf50' : item.match_confidence >= 60 ? '#ff9800' : '#f44336';
+                const confBar = `<div class="confidence-bar"><div class="confidence-fill" style="width:${item.match_confidence}%; background:${confColor};"></div></div>${item.match_confidence}%`;
+                const statusBadge = getMatchBadge(item.match_status);
+                const matchedInfo = item.matched_sku
+                    ? `<span style="font-size:11px;"><strong>${item.matched_sku}</strong>${item.matched_name ? '<br>' + item.matched_name : ''}</span>`
+                    : '<span style="color:#999; font-size:11px;">No match</span>';
+
+                let actions = '';
+                if (item.match_status !== 'CONFIRMED') {
+                    if (item.matched_sku) {
+                        actions += `<button class="btn-small btn-green" onclick="confirmMatch(${item.id})">Confirm</button> `;
+                    }
+                    actions += `<button class="btn-small" onclick="showItemSearch(${idx})">Change</button> `;
+                    actions += `<button class="btn-small btn-orange" onclick="markNewItem(${item.id})">New Item</button> `;
+                    actions += `<button class="btn-small btn-red" onclick="rejectItem(${item.id})">Reject</button>`;
+                } else {
+                    actions = '<span style="color:#4caf50; font-weight:bold;">Confirmed</span>';
+                }
+
+                return `<tr id="row-${idx}">
+                    <td>${idx + 1}</td>
+                    <td style="font-size:11px;">${item.vendor_item_number || '-'}</td>
+                    <td>${item.description}</td>
+                    <td>${item.quantity}</td>
+                    <td>${parseFloat(item.unit_price).toFixed(2)}</td>
+                    <td>${parseFloat(item.line_total).toFixed(2)}</td>
+                    <td>${matchedInfo}</td>
+                    <td style="font-size:11px;">${confBar}</td>
+                    <td>${statusBadge}</td>
+                    <td style="white-space:nowrap;">${actions}
+                        <div id="search-${idx}" style="display:none; position:relative; margin-top:5px;">
+                            <input type="text" placeholder="Search SKU or name..." style="font-size:12px; width:200px;" onkeyup="searchItems(${idx}, this.value)" onblur="setTimeout(()=>{document.getElementById('search-${idx}').style.display='none'},200)">
+                            <div id="search-results-${idx}" class="search-dropdown" style="display:none;"></div>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function getMatchBadge(status) {
+            const map = {
+                'AUTO_MATCHED': '<span class="badge badge-green">Auto-Matched</span>',
+                'REVIEW_NEEDED': '<span class="badge badge-yellow">Review Needed</span>',
+                'CONFIRMED': '<span class="badge badge-blue">Confirmed</span>',
+                'REJECTED': '<span class="badge badge-red">Rejected</span>',
+                'NEW_ITEM': '<span class="badge badge-purple">New Item</span>'
+            };
+            return map[status] || `<span class="badge badge-gray">${status}</span>`;
+        }
+
+        function showItemSearch(idx) {
+            document.getElementById(`search-${idx}`).style.display = 'block';
+            document.getElementById(`search-${idx}`).querySelector('input').focus();
+        }
+
+        async function searchItems(idx, query) {
+            if (query.length < 1) {
+                document.getElementById(`search-results-${idx}`).style.display = 'none';
+                return;
+            }
+            try {
+                const res = await fetch(`/api/invoices/search-items?q=${encodeURIComponent(query)}`);
+                const items = await res.json();
+                const dropdown = document.getElementById(`search-results-${idx}`);
+                if (items.length === 0) {
+                    dropdown.style.display = 'block';
+                    dropdown.innerHTML = '<div style="color:#999;">No items found</div>';
+                    return;
+                }
+                dropdown.style.display = 'block';
+                dropdown.innerHTML = items.map(it => `
+                    <div onclick="changeMatch(${idx}, '${it.sku}', '${(it.friendly_name || '').replace(/'/g, "\\'")}')">
+                        <strong>${it.sku}</strong> - ${it.friendly_name || ''}<br>
+                        <span style="color:#999; font-size:10px;">Cat: ${it.category_code || '-'} | Color: ${it.color_code || '-'} | Cost: ${it.std_cost_rmb || '-'}</span>
+                    </div>
+                `).join('');
+            } catch (err) { console.error('Search failed:', err); }
+        }
+
+        async function changeMatch(idx, sku, name) {
+            const item = currentLineItems[idx];
+            try {
+                const res = await fetch(`/api/invoice-items/${item.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ matched_sku: sku, match_status: 'CONFIRMED' })
+                });
+                if (!res.ok) throw new Error('Failed to update');
+                item.matched_sku = sku;
+                item.matched_name = name;
+                item.match_status = 'CONFIRMED';
+                item.match_confidence = 100;
+                renderReviewItems();
+                openReview(currentInvoiceId); // Refresh stats
+            } catch (err) { alert(err.message); }
+        }
+
+        async function confirmMatch(itemId) {
+            const item = currentLineItems.find(i => i.id === itemId);
+            if (!item || !item.matched_sku) return;
+            try {
+                const res = await fetch(`/api/invoice-items/${itemId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ matched_sku: item.matched_sku, match_status: 'CONFIRMED' })
+                });
+                if (!res.ok) throw new Error('Failed to confirm');
+                item.match_status = 'CONFIRMED';
+                renderReviewItems();
+                openReview(currentInvoiceId);
+            } catch (err) { alert(err.message); }
+        }
+
+        async function markNewItem(itemId) {
+            try {
+                const res = await fetch(`/api/invoice-items/${itemId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ match_status: 'NEW_ITEM' })
+                });
+                if (!res.ok) throw new Error('Failed to update');
+                const item = currentLineItems.find(i => i.id === itemId);
+                item.match_status = 'NEW_ITEM';
+                renderReviewItems();
+                openReview(currentInvoiceId);
+            } catch (err) { alert(err.message); }
+        }
+
+        async function rejectItem(itemId) {
+            try {
+                const res = await fetch(`/api/invoice-items/${itemId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ match_status: 'REJECTED', matched_sku: null })
+                });
+                if (!res.ok) throw new Error('Failed to update');
+                const item = currentLineItems.find(i => i.id === itemId);
+                item.match_status = 'REJECTED';
+                item.matched_sku = null;
+                renderReviewItems();
+                openReview(currentInvoiceId);
+            } catch (err) { alert(err.message); }
+        }
+
+        // --- Create PO ---
+        async function createPOFromInvoice() {
+            if (!currentInvoiceId) return;
+            const btn = document.getElementById('createPOBtn');
+            btn.disabled = true;
+            btn.textContent = 'Creating PO...';
+
+            const body = {
+                po_date: document.getElementById('poDate').value,
+                po_currency: document.getElementById('poCurrency').value,
+                exchange_rate: document.getElementById('poExchangeRate').value
+            };
+
+            try {
+                const res = await fetch(`/api/invoices/${currentInvoiceId}/create-po`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to create PO');
+
+                document.getElementById('poResult').innerHTML = `
+                    <div class="success-box">
+                        <strong>PO Created Successfully!</strong><br>
+                        PO ID: ${data.po_id} | Items: ${data.total_items} | Total: $${data.total_usd}<br>
+                        ${data.message}<br><br>
+                        <a href="/create-po.html"><button>Go to Create PO</button></a>
+                    </div>
+                `;
+                document.getElementById('poSection').style.display = 'none';
+                loadInvoices();
+            } catch (err) {
+                document.getElementById('poResult').innerHTML = `<div class="error-box">${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Draft PO';
+            }
+        }
+
+        function closeReview() {
+            document.getElementById('reviewModal').style.display = 'none';
+            currentInvoiceId = null;
+            currentLineItems = [];
+            loadInvoices();
+        }
+
+        // --- Notifications ---
+        async function loadNotifications() {
+            try {
+                const res = await fetch('/api/notifications');
+                const notifs = await res.json();
+                const list = document.getElementById('notifList');
+                if (notifs.length === 0) {
+                    list.innerHTML = '<div style="padding:20px; text-align:center; color:#999;">No notifications</div>';
+                    return;
+                }
+                list.innerHTML = notifs.map(n => `
+                    <div style="padding:10px 15px; border-bottom:1px solid #eee; cursor:pointer; ${n.is_read ? 'opacity:0.6;' : ''}" onclick="markRead(${n.id})">
+                        <div style="font-weight:bold; font-size:12px;">${n.title}</div>
+                        <div style="font-size:11px; color:#666;">${n.body || ''}</div>
+                        <div style="font-size:10px; color:#999; margin-top:2px;">${new Date(n.created_at).toLocaleString()}</div>
+                    </div>
+                `).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function updateNotifBadge() {
+            try {
+                const res = await fetch('/api/notifications/unread-count');
+                if (!res.ok) return;
+                const data = await res.json();
+                const badge = document.getElementById('notifBadge');
+                if (data.count > 0) { badge.style.display = 'inline-block'; badge.textContent = data.count; }
+                else { badge.style.display = 'none'; }
+            } catch (err) {}
+        }
+
+        function toggleNotifDropdown() {
+            const dd = document.getElementById('notifDropdown');
+            dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+            if (dd.style.display === 'block') loadNotifications();
+        }
+
+        async function markRead(id) {
+            await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
+            loadNotifications();
+            updateNotifBadge();
+        }
+
+        async function markAllRead() {
+            await fetch('/api/notifications/read-all', { method: 'POST' });
+            loadNotifications();
+            updateNotifBadge();
+        }
+    </script>
+</body>
+</html>

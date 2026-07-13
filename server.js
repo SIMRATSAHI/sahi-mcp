@@ -7,6 +7,11 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const xlsx = require('xlsx');
 
+// Optional: Tesseract.js for OCR of image-based invoices. If not installed,
+// image upload returns an error asking the user to upload Excel/CSV instead.
+let Tesseract = null;
+try { Tesseract = require('tesseract.js'); } catch (e) { console.log('Tesseract.js not installed — image OCR unavailable, Excel/CSV only'); }
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -137,6 +142,57 @@ async function ensureSchema() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications (target_email, is_read) WHERE is_read = false`);
   } catch (err) {
     console.error('notifications migration warning:', err.message);
+  }
+
+  // --- Phase 2: Auto-PO agent schema ---
+
+  // Vendor invoices: stores uploaded invoice metadata. Each invoice goes through
+  // a lifecycle: UPLOADED → PROCESSING → MATCHED → REVIEWED → PO_CREATED.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vendor_invoices (
+        id SERIAL PRIMARY KEY,
+        invoice_number TEXT,
+        vendor_code TEXT,
+        invoice_date DATE,
+        file_name TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'UPLOADED' CHECK (status IN ('UPLOADED', 'PROCESSING', 'MATCHED', 'REVIEWED', 'PO_CREATED', 'ERROR')),
+        total_amount NUMERIC,
+        currency TEXT DEFAULT 'RMB',
+        po_id TEXT,
+        error_message TEXT,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch (err) {
+    console.error('vendor_invoices migration warning:', err.message);
+  }
+
+  // Invoice line items: each row is one line from the parsed invoice, with its
+  // match result against the Item Master.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invoice_line_items (
+        id SERIAL PRIMARY KEY,
+        invoice_id INTEGER NOT NULL REFERENCES vendor_invoices(id) ON DELETE CASCADE,
+        seq INTEGER NOT NULL DEFAULT 0,
+        vendor_item_number TEXT,
+        description TEXT,
+        quantity NUMERIC NOT NULL DEFAULT 1,
+        unit_price NUMERIC NOT NULL DEFAULT 0,
+        line_total NUMERIC NOT NULL DEFAULT 0,
+        matched_sku TEXT,
+        match_confidence INTEGER NOT NULL DEFAULT 0,
+        match_status TEXT NOT NULL DEFAULT 'REVIEW_NEEDED' CHECK (match_status IN ('AUTO_MATCHED', 'REVIEW_NEEDED', 'CONFIRMED', 'REJECTED', 'NEW_ITEM')),
+        match_method TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_line_items (invoice_id)`);
+  } catch (err) {
+    console.error('invoice_line_items migration warning:', err.message);
   }
 }
 ensureSchema();
@@ -323,6 +379,136 @@ async function notifyRole(pool, role, type, title, body, referenceId) {
   }
 }
 
+// --- Phase 2: Item matching engine ---
+// Matches a vendor invoice line item to an existing Item Master row.
+// Strategy (in priority order):
+//   1. Exact vendor_item_number match → 100% confidence
+//   2. Exact friendly_name match → 95% confidence
+//   3. Fuzzy friendly_name match (Levenshtein) → 60-94% confidence
+//   4. No match → 0%, needs human review
+
+function levenshteinDistance(a, b) {
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) d[i][0] = i;
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[m][n];
+}
+
+function calculateSimilarity(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 100;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 100;
+  const dist = levenshteinDistance(a.toLowerCase().trim(), b.toLowerCase().trim());
+  return Math.round((1 - dist / maxLen) * 100);
+}
+
+async function matchItemToMaster(vendorItemNumber, description, pool) {
+  // 1. Exact match by vendor_item_number
+  if (vendorItemNumber) {
+    const r = await pool.query(
+      'SELECT sku, friendly_name, vendor_item_number, std_cost_rmb FROM item_master WHERE vendor_item_number = $1 AND status = $2',
+      [vendorItemNumber, 'ACTIVE']
+    );
+    if (r.rows.length > 0) {
+      return { sku: r.rows[0].sku, confidence: 100, method: 'vendor_item_number_exact', item: r.rows[0] };
+    }
+  }
+
+  // 2. Exact match by friendly_name
+  if (description) {
+    const r = await pool.query(
+      'SELECT sku, friendly_name, vendor_item_number, std_cost_rmb FROM item_master WHERE TRIM(LOWER(friendly_name)) = TRIM(LOWER($1)) AND status = $2',
+      [description, 'ACTIVE']
+    );
+    if (r.rows.length > 0) {
+      return { sku: r.rows[0].sku, confidence: 95, method: 'name_exact', item: r.rows[0] };
+    }
+  }
+
+  // 3. Fuzzy match by friendly_name (token-aware: check if description is a substring or vice versa)
+  if (description && description.length >= 3) {
+    const r = await pool.query(
+      'SELECT sku, friendly_name, vendor_item_number, std_cost_rmb FROM item_master WHERE status = $1',
+      ['ACTIVE']
+    );
+    let bestMatch = null;
+    let bestScore = 0;
+    const descLower = description.toLowerCase().trim();
+    for (const item of r.rows) {
+      const nameLower = (item.friendly_name || '').toLowerCase().trim();
+      // Substring match bonus
+      if (nameLower && (nameLower.includes(descLower) || descLower.includes(nameLower))) {
+        const score = Math.max(85, calculateSimilarity(description, item.friendly_name));
+        if (score > bestScore) { bestScore = score; bestMatch = item; }
+        continue;
+      }
+      const score = calculateSimilarity(description, item.friendly_name);
+      if (score > bestScore) { bestScore = score; bestMatch = item; }
+    }
+    if (bestMatch && bestScore >= 60) {
+      return { sku: bestMatch.sku, confidence: bestScore, method: 'name_fuzzy', item: bestMatch };
+    }
+  }
+
+  return { sku: null, confidence: 0, method: 'none', item: null };
+}
+
+// Parse OCR text into line items. Uses heuristics: looks for lines that contain
+// a price (number with decimals) and optionally a quantity and item number.
+function parseOcrLineItems(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const items = [];
+
+  for (const line of lines) {
+    // Skip very short lines or lines that look like headers/totals
+    if (line.length < 5) continue;
+    if (/^(total|subtotal|tax|vat|amount|balance|deposit|grand total)/i.test(line)) continue;
+
+    // Extract price: number with 2 decimal places (e.g., 12.50, 1,234.00)
+    const priceMatch = line.match(/(\d{1,3}(?:[,]\d{3})*\.\d{2}|\d+\.\d{2})/);
+    if (!priceMatch) continue;
+
+    let priceStr = priceMatch[1].replace(/,/g, '');
+    const unitPrice = parseFloat(priceStr);
+    if (!unitPrice || unitPrice <= 0) continue;
+
+    // Try to extract quantity (integer before the price)
+    const qtyMatch = line.match(/(\d+)\s*(?:pcs|pieces|units|qty|quantity|x)?[\s]*$/i);
+    const quantity = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+
+    // Remove numbers from the line to get the description
+    let description = line
+      .replace(/\d{1,3}(?:[,]\d{3})*\.\d{2}/g, '')
+      .replace(/\d+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Try to extract an item number (alphanumeric code with hyphens)
+    const itemNoMatch = line.match(/([A-Z]{1,4}[-]?\d{2,6}[-]?[A-Z0-9]{0,4})/i);
+    const vendorItemNumber = itemNoMatch ? itemNoMatch[1] : null;
+
+    if (description.length < 2) description = vendorItemNumber || `Line ${items.length + 1}`;
+
+    items.push({
+      vendor_item_number: vendorItemNumber,
+      description,
+      quantity,
+      unit_price: unitPrice,
+      line_total: unitPrice * quantity
+    });
+  }
+
+  return items;
+}
+
 // --- PO status state machine ---
 // Defines which transitions are legal and who can trigger them.
 const PO_TRANSITIONS = {
@@ -356,6 +542,7 @@ app.get(['/items.html'], requireAuthPage(['ADMIN', 'BUYER']), (req, res) => res.
 app.get(['/receive-po.html', '/receive-po'], requireAuthPage(['ADMIN', 'BUYER', 'LOGISTICS']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'receive-po.html')));
 app.get(['/transfer.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
 app.get(['/accounts.html'], requireAuthPage(['ADMIN', 'ACCOUNTS']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'accounts.html')));
+app.get(['/invoices.html'], requireAuthPage(['ADMIN', 'BUYER']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices.html')));
 app.get(['/admin-users.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 
 app.use(express.static('public'));
@@ -1392,6 +1579,444 @@ app.patch('/api/items/:sku/vendor-item-number', requireAuthApi(['ADMIN', 'BUYER'
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to patch vendor_item_number" });
+  }
+});
+
+// ============================================================
+// Phase 2: Auto-PO Agent — Invoice upload, matching, PO generation
+// ============================================================
+
+// Upload a vendor invoice (Excel/CSV or image). The file is parsed, line items
+// are extracted, and each is matched against the Item Master. Results are stored
+// in vendor_invoices + invoice_line_items for the review screen.
+app.post('/api/invoices/upload', requireAuthApi(['ADMIN', 'BUYER']), upload.single('invoiceFile'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const { vendor_code, currency, invoice_date } = req.body;
+    if (!vendor_code) return res.status(400).json({ error: 'vendor_code is required' });
+
+    // Verify vendor exists
+    const vendorRes = await pool.query('SELECT vendor_code, vendor_name FROM vendors WHERE vendor_code = $1', [vendor_code]);
+    if (vendorRes.rows.length === 0) return res.status(400).json({ error: 'Vendor not found' });
+
+    const fileName = req.file.originalname;
+    const fileExt = fileName.split('.').pop().toLowerCase();
+    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'].includes(fileExt);
+    const isExcel = ['xlsx', 'xls', 'csv'].includes(fileExt);
+
+    if (!isImage && !isExcel) {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload Excel (.xlsx/.xls/.csv) or image (.png/.jpg/.jpeg).' });
+    }
+
+    // Create the invoice record
+    const invoiceRes = await pool.query(
+      `INSERT INTO vendor_invoices (invoice_number, vendor_code, invoice_date, file_name, file_type, status, currency, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'PROCESSING', $6, $7) RETURNING id`,
+      [
+        req.body.invoice_number || `INV-${Date.now().toString().slice(-6)}`,
+        vendor_code,
+        invoice_date || new Date().toISOString().split('T')[0],
+        fileName,
+        isImage ? 'IMAGE' : 'EXCEL',
+        currency || 'RMB',
+        req.user.email
+      ]
+    );
+    const invoiceId = invoiceRes.rows[0].id;
+
+    let lineItems = [];
+
+    if (isExcel) {
+      // Parse Excel/CSV using the same proven logic from /api/upload-invoice
+      const workbook = xlsx.read(req.file.buffer);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+      let headerRowIdx = -1, colItemNo = -1, colFriendly = -1, colPrice = -1, colQty = -1;
+
+      for (let i = 0; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        const itemNoIndex = row.findIndex(cell =>
+          String(cell).trim().includes('Item No.') || String(cell).trim().includes('货号') || String(cell).trim().includes('ITEM NO')
+        );
+        if (itemNoIndex !== -1) {
+          headerRowIdx = i;
+          colItemNo = itemNoIndex;
+          colFriendly = row.findIndex(cell =>
+            String(cell).trim().includes('Friendly Name') || String(cell).trim().includes('Item Name') || String(cell).trim().includes('Name')
+          );
+          colPrice = row.findIndex(cell =>
+            String(cell).trim().includes('UNIT PRICE') || String(cell).trim().includes('UNTI PRICE') || String(cell).trim().includes('单价') || String(cell).trim().includes('Price')
+          );
+          colQty = row.findIndex(cell =>
+            String(cell).trim().includes('QTY') || String(cell).trim().includes('Quantity') || String(cell).trim().includes('数量')
+          );
+          // Check next 3 rows for header continuation
+          if (colFriendly === -1 || colPrice === -1) {
+            for (let j = i + 1; j < Math.min(i + 4, rawRows.length); j++) {
+              const nextRow = rawRows[j];
+              if (colFriendly === -1) colFriendly = nextRow.findIndex(cell => String(cell).trim().includes('Friendly Name') || String(cell).trim().includes('Item Name') || String(cell).trim().includes('Name'));
+              if (colPrice === -1) colPrice = nextRow.findIndex(cell => String(cell).trim().includes('UNIT PRICE') || String(cell).trim().includes('Price'));
+              if (colQty === -1) colQty = nextRow.findIndex(cell => String(cell).trim().includes('QTY') || String(cell).trim().includes('Quantity'));
+            }
+          }
+          break;
+        }
+      }
+
+      if (headerRowIdx === -1 || colItemNo === -1 || colPrice === -1) {
+        await pool.query(`UPDATE vendor_invoices SET status = 'ERROR', error_message = 'Could not find required columns (Item No., Unit Price)' WHERE id = $1`, [invoiceId]);
+        return res.status(400).json({ error: 'Could not find required columns (Item No., Unit Price) in the Excel file.' });
+      }
+
+      for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        const itemNo = row[colItemNo] ? String(row[colItemNo]).trim() : '';
+        const friendlyName = (colFriendly !== -1 && row[colFriendly]) ? String(row[colFriendly]).trim() : itemNo;
+        let priceStr = row[colPrice] ? String(row[colPrice]) : '';
+        priceStr = priceStr.replace(/[^0-9.]/g, '');
+        const price = parseFloat(priceStr) || 0;
+        const qty = (colQty !== -1 && row[colQty]) ? parseInt(String(row[colQty]).replace(/[^0-9]/g, '')) || 1 : 1;
+
+        if (!itemNo || price === 0) continue;
+
+        lineItems.push({
+          vendor_item_number: itemNo,
+          description: friendlyName || itemNo,
+          quantity: qty,
+          unit_price: price,
+          line_total: price * qty
+        });
+      }
+    } else if (isImage) {
+      // OCR with Tesseract.js
+      if (!Tesseract) {
+        await pool.query(`UPDATE vendor_invoices SET status = 'ERROR', error_message = 'Image OCR not available. Please upload Excel/CSV instead.' WHERE id = $1`, [invoiceId]);
+        return res.status(400).json({ error: 'Image OCR is not available on this server. Please upload an Excel or CSV file instead.' });
+      }
+
+      try {
+        const { data: { text } } = await Tesseract.recognize(req.file.buffer, 'eng');
+        lineItems = parseOcrLineItems(text);
+
+        if (lineItems.length === 0) {
+          await pool.query(`UPDATE vendor_invoices SET status = 'ERROR', error_message = 'OCR completed but no line items could be extracted from the image.' WHERE id = $1`, [invoiceId]);
+          return res.status(400).json({ error: 'OCR completed but no line items could be extracted. Try uploading an Excel/CSV version of the invoice for better results.' });
+        }
+      } catch (ocrErr) {
+        console.error('OCR error:', ocrErr.message);
+        await pool.query(`UPDATE vendor_invoices SET status = 'ERROR', error_message = $1 WHERE id = $2`, [ocrErr.message, invoiceId]);
+        return res.status(500).json({ error: 'OCR processing failed: ' + ocrErr.message });
+      }
+    }
+
+    if (lineItems.length === 0) {
+      await pool.query(`UPDATE vendor_invoices SET status = 'ERROR', error_message = 'No line items found in the file.' WHERE id = $1`, [invoiceId]);
+      return res.status(400).json({ error: 'No line items found in the uploaded file.' });
+    }
+
+    // Match each line item to the Item Master
+    let totalAmount = 0;
+    let autoMatchedCount = 0;
+    let reviewNeededCount = 0;
+
+    for (let i = 0; i < lineItems.length; i++) {
+      const li = lineItems[i];
+      totalAmount += li.line_total;
+
+      const match = await matchItemToMaster(li.vendor_item_number, li.description, pool);
+
+      const matchStatus = match.confidence >= 80 ? 'AUTO_MATCHED' : 'REVIEW_NEEDED';
+      if (matchStatus === 'AUTO_MATCHED') autoMatchedCount++; else reviewNeededCount++;
+
+      await pool.query(
+        `INSERT INTO invoice_line_items (invoice_id, seq, vendor_item_number, description, quantity, unit_price, line_total, matched_sku, match_confidence, match_status, match_method)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [invoiceId, i, li.vendor_item_number, li.description, li.quantity, li.unit_price, li.line_total, match.sku, match.confidence, matchStatus, match.method]
+      );
+    }
+
+    // Update invoice status
+    await pool.query(
+      `UPDATE vendor_invoices SET status = 'MATCHED', total_amount = $1 WHERE id = $2`,
+      [totalAmount, invoiceId]
+    );
+
+    logActivity(req.user, 'INVOICE_UPLOADED', String(invoiceId), {
+      vendor_code, file_name: fileName, line_count: lineItems.length,
+      auto_matched: autoMatchedCount, review_needed: reviewNeededCount
+    });
+
+    // Notify admins that a new invoice is ready for review
+    await notifyRole(pool, 'ADMIN', 'INVOICE_UPLOADED',
+      `New invoice from ${vendorRes.rows[0].vendor_name}`,
+      `${autoMatchedCount} auto-matched, ${reviewNeededCount} need review. Uploaded by ${req.user.name || req.user.email}`,
+      String(invoiceId)
+    );
+
+    res.json({
+      success: true,
+      invoice_id: invoiceId,
+      status: 'MATCHED',
+      total_items: lineItems.length,
+      auto_matched: autoMatchedCount,
+      review_needed: reviewNeededCount,
+      total_amount: totalAmount.toFixed(2)
+    });
+  } catch (err) {
+    console.error('Invoice upload error:', err);
+    res.status(500).json({ error: 'Failed to process invoice: ' + err.message });
+  }
+});
+
+// List all vendor invoices
+app.get('/api/invoices', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT vi.id, vi.invoice_number, vi.vendor_code, v.vendor_name, vi.invoice_date,
+             vi.file_name, vi.file_type, vi.status, vi.total_amount, vi.currency,
+             vi.po_id, vi.created_by, vi.created_at, vi.error_message,
+             (SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = vi.id) AS total_items,
+             (SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = vi.id AND match_status = 'AUTO_MATCHED') AS auto_matched,
+             (SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = vi.id AND match_status = 'REVIEW_NEEDED') AS review_needed
+      FROM vendor_invoices vi
+      LEFT JOIN vendors v ON vi.vendor_code = v.vendor_code
+      ORDER BY vi.created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+});
+
+// Get invoice details with all line items and their match info
+app.get('/api/invoices/:id', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const invRes = await pool.query(`
+      SELECT vi.*, v.vendor_name
+      FROM vendor_invoices vi
+      LEFT JOIN vendors v ON vi.vendor_code = v.vendor_code
+      WHERE vi.id = $1
+    `, [req.params.id]);
+
+    if (invRes.rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+
+    const itemsRes = await pool.query(`
+      SELECT ili.*, im.friendly_name AS matched_name, im.barcode AS matched_barcode,
+             im.std_cost_rmb AS matched_cost, im.material AS matched_material
+      FROM invoice_line_items ili
+      LEFT JOIN item_master im ON ili.matched_sku = im.sku
+      WHERE ili.invoice_id = $1
+      ORDER BY ili.seq
+    `, [req.params.id]);
+
+    res.json({ ...invRes.rows[0], line_items: itemsRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch invoice details' });
+  }
+});
+
+// Update a line item's match (confirm, change SKU, mark as new, or reject)
+app.put('/api/invoice-items/:id', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { matched_sku, match_status } = req.body;
+  if (!match_status || !['AUTO_MATCHED', 'REVIEW_NEEDED', 'CONFIRMED', 'REJECTED', 'NEW_ITEM'].includes(match_status)) {
+    return res.status(400).json({ error: 'Invalid match_status' });
+  }
+
+  try {
+    // If changing to a specific SKU, verify it exists
+    let confidence = null;
+    let method = null;
+    if (matched_sku && match_status !== 'NEW_ITEM' && match_status !== 'REJECTED') {
+      const itemRes = await pool.query('SELECT sku FROM item_master WHERE sku = $1', [matched_sku]);
+      if (itemRes.rows.length === 0) return res.status(404).json({ error: 'SKU not found in Item Master' });
+      confidence = 100;
+      method = 'manual';
+    }
+
+    const r = await pool.query(
+      `UPDATE invoice_line_items
+       SET matched_sku = $1, match_status = $2, match_confidence = COALESCE($3, match_confidence), match_method = COALESCE($4, match_method)
+       WHERE id = $5 RETURNING *`,
+      [matched_sku || null, match_status, confidence, method, req.params.id]
+    );
+
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Line item not found' });
+    res.json({ success: true, item: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update line item' });
+  }
+});
+
+// Search Item Master for manual matching (autocomplete)
+app.get('/api/invoices/search-items', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.length < 1) return res.json([]);
+
+  try {
+    const r = await pool.query(
+      `SELECT sku, friendly_name, category_code, color_code, material, std_cost_rmb, vendor_item_number, barcode
+       FROM item_master
+       WHERE status = 'ACTIVE' AND (
+         sku ILIKE $1 OR friendly_name ILIKE $1 OR vendor_item_number ILIKE $1 OR barcode ILIKE $1
+       )
+       ORDER BY friendly_name LIMIT 20`,
+      [`%${q}%`]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Create a DRAFT PO from an invoice's reviewed line items.
+// Only CONFIRMED and AUTO_MATCHED items are included. NEW_ITEM items are created
+// in the Item Master first (same as the existing save-mappings flow).
+app.post('/api/invoices/:id/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { po_date, po_currency, exchange_rate } = req.body;
+  const invoiceId = req.params.id;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Get invoice
+    const invRes = await client.query('SELECT * FROM vendor_invoices WHERE id = $1', [invoiceId]);
+    if (invRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    const invoice = invRes.rows[0];
+    if (!['MATCHED', 'REVIEWED'].includes(invoice.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Cannot create PO from invoice with status ${invoice.status}. Review the invoice first.` });
+    }
+
+    // Get all line items that are ready (CONFIRMED or AUTO_MATCHED)
+    const itemsRes = await client.query(
+      `SELECT * FROM invoice_line_items WHERE invoice_id = $1 AND match_status IN ('CONFIRMED', 'AUTO_MATCHED') AND matched_sku IS NOT NULL ORDER BY seq`,
+      [invoiceId]
+    );
+
+    if (itemsRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'No confirmed line items to create a PO. Please review and confirm at least one item.' });
+    }
+
+    // Get vendor category for SKU generation
+    const vendorRes = await client.query('SELECT vendor_code, category FROM vendors WHERE vendor_code = $1', [invoice.vendor_code]);
+    const vendorCategory = vendorRes.rows[0]?.category || 'GN';
+
+    let yearCode = 'A', collectionCode = 'PS', departmentCode = '1', colorCode = 'SLV', material = 'Glass';
+    if (vendorCategory === 'JW') { material = 'Sterling Silver'; colorCode = 'SLV'; }
+    if (vendorCategory === 'AP') { material = 'Cotton'; colorCode = 'BLK'; }
+    if (vendorCategory === 'HB') { material = 'Leather'; colorCode = 'BLK'; }
+
+    // Process NEW_ITEM items: create them in Item Master
+    const newItemRes = await client.query(
+      `SELECT * FROM invoice_line_items WHERE invoice_id = $1 AND match_status = 'NEW_ITEM' ORDER BY seq`,
+      [invoiceId]
+    );
+
+    for (let i = 0; i < newItemRes.rows.length; i++) {
+      const li = newItemRes.rows[i];
+      const newSku = `${vendorCategory}${yearCode}${collectionCode}-${departmentCode}${((Date.now() + i) % 1000).toString().padStart(3, '0')}-${colorCode}`;
+
+      const barcodeRes = await client.query('SELECT next_barcode FROM barcode_sequence WHERE id = 1 FOR UPDATE');
+      let currentBarcode = barcodeRes.rows[0]?.next_barcode || '6941181218000';
+
+      await client.query(
+        `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, color_code, hs_code, std_cost_rmb, description, material, barcode, vendor_item_number, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, '9505100090', $8, $9, $10, $11, $12, $13)
+         ON CONFLICT (sku) DO NOTHING`,
+        [newSku, li.description, vendorCategory, yearCode, collectionCode, departmentCode, colorCode, li.unit_price, `Auto-created from invoice ${invoice.invoice_number}`, material, currentBarcode, li.vendor_item_number, req.user.email]
+      );
+
+      await client.query('UPDATE barcode_sequence SET next_barcode = LPAD((CAST(next_barcode AS BIGINT) + 1)::TEXT, 13, \'0\') WHERE id = 1');
+      await client.query('INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING', [newSku]);
+
+      // Update the line item with the new SKU
+      await client.query('UPDATE invoice_line_items SET matched_sku = $1, match_status = $2 WHERE id = $3', [newSku, 'CONFIRMED', li.id]);
+    }
+
+    // Re-fetch all confirmed items (now includes newly created ones)
+    const allItemsRes = await client.query(
+      `SELECT * FROM invoice_line_items WHERE invoice_id = $1 AND match_status IN ('CONFIRMED', 'AUTO_MATCHED') AND matched_sku IS NOT NULL ORDER BY seq`,
+      [invoiceId]
+    );
+
+    // Calculate totals
+    const exchange_rate_to_rmb = parseFloat(exchange_rate) || 7.0;
+    let total_usd = 0, total_rmb = 0;
+
+    for (const item of allItemsRes.rows) {
+      if (po_currency === 'RMB') {
+        total_rmb += parseFloat(item.quantity) * parseFloat(item.unit_price);
+        total_usd += (parseFloat(item.quantity) * parseFloat(item.unit_price)) / exchange_rate_to_rmb;
+      } else {
+        total_usd += parseFloat(item.quantity) * parseFloat(item.unit_price);
+        total_rmb += parseFloat(item.quantity) * parseFloat(item.unit_price) * exchange_rate_to_rmb;
+      }
+    }
+
+    const deposit_usd = total_usd * 0.30;
+    const balance_usd = total_usd * 0.70;
+    const po_id = `PO-${Date.now().toString().slice(-6)}`;
+
+    // Create the PO
+    await client.query(
+      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10)`,
+      [po_id, invoice.vendor_code, po_date || new Date().toISOString().split('T')[0], po_currency || invoice.currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email]
+    );
+
+    // Create PO line items
+    for (const item of allItemsRes.rows) {
+      const costRmb = (po_currency || invoice.currency) === 'RMB' ? parseFloat(item.unit_price) : parseFloat(item.unit_price) * exchange_rate_to_rmb;
+      await client.query(
+        `INSERT INTO po_line_items (po_id, sku, quantity, unit_price_foreign, unit_cost_rmb, hs_code)
+         VALUES ($1, $2, $3, $4, $5, '9505100090')`,
+        [po_id, item.matched_sku, parseFloat(item.quantity), parseFloat(item.unit_price), costRmb]
+      );
+    }
+
+    // Mark invoice as PO_CREATED
+    await client.query('UPDATE vendor_invoices SET status = $1, po_id = $2 WHERE id = $3', ['PO_CREATED', po_id, invoiceId]);
+
+    // Mark all line items as CONFIRMED
+    await client.query('UPDATE invoice_line_items SET match_status = $1 WHERE invoice_id = $2 AND match_status IN (\'CONFIRMED\', \'AUTO_MATCHED\')', ['CONFIRMED', invoiceId]);
+
+    await client.query('COMMIT');
+
+    logActivity(req.user, 'PO_CREATED_FROM_INVOICE', po_id, { invoice_id: invoiceId, vendor_code: invoice.vendor_code, total_usd: total_usd.toFixed(2), line_count: allItemsRes.rows.length });
+
+    // Notify admins
+    await notifyRole(pool, 'ADMIN', 'PO_FROM_INVOICE',
+      `PO ${po_id} created from invoice`,
+      `Auto-generated from invoice ${invoice.invoice_number} by ${req.user.name || req.user.email}. ${allItemsRes.rows.length} items, total $${total_usd.toFixed(2)}`,
+      po_id
+    );
+
+    res.json({
+      success: true,
+      po_id,
+      status: 'DRAFT',
+      total_items: allItemsRes.rows.length,
+      total_usd: total_usd.toFixed(2),
+      total_rmb: total_rmb.toFixed(2),
+      message: `PO ${po_id} created with ${allItemsRes.rows.length} items. Submit it for approval when ready.`
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Create PO from invoice error:', err);
+    res.status(500).json({ error: 'Failed to create PO: ' + err.message });
+  } finally {
+    client.release();
   }
 });
 
