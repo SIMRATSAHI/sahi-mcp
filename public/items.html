@@ -108,7 +108,7 @@
         <input type="text" id="searchInput" placeholder="Search by SKU, Name, or Barcode..." onkeyup="filterTable()" style="width:100%; padding:8px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box;">
         
         <table id="itemTable">
-            <thead><tr><th>SKU</th><th>Friendly Name</th><th>Category</th><th>Color</th><th>Material</th><th>HS Code</th><th>Status</th><th>Barcode</th><th>Action</th></tr></thead>
+            <thead><tr><th>Photo</th><th>SKU</th><th>Friendly Name</th><th>Category</th><th>Color</th><th>Material</th><th>HS Code</th><th>CBM</th><th>Status</th><th>Barcode</th><th>Action</th></tr></thead>
             <tbody id="itemTableBody"></tbody>
         </table>
     </div>
@@ -130,11 +130,26 @@
                 <div class="form-group"><label>Material</label><input type="text" id="editMaterial"></div>
                 <div class="form-group"><label>HS Code</label><input type="text" id="editHsCode"></div>
                 <div class="form-group"><label>Std Cost (RMB)</label><input type="number" step="0.01" id="editStdCostRmb"></div>
+                <div class="form-group"><label>CBM (per unit)</label><input type="number" step="0.0001" id="editCbm" placeholder="0.0000"></div>
                 <div class="form-group"><label>Status</label>
                     <select id="editStatus"><option value="ACTIVE">ACTIVE</option><option value="DISCONTINUED">DISCONTINUED</option></select>
                 </div>
             </div>
             <div class="form-group"><label>Description</label><textarea id="editDescription" rows="3" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;"></textarea></div>
+
+            <!-- Product Image Upload -->
+            <div class="form-group">
+                <label>Product Image</label>
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <img id="editImagePreview" src="" style="width:80px; height:80px; object-fit:cover; border:1px solid #ddd; border-radius:4px; background:#f8f8f8;">
+                    <div>
+                        <input type="file" id="editImageFile" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadItemImage()">
+                        <button type="button" onclick="document.getElementById('editImageFile').click()" style="padding:8px 16px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📷 Upload Image</button>
+                        <div id="imageUploadStatus" style="font-size:12px; margin-top:5px;"></div>
+                    </div>
+                </div>
+            </div>
+
             <div style="background:#f8f9fa; padding:10px; border-radius:4px; margin-bottom:15px;">
                 <strong>Barcode:</strong> <span id="editBarcode"></span><br>
                 <strong>Vendor Item #:</strong> <span id="editVendorItem"></span>
@@ -175,14 +190,20 @@
                 tbody.innerHTML = '';
                 data.forEach(item => {
                     const statusClass = item.status === 'ACTIVE' ? 'status-active' : 'status-discontinued';
+                    const imgBase = (item.vendor_item_number || item.sku || '').replace(/[^a-zA-Z0-9._-]/g, '_');
+                    const imgCell = imgBase
+                        ? `<img src="/images/${imgBase}.jpg" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=&quot;font-size:10px;color:#bbb;&quot;>No photo</span>'" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid #ddd;">`
+                        : '<span style="font-size:10px;color:#bbb;">No photo</span>';
                     const row = `
                         <tr>
+                            <td style="text-align:center;">${imgCell}</td>
                             <td><strong>${item.sku}</strong></td>
                             <td>${item.friendly_name}</td>
                             <td>${item.category_code || 'N/A'}</td>
                             <td>${item.color_code || 'N/A'}</td>
                             <td>${item.material || 'N/A'}</td>
                             <td>${item.hs_code || '9505100090'}</td>
+                            <td>${parseFloat(item.cbm || 0).toFixed(4)}</td>
                             <td><span class="status-badge ${statusClass}">${item.status}</span></td>
                             <td><strong>${item.barcode || 'N/A'}</strong></td>
                             <td><button class="btn btn-edit" onclick="editItem('${item.sku}')">Edit</button></td>
@@ -191,7 +212,7 @@
                     tbody.innerHTML += row;
                 });
             }).catch(err => {
-                document.getElementById('itemTableBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:orange;">⚠️ Cannot connect to database.</td></tr>';
+                document.getElementById('itemTableBody').innerHTML = '<tr><td colspan="11" style="text-align:center; color:orange;">⚠️ Cannot connect to database.</td></tr>';
             });
         }
 
@@ -336,10 +357,18 @@
             document.getElementById('editMaterial').value = item.material || '';
             document.getElementById('editHsCode').value = item.hs_code || '';
             document.getElementById('editStdCostRmb').value = item.std_cost_rmb || 0;
+            document.getElementById('editCbm').value = item.cbm || '';
             document.getElementById('editStatus').value = item.status || 'ACTIVE';
             document.getElementById('editDescription').value = item.description || '';
             document.getElementById('editBarcode').innerText = item.barcode || 'N/A';
             document.getElementById('editVendorItem').innerText = item.vendor_item_number || 'N/A';
+
+            // Show current product image (if any).
+            const imgBase = item.vendor_item_number || item.sku;
+            const imgPreview = document.getElementById('editImagePreview');
+            imgPreview.src = `/images/${imgBase}.jpg`;
+            imgPreview.onerror = function() { this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCI+PHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNDAiIHk9IjQ1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTAiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIFBob3RvPC90ZXh0Pjwvc3ZnPg=='; };
+            document.getElementById('imageUploadStatus').innerText = '';
 
             document.getElementById('editModal').style.display = 'flex';
         }
@@ -371,6 +400,7 @@
                 std_cost_rmb: parseFloat(document.getElementById('editStdCostRmb').value),
                 status: document.getElementById('editStatus').value,
                 description: document.getElementById('editDescription').value.trim(),
+                cbm: parseFloat(document.getElementById('editCbm').value) || 0,
                 version: version
             };
 
@@ -391,6 +421,39 @@
             if (editLockRenewInterval) { clearInterval(editLockRenewInterval); editLockRenewInterval = null; }
             document.getElementById('editModal').style.display = 'none';
             loadMasterList();
+        }
+
+        async function uploadItemImage() {
+            const sku = document.getElementById('editSku').value;
+            const fileInput = document.getElementById('editImageFile');
+            const statusDiv = document.getElementById('imageUploadStatus');
+            if (!fileInput.files[0]) return;
+
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+
+            statusDiv.innerText = 'Uploading...';
+            statusDiv.style.color = '#666';
+
+            try {
+                const res = await fetch(`/api/items/${encodeURIComponent(sku)}/upload-image`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    statusDiv.innerText = '✅ Image uploaded!';
+                    statusDiv.style.color = '#2e7d32';
+                    document.getElementById('editImagePreview').src = data.image_url + '?t=' + Date.now();
+                } else {
+                    statusDiv.innerText = '❌ ' + (data.error || 'Upload failed');
+                    statusDiv.style.color = '#d32f2f';
+                }
+            } catch (err) {
+                statusDiv.innerText = '❌ Connection error';
+                statusDiv.style.color = '#d32f2f';
+            }
+            fileInput.value = '';
         }
 
         // --- Notifications ---

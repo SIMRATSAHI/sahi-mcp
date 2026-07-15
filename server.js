@@ -76,6 +76,13 @@ async function ensureSchema() {
     console.error('activity_log migration warning:', err.message);
   }
 
+  // CBM (cubic meters) per unit — needed on PO PDF for shipping/logistics.
+  try {
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS cbm NUMERIC DEFAULT 0`);
+  } catch (err) {
+    console.error('cbm column migration warning:', err.message);
+  }
+
   // --- Phase 1: Collaboration workflow schema additions ---
 
   // Optimistic locking: version column on editable tables.
@@ -726,7 +733,7 @@ app.post('/api/vendors', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) =>
 
 app.get('/api/items', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
   const { category } = req.query;
-  let query = "SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, material, std_cost_rmb, std_cost_rmb/7.0 as std_cost_usd, status, barcode, vendor_item_number FROM item_master WHERE status='ACTIVE'";
+  let query = "SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, material, std_cost_rmb, std_cost_rmb/7.0 as std_cost_usd, status, barcode, vendor_item_number, hs_code, cbm FROM item_master WHERE status='ACTIVE'";
   let params = [];
 
   if (category) {
@@ -860,9 +867,9 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     }
 
     const lineItemsRes = await pool.query(`
-      SELECT li.sku, li.quantity, li.unit_price_foreign, li.unit_cost_rmb, 
-             m.friendly_name as item_name, m.color_code as color, m.description, m.material, m.barcode, 
-             m.vendor_item_number, m.hs_code
+      SELECT li.sku, li.quantity, li.unit_price_foreign, li.unit_cost_rmb,
+             m.friendly_name as item_name, m.color_code as color, m.description, m.material, m.barcode,
+             m.vendor_item_number, m.hs_code, m.cbm
       FROM po_line_items li
       JOIN item_master m ON li.sku = m.sku
       WHERE li.po_id = $1
@@ -1000,7 +1007,7 @@ app.get('/api/purchase-orders/:po_id/full', requireAuthApi(['ADMIN', 'BUYER', 'A
     const lineItemsRes = await pool.query(`
       SELECT li.sku, li.quantity, li.unit_price_foreign, li.unit_cost_rmb, li.received_qty,
              m.friendly_name as item_name, m.color_code as color, m.description, m.material, m.barcode,
-             m.vendor_item_number, m.hs_code
+             m.vendor_item_number, m.hs_code, m.cbm
       FROM po_line_items li
       JOIN item_master m ON li.sku = m.sku
       WHERE li.po_id = $1
@@ -1262,7 +1269,7 @@ app.get('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
   try {
     const r = await pool.query(
       `SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name,
-              color_code, material, std_cost_rmb, status, barcode, vendor_item_number, hs_code, description, version
+              color_code, material, std_cost_rmb, status, barcode, vendor_item_number, hs_code, cbm, description, version
        FROM item_master WHERE sku = $1`,
       [req.params.sku]
     );
@@ -1281,7 +1288,7 @@ app.get('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
 // last read; if the server's version is higher, return 409 Conflict.
 app.put('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { friendly_name, category_code, year_code, collection_code, department_code, department_name,
-          color_code, material, std_cost_rmb, status, hs_code, description, version } = req.body;
+          color_code, material, std_cost_rmb, status, hs_code, description, cbm, version } = req.body;
 
   if (version === undefined || version === null) {
     return res.status(400).json({ error: 'version is required for optimistic locking' });
@@ -1302,11 +1309,12 @@ app.put('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
          status = COALESCE($10, status),
          hs_code = COALESCE($11, hs_code),
          description = COALESCE($12, description),
+         cbm = COALESCE($13, cbm),
          version = version + 1
-       WHERE sku = $13 AND version = $14
+       WHERE sku = $14 AND version = $15
        RETURNING sku, friendly_name, version`,
       [friendly_name, category_code, year_code, collection_code, department_code, department_name,
-       color_code, material, std_cost_rmb, status, hs_code, description, req.params.sku, version]
+       color_code, material, std_cost_rmb, status, hs_code, description, cbm, req.params.sku, version]
     );
 
     if (r.rows.length === 0) {
@@ -1328,6 +1336,47 @@ app.put('/api/items/:sku', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// Upload a product image for an Item Master row.  The file is saved to
+// public/images/<vendor_item_number>.jpg so the PO PDF generator can
+// embed it.  Falls back to <sku>.jpg if vendor_item_number is blank.
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: path.join(__dirname, 'public', 'images'),
+    filename: (req, file, cb) => {
+      cb(null, `tmp_${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /jpeg|jpg|png|webp/.test(file.mimetype);
+    cb(ok ? null : new Error('Only JPEG, PNG, or WebP images allowed'), ok);
+  }
+});
+
+app.post('/api/items/:sku/upload-image', requireAuthApi(['ADMIN', 'BUYER']), imageUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image file uploaded' });
+
+    const itemRes = await pool.query('SELECT sku, vendor_item_number FROM item_master WHERE sku = $1', [req.params.sku]);
+    if (itemRes.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+
+    const item = itemRes.rows[0];
+    const baseName = (item.vendor_item_number || item.sku).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const newPath = path.join(__dirname, 'public', 'images', `${baseName}.jpg`);
+
+    const fs = require('fs');
+    try { fs.unlinkSync(newPath); } catch (e) {}
+    fs.renameSync(req.file.path, newPath);
+
+    logActivity(req.user, 'ITEM_IMAGE_UPLOADED', req.params.sku, { filename: `${baseName}.jpg` });
+
+    res.json({ success: true, image_url: `/images/${baseName}.jpg` });
+  } catch (err) {
+    console.error('Image upload error:', err);
+    res.status(500).json({ error: 'Failed to upload image: ' + err.message });
   }
 });
 
