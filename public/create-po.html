@@ -58,17 +58,29 @@
         </div>
 
         <h2 style="color:#333;">Create Purchase Order</h2>
-        <p style="color:#666; font-size:14px;">Select a vendor, add line items, and submit. This saves a real PO to the database (visible on the Receive Stock page) and prints a PDF.</p>
+        <p style="color:#666; font-size:14px;">Select a vendor, enter the vendor invoice reference (or pick an uploaded invoice), review the line items, and submit. This saves a real PO to the database and prints a PDF.</p>
 
         <div class="input-row">
-            <div class="form-group">
+            <div class="form-group" style="flex:2; min-width:220px;">
                 <label>Vendor</label>
-                <select id="vendorSelect"></select>
+                <select id="vendorSelect" onchange="filterInvoicesByVendor()"></select>
+            </div>
+            <div class="form-group" style="flex:2; min-width:220px;">
+                <label>Invoice Reference</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="invoiceReference" placeholder="e.g. INV-2026-0001" style="flex:1;" oninput="clearInvoiceLink()">
+                    <select id="invoiceSelect" style="flex:1;" onchange="selectInvoiceFromDropdown()">
+                        <option value="">-- Select existing invoice --</option>
+                    </select>
+                </div>
+                <small style="color:#666; font-size:11px;">Type manually or select an uploaded invoice to auto-fill items.</small>
             </div>
             <div class="form-group">
                 <label>PO Date</label>
                 <input type="date" id="poDate">
             </div>
+        </div>
+        <div class="input-row">
             <div class="form-group">
                 <label>PO Currency</label>
                 <select id="poCurrency">
@@ -79,6 +91,9 @@
             <div class="form-group">
                 <label>Exchange Rate (to RMB)</label>
                 <input type="number" id="exchangeRate" value="7.0" step="0.01">
+            </div>
+            <div class="form-group" style="display:flex; align-items:flex-end;">
+                <button type="button" onclick="loadInvoiceItems()" id="loadInvoiceBtn" style="background:#FFB7C5; display:none;">Load Invoice Items</button>
             </div>
         </div>
 
@@ -119,13 +134,14 @@
             <button class="po-filter-btn" onclick="loadPOList('RECEIVED')" style="padding:6px 14px; background:#E8F5E9; border:none; border-radius:4px; cursor:pointer;">Received</button>
         </div>
         <table id="poListTable" style="margin-top:10px;">
-            <thead><tr><th>PO Number</th><th>Vendor</th><th>Date</th><th>Status</th><th>Total (RMB)</th><th>Created By</th><th>Actions</th></tr></thead>
+            <thead><tr><th>PO Number</th><th>Vendor</th><th>Invoice Ref</th><th>Date</th><th>Status</th><th>Total (RMB)</th><th>Created By</th><th>Actions</th></tr></thead>
             <tbody id="poListBody"></tbody>
         </table>
     </div>
 
     <script>
         let allItems = [];
+        let allInvoices = [];
         let lastPO = null;
 
         fetch('/api/vendors').then(r => r.json()).then(data => {
@@ -143,7 +159,99 @@
             addRow();
         });
 
+        fetch('/api/invoices').then(r => r.json()).then(data => {
+            allInvoices = (data || []).filter(inv => inv.status !== 'PO_CREATED');
+            populateInvoiceDropdown();
+        }).catch(() => {});
+
         document.getElementById('poDate').value = new Date().toISOString().slice(0, 10);
+
+        function populateInvoiceDropdown() {
+            const sel = document.getElementById('invoiceSelect');
+            sel.innerHTML = '<option value="">-- Select existing invoice --</option>';
+            const vendor = document.getElementById('vendorSelect').value;
+            allInvoices.forEach(inv => {
+                if (!vendor || inv.vendor_code === vendor) {
+                    const opt = document.createElement('option');
+                    opt.value = inv.id;
+                    opt.innerText = `${inv.invoice_number || 'No ref'} — ${inv.vendor_code} (${inv.total_items || 0} items)`;
+                    opt.dataset.vendor = inv.vendor_code;
+                    opt.dataset.ref = inv.invoice_number || '';
+                    sel.appendChild(opt);
+                }
+            });
+        }
+
+        function filterInvoicesByVendor() {
+            const vendor = document.getElementById('vendorSelect').value;
+            // If a linked invoice is selected and vendor changed, break the link
+            const invSel = document.getElementById('invoiceSelect');
+            if (invSel.value) {
+                const opt = invSel.selectedOptions[0];
+                if (opt && opt.dataset.vendor && opt.dataset.vendor !== vendor) {
+                    clearInvoiceLink();
+                }
+            }
+            populateInvoiceDropdown();
+        }
+
+        function clearInvoiceLink() {
+            document.getElementById('invoiceSelect').value = '';
+        }
+
+        async function selectInvoiceFromDropdown() {
+            const invSel = document.getElementById('invoiceSelect');
+            const id = invSel.value;
+            if (!id) return;
+            const opt = invSel.selectedOptions[0];
+            document.getElementById('invoiceReference').value = opt.dataset.ref || '';
+            // Auto-select vendor if not already selected
+            const vendorSel = document.getElementById('vendorSelect');
+            if (opt.dataset.vendor && (!vendorSel.value || vendorSel.value !== opt.dataset.vendor)) {
+                vendorSel.value = opt.dataset.vendor;
+                populateInvoiceDropdown();
+                invSel.value = id;
+            }
+            await loadInvoiceItems();
+        }
+
+        async function loadInvoiceItems() {
+            const id = document.getElementById('invoiceSelect').value;
+            if (!id) { alert('Please select an invoice first.'); return; }
+            try {
+                const res = await fetch(`/api/invoices/${id}`);
+                const data = await res.json();
+                if (!res.ok) { alert('Error loading invoice: ' + (data.error || res.status)); return; }
+
+                const items = data.line_items || [];
+                if (items.length === 0) { alert('No line items found in this invoice.'); return; }
+
+                // Clear existing rows and add from invoice
+                const tbody = document.getElementById('lineTableBody');
+                tbody.innerHTML = '';
+
+                items.forEach(li => {
+                    const sku = li.matched_sku || '';
+                    const qty = parseFloat(li.quantity) || 1;
+                    const price = parseFloat(li.unit_price) || 0;
+                    const row = document.createElement('tr');
+                    const skuOptions = allItems.map(i => `<option value="${i.sku}" data-cost="${i.std_cost_rmb}" ${i.sku === sku ? 'selected' : ''}>${i.sku} - ${i.friendly_name}</option>`).join('');
+                    row.innerHTML = `
+                        <td><select class="line-sku" onchange="autoFillPrice(this)">${skuOptions}</select></td>
+                        <td><input type="number" class="line-qty" value="${qty}" min="1"></td>
+                        <td><input type="number" class="line-price" step="0.01" value="${price.toFixed(2)}"></td>
+                        <td><button class="btn-remove" onclick="this.closest('tr').remove()">✕</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                // Set currency if invoice has it
+                if (data.currency) document.getElementById('poCurrency').value = data.currency;
+
+            } catch (e) {
+                alert('Connection error loading invoice items.');
+            }
+        }
 
         function addRow() {
             const tbody = document.getElementById('lineTableBody');
@@ -175,6 +283,8 @@
             const po_date = document.getElementById('poDate').value;
             const po_currency = document.getElementById('poCurrency').value;
             const exchange_rate = document.getElementById('exchangeRate').value;
+            const invoice_reference = document.getElementById('invoiceReference').value.trim();
+            const invoice_id = document.getElementById('invoiceSelect').value || null;
 
             const items = [];
             document.querySelectorAll('#lineTableBody tr').forEach(row => {
@@ -194,7 +304,7 @@
                 const res = await fetch('/api/create-po', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vendor_code, po_date, po_currency, exchange_rate, items })
+                    body: JSON.stringify({ vendor_code, po_date, po_currency, exchange_rate, items, invoice_reference, invoice_id })
                 });
                 const data = await res.json();
                 if (!data.success) { errorBox.textContent = 'Error: ' + data.error; errorBox.style.display = 'block'; if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; } return; }
@@ -211,6 +321,7 @@
                 document.getElementById('summaryText').innerHTML = `
                     <b>PO Number:</b> ${data.po_id}<br>
                     <b>Vendor:</b> ${data.vendor_code}<br>
+                    <b>Invoice Ref:</b> ${data.invoice_reference || 'N/A'}<br>
                     <b>Total:</b> ${data.po_currency === 'RMB' ? '¥' : '$'}${data.po_currency === 'RMB' ? data.total_rmb : data.total_usd}
                 `;
                 document.getElementById('result').style.display = 'block';
@@ -324,6 +435,9 @@
             doc.text(`Vendor: ${data.vendor_code}`, 14, infoY + 7);
             doc.text(`Date: ${data.po_date}`, 14, infoY + 14);
             doc.text(`Status: ${data.status || 'DRAFT'}`, 120, infoY);
+            if (data.invoice_reference) {
+                doc.text(`Invoice Ref: ${data.invoice_reference}`, 120, infoY + 7);
+            }
             const curSym = data.po_currency === 'RMB' ? 'RMB ' : '$';
             doc.text(`30% Deposit: ${curSym}${data.deposit_rmb || data.deposit_usd}  |  70% Balance: ${curSym}${data.balance_rmb || data.balance_usd}`, 14, infoY + 21);
 
@@ -549,7 +663,7 @@
                 const tbody = document.getElementById('poListBody');
                 tbody.innerHTML = '';
                 if (!pos || pos.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#999; padding:20px;">No POs found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#999; padding:20px;">No POs found.</td></tr>';
                     return;
                 }
                 let me = { role: 'ADMIN', email: '' };
@@ -579,6 +693,7 @@
                         <tr>
                             <td><strong>${po.po_id}</strong></td>
                             <td>${po.vendor_code || ''}</td>
+                            <td>${po.invoice_reference || ''}</td>
                             <td>${po.po_date ? new Date(po.po_date).toLocaleDateString() : ''}</td>
                             <td><span style="padding:3px 10px; border-radius:10px; font-size:11px; font-weight:bold; background:${sc.bg}; color:${sc.color};">${po.status || 'UNKNOWN'}</span></td>
                             <td>${parseFloat(po.total_rmb || 0).toFixed(2)}</td>
@@ -589,7 +704,7 @@
                 });
             } catch (e) {
                 console.error('loadPOList error:', e);
-                document.getElementById('poListBody').innerHTML = `<tr><td colspan="7" style="text-align:center; color:#d32f2f;">Failed to load POs: ${e.message}</td></tr>`;
+                document.getElementById('poListBody').innerHTML = `<tr><td colspan="8" style="text-align:center; color:#d32f2f;">Failed to load POs: ${e.message}</td></tr>`;
             }
         }
 

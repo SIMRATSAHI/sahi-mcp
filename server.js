@@ -87,6 +87,14 @@ async function ensureSchema() {
     console.error('cbm column migration warning:', err.message);
   }
 
+  // Invoice reference on PO — every PO is created against a vendor invoice.
+  try {
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS invoice_reference TEXT`);
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS invoice_id INTEGER REFERENCES vendor_invoices(id) ON DELETE SET NULL`);
+  } catch (err) {
+    console.error('invoice reference columns migration warning:', err.message);
+  }
+
   // --- Phase 1: Collaboration workflow schema additions ---
 
   // Optimistic locking: version column on editable tables.
@@ -808,13 +816,29 @@ app.post('/api/create-invoice', requireAuthApi(['ADMIN']), async (req, res) => {
 });
 
 app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
-  const { vendor_code, po_date, po_currency, exchange_rate, items } = req.body;
+  const { vendor_code, po_date, po_currency, exchange_rate, items, invoice_reference, invoice_id } = req.body;
   const po_id = `PO-${Date.now().toString().slice(-6)}`;
   
   try {
     const vendorRes = await pool.query("SELECT vendor_code, category FROM vendors WHERE vendor_code = $1", [vendor_code]);
     if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found" });
     const vendorCategory = vendorRes.rows[0].category;
+
+    // Validate linked invoice if provided
+    let resolvedInvoiceId = invoice_id || null;
+    let resolvedInvoiceRef = invoice_reference || null;
+    if (resolvedInvoiceId) {
+      const invRes = await pool.query('SELECT id, invoice_number, vendor_code, status FROM vendor_invoices WHERE id = $1', [resolvedInvoiceId]);
+      if (invRes.rows.length === 0) return res.status(400).json({ error: "Invoice not found" });
+      const inv = invRes.rows[0];
+      if (inv.vendor_code && inv.vendor_code !== vendor_code) {
+        return res.status(400).json({ error: `Invoice vendor ${inv.vendor_code} does not match selected vendor ${vendor_code}` });
+      }
+      if (!resolvedInvoiceRef) resolvedInvoiceRef = inv.invoice_number;
+      if (['PO_CREATED', 'ERROR'].includes(inv.status)) {
+        return res.status(400).json({ error: `Invoice status is ${inv.status}. Cannot link to PO.` });
+      }
+    }
 
     let yearCode = 'A', collectionCode = 'PS', departmentCode = '1', colorCode = 'SLV', material = 'Glass';
     if (vendorCategory === 'JW') { material = 'Sterling Silver'; colorCode = 'SLV'; }
@@ -856,9 +880,9 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     const balance_usd = total_usd * 0.70;
 
     await pool.query(
-      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10)`,
-      [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email]
+      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by, invoice_reference, invoice_id)
+       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10, $11, $12)`,
+      [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId]
     );
 
     for (const item of items) {
@@ -882,7 +906,7 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     const deposit_rmb = deposit_usd * exchange_rate_to_rmb;
     const balance_rmb = balance_usd * exchange_rate_to_rmb;
 
-    logActivity(req.user, 'PO_CREATED', po_id, { vendor_code, total_rmb: total_rmb.toFixed(2), total_usd: total_usd.toFixed(2), line_count: items.length, status: 'DRAFT' });
+    logActivity(req.user, 'PO_CREATED', po_id, { vendor_code, total_rmb: total_rmb.toFixed(2), total_usd: total_usd.toFixed(2), line_count: items.length, status: 'DRAFT', invoice_reference: resolvedInvoiceRef, invoice_id: resolvedInvoiceId });
 
     res.json({
       success: true,
@@ -898,6 +922,8 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       balance_usd: balance_usd.toFixed(2),
       deposit_rmb: deposit_rmb.toFixed(2),
       balance_rmb: balance_rmb.toFixed(2),
+      invoice_reference: resolvedInvoiceRef,
+      invoice_id: resolvedInvoiceId,
       items: lineItemsRes.rows
     });
 
@@ -975,8 +1001,8 @@ app.get('/api/purchase-orders', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'L
   try {
     const { status } = req.query;
     // Try with Phase 1 columns first; fall back to base columns if migration hasn't run
-    const fullSelect = 'po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version';
-    const baseSelect = 'po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by';
+    const fullSelect = 'po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version, invoice_reference, invoice_id';
+    const baseSelect = 'po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, invoice_reference, invoice_id';
     let query, params, useFallback = false;
     try {
       query = `SELECT ${fullSelect} FROM purchase_orders ${status ? 'WHERE status = $1' : ''} ORDER BY po_date DESC, po_id DESC`;
@@ -1032,6 +1058,8 @@ app.get('/api/purchase-orders/:po_id/full', requireAuthApi(['ADMIN', 'BUYER', 'A
       balance_usd: parseFloat(po.balance_usd).toFixed(2),
       deposit_rmb: (parseFloat(po.deposit_usd) * parseFloat(po.exchange_rate_to_rmb)).toFixed(2),
       balance_rmb: (parseFloat(po.balance_usd) * parseFloat(po.exchange_rate_to_rmb)).toFixed(2),
+      invoice_reference: po.invoice_reference,
+      invoice_id: po.invoice_id,
       items: lineItemsRes.rows
     });
   } catch (err) {
@@ -2040,9 +2068,9 @@ app.post('/api/invoices/:id/create-po', requireAuthApi(['ADMIN', 'BUYER']), asyn
 
     // Create the PO
     await client.query(
-      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by)
-       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10)`,
-      [po_id, invoice.vendor_code, po_date || new Date().toISOString().split('T')[0], po_currency || invoice.currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email]
+      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by, invoice_reference, invoice_id)
+       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10, $11, $12)`,
+      [po_id, invoice.vendor_code, po_date || new Date().toISOString().split('T')[0], po_currency || invoice.currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, invoice.invoice_number, invoiceId]
     );
 
     // Create PO line items
@@ -2079,6 +2107,8 @@ app.post('/api/invoices/:id/create-po', requireAuthApi(['ADMIN', 'BUYER']), asyn
       total_items: allItemsRes.rows.length,
       total_usd: total_usd.toFixed(2),
       total_rmb: total_rmb.toFixed(2),
+      invoice_reference: invoice.invoice_number,
+      invoice_id: invoiceId,
       message: `PO ${po_id} created with ${allItemsRes.rows.length} items. Submit it for approval when ready.`
     });
   } catch (err) {
