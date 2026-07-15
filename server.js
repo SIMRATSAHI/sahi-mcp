@@ -6,6 +6,10 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const multer = require('multer');
 const xlsx = require('xlsx');
+const fs = require('fs');
+
+// Ensure public/images directory exists (needed for image uploads on fresh deployments)
+fs.mkdirSync(path.join(__dirname, 'public', 'images'), { recursive: true });
 
 // Optional: Tesseract.js for OCR of image-based invoices. If not installed,
 // image upload returns an error asking the user to upload Excel/CSV instead.
@@ -1367,7 +1371,6 @@ app.post('/api/items/:sku/upload-image', requireAuthApi(['ADMIN', 'BUYER']), ima
     const baseName = (item.vendor_item_number || item.sku).replace(/[^a-zA-Z0-9._-]/g, '_');
     const newPath = path.join(__dirname, 'public', 'images', `${baseName}.jpg`);
 
-    const fs = require('fs');
     try { fs.unlinkSync(newPath); } catch (e) {}
     fs.renameSync(req.file.path, newPath);
 
