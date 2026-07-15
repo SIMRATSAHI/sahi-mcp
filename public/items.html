@@ -238,11 +238,14 @@
                     statusDiv.innerHTML = `✅ Parsed ${data.items.length} items.`;
                     btn.disabled = false;
                 } else {
-                    statusDiv.innerHTML = `❌ Error: ${data.error}`;
+                    statusDiv.innerHTML = `❌ Error: ${data.error || 'Unknown error'}`;
+                    statusDiv.className = 'error';
                     btn.disabled = false;
                 }
             } catch (err) {
-                statusDiv.innerHTML = `❌ Connection error.`;
+                console.error('Upload error:', err);
+                statusDiv.innerHTML = `❌ Connection error — server may be sleeping (Render free tier). Try again in 30 seconds.`;
+                statusDiv.className = 'error';
                 btn.disabled = false;
             }
         }

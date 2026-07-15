@@ -963,20 +963,26 @@ app.post('/api/transfer-stock', requireAuthApi(['ADMIN']), async (req, res) => {
 app.get('/api/purchase-orders', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
   try {
     const { status } = req.query;
-    let query = `
-      SELECT po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version
-      FROM purchase_orders ORDER BY po_date DESC, po_id DESC
-    `;
-    let params = [];
-    if (status) {
-      query = `
-        SELECT po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version
-        FROM purchase_orders WHERE status = $1 ORDER BY po_date DESC, po_id DESC
-      `;
-      params = [status];
+    // Try with Phase 1 columns first; fall back to base columns if migration hasn't run
+    const fullSelect = 'po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by, approved_by, submitted_at, approved_at, rejection_reason, version';
+    const baseSelect = 'po_id, vendor_code, po_date, status, total_usd, total_rmb, created_by';
+    let query, params, useFallback = false;
+    try {
+      query = `SELECT ${fullSelect} FROM purchase_orders ${status ? 'WHERE status = $1' : ''} ORDER BY po_date DESC, po_id DESC`;
+      params = status ? [status] : [];
+      const result = await pool.query(query, params);
+      return res.json(result.rows);
+    } catch (colErr) {
+      // Phase 1 columns don't exist yet — fall back to base query
+      console.error('PO query with Phase 1 columns failed, falling back:', colErr.message);
+      useFallback = true;
     }
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    if (useFallback) {
+      query = `SELECT ${baseSelect} FROM purchase_orders ${status ? 'WHERE status = $1' : ''} ORDER BY po_date DESC, po_id DESC`;
+      params = status ? [status] : [];
+      const result = await pool.query(query, params);
+      return res.json(result.rows);
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch purchase orders" });
@@ -1428,9 +1434,17 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.post('/api/upload-invoice', requireAuthApi(['ADMIN', 'BUYER']), upload.single('invoiceFile'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    
+
     const { currency } = req.body;
-    const workbook = xlsx.read(req.file.buffer);
+
+    // Strip BOM from CSV files — xlsx.read doesn't always handle UTF-8 BOM correctly,
+    // causing the first column header to be "\ufeffItem No." which won't match.
+    let fileBuffer = req.file.buffer;
+    if (fileBuffer.length >= 3 && fileBuffer[0] === 0xEF && fileBuffer[1] === 0xBB && fileBuffer[2] === 0xBF) {
+      fileBuffer = fileBuffer.subarray(3); // Remove UTF-8 BOM
+    }
+
+    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
@@ -1465,7 +1479,11 @@ app.post('/api/upload-invoice', requireAuthApi(['ADMIN', 'BUYER']), upload.singl
     }
 
     if (headerRowIdx === -1 || colItemNo === -1 || colPrice === -1) {
-      return res.status(400).json({ error: "Could not find required columns (Item No., Unit Price)." });
+      // Build a helpful error message showing what columns were found
+      const foundHeaders = rawRows.length > 0 ? (rawRows[0] || []).map(c => String(c).trim()).filter(Boolean).join(', ') : '(empty file)';
+      return res.status(400).json({
+        error: `Could not find required columns. Your file must have "Item No." and "UNIT PRICE" columns. Found headers: ${foundHeaders}`
+      });
     }
 
     const items = [];
@@ -2018,6 +2036,37 @@ app.post('/api/invoices/:id/create-po', requireAuthApi(['ADMIN', 'BUYER']), asyn
   } finally {
     client.release();
   }
+});
+
+// Health check endpoint — useful for debugging Render deployment issues
+app.get('/api/health', async (req, res) => {
+  const checks = { server: 'ok', database: 'unknown', tables: {} };
+  try {
+    const result = await pool.query('SELECT 1 as ok');
+    checks.database = result.rows.length > 0 ? 'ok' : 'error';
+    // Check if Phase 1 columns exist
+    try {
+      await pool.query('SELECT version FROM purchase_orders LIMIT 1');
+      checks.tables.po_version_column = 'exists';
+    } catch (e) {
+      checks.tables.po_version_column = 'MISSING';
+    }
+    try {
+      await pool.query('SELECT 1 FROM notifications LIMIT 1');
+      checks.tables.notifications = 'exists';
+    } catch (e) {
+      checks.tables.notifications = 'MISSING';
+    }
+    try {
+      await pool.query('SELECT 1 FROM record_locks LIMIT 1');
+      checks.tables.record_locks = 'exists';
+    } catch (e) {
+      checks.tables.record_locks = 'MISSING';
+    }
+  } catch (e) {
+    checks.database = 'error: ' + e.message;
+  }
+  res.json(checks);
 });
 
 const PORT = process.env.PORT || 3000;

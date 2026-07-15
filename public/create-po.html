@@ -187,6 +187,9 @@
             if (!vendor_code) { errorBox.textContent = 'Please select a vendor.'; errorBox.style.display = 'block'; return; }
             if (items.length === 0) { errorBox.textContent = 'Add at least one line item.'; errorBox.style.display = 'block'; return; }
 
+            const btn = document.querySelector('button[onclick="submitPO()"]');
+            if (btn) { btn.disabled = true; btn.innerText = 'Creating PO...'; }
+
             try {
                 const res = await fetch('/api/create-po', {
                     method: 'POST',
@@ -194,7 +197,7 @@
                     body: JSON.stringify({ vendor_code, po_date, po_currency, exchange_rate, items })
                 });
                 const data = await res.json();
-                if (!data.success) { errorBox.textContent = 'Error: ' + data.error; errorBox.style.display = 'block'; return; }
+                if (!data.success) { errorBox.textContent = 'Error: ' + data.error; errorBox.style.display = 'block'; if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; } return; }
 
                 lastPO = data;
                 document.getElementById('summaryText').innerHTML = `
@@ -203,10 +206,22 @@
                     <b>Total:</b> ${data.po_currency === 'RMB' ? '¥' : '$'}${data.po_currency === 'RMB' ? data.total_rmb : data.total_usd}
                 `;
                 document.getElementById('result').style.display = 'block';
-                await generatePDF(data);
+                if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; }
+
+                // Generate PDF separately so PDF errors don't mask the successful PO creation
+                try {
+                    await generatePDF(data);
+                } catch (pdfErr) {
+                    console.error('PDF generation failed:', pdfErr);
+                    errorBox.textContent = 'PO created successfully, but PDF generation failed. You can download it later.';
+                    errorBox.style.display = 'block';
+                }
+                loadPOList();
             } catch (err) {
-                errorBox.textContent = 'Connection error creating PO.';
+                console.error('PO creation failed:', err);
+                errorBox.textContent = 'Connection error creating PO. The server may be sleeping — try again in 30 seconds.';
                 errorBox.style.display = 'block';
+                if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; }
             }
         }
 
@@ -354,14 +369,21 @@
             if (statusFilter) url += `?status=${statusFilter}`;
             try {
                 const res = await fetch(url);
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${res.status}`);
+                }
                 const pos = await res.json();
                 const tbody = document.getElementById('poListBody');
                 tbody.innerHTML = '';
-                if (pos.length === 0) {
+                if (!pos || pos.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#999; padding:20px;">No POs found.</td></tr>';
                     return;
                 }
-                const me = await fetch('/api/me').then(r => r.json());
+                let me = { role: 'ADMIN', email: '' };
+                try {
+                    me = await fetch('/api/me').then(r => r.json());
+                } catch (e) { /* use default */ }
                 pos.forEach(po => {
                     const sc = STATUS_COLORS[po.status] || { bg: '#E0E0E0', color: '#424242' };
                     let actions = '';
@@ -384,17 +406,18 @@
                     tbody.innerHTML += `
                         <tr>
                             <td><strong>${po.po_id}</strong></td>
-                            <td>${po.vendor_code}</td>
+                            <td>${po.vendor_code || ''}</td>
                             <td>${po.po_date ? new Date(po.po_date).toLocaleDateString() : ''}</td>
-                            <td><span style="padding:3px 10px; border-radius:10px; font-size:11px; font-weight:bold; background:${sc.bg}; color:${sc.color};">${po.status}</span></td>
-                            <td>${parseFloat(po.total_rmb).toFixed(2)}</td>
+                            <td><span style="padding:3px 10px; border-radius:10px; font-size:11px; font-weight:bold; background:${sc.bg}; color:${sc.color};">${po.status || 'UNKNOWN'}</span></td>
+                            <td>${parseFloat(po.total_rmb || 0).toFixed(2)}</td>
                             <td>${po.created_by || ''}</td>
                             <td>${actions}</td>
                         </tr>
                     `;
                 });
             } catch (e) {
-                document.getElementById('poListBody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:#d32f2f;">Failed to load POs.</td></tr>';
+                console.error('loadPOList error:', e);
+                document.getElementById('poListBody').innerHTML = `<tr><td colspan="7" style="text-align:center; color:#d32f2f;">Failed to load POs: ${e.message}</td></tr>`;
             }
         }
 
