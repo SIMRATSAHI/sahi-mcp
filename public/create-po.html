@@ -178,6 +178,13 @@
     </div>
 
     <script>
+        // Ensure all fetch calls send the session cookie.
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+            options.credentials = options.credentials || 'same-origin';
+            return originalFetch(url, options);
+        };
+
         let allItems = [];
         let allInvoices = [];
         let lastPO = null;
@@ -246,6 +253,7 @@
             try {
                 const res = await fetch('/api/vendors', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ vendor_code, vendor_name, category, city })
                 });

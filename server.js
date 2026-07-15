@@ -632,6 +632,12 @@ app.post('/api/setup', async (req, res) => {
   }
 });
 
+// Build the session cookie string. Adds Secure when served over HTTPS (e.g. on Render).
+function sessionCookie(sid, maxAge) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax${secure}; Max-Age=${maxAge}`;
+}
+
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -644,7 +650,7 @@ app.post('/api/login', async (req, res) => {
     }
     const sid = crypto.randomBytes(32).toString('hex');
     sessions.set(sid, { userId: u.id, email: u.email, role: u.role, name: u.name });
-    res.setHeader('Set-Cookie', `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
+    res.setHeader('Set-Cookie', sessionCookie(sid, 60 * 60 * 24 * 7));
     logActivity({ email: u.email, role: u.role }, 'LOGIN', null, null);
     res.json({ success: true, role: u.role, name: u.name, landing: defaultLandingFor(u.role) });
   } catch (err) {
@@ -656,7 +662,7 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', (req, res) => {
   const sid = parseCookies(req)['sahi_session'];
   if (sid) sessions.delete(sid);
-  res.setHeader('Set-Cookie', `sahi_session=; HttpOnly; Path=/; Max-Age=0`);
+  res.setHeader('Set-Cookie', sessionCookie('', 0));
   res.json({ success: true });
 });
 
