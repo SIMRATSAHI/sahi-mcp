@@ -169,14 +169,6 @@
                 <label>City</label>
                 <input type="text" id="newVendorCity" placeholder="e.g. Shanghai">
             </div>
-            <div class="form-group">
-                <label>Contact Person</label>
-                <input type="text" id="newVendorContact" placeholder="e.g. Mr. Wang">
-            </div>
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="newVendorEmail" placeholder="e.g. sales@vendor.com">
-            </div>
             <div id="vendorModalError" style="display:none; color:#b71c1c; font-weight:bold; margin-bottom:10px;"></div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button type="button" onclick="closeVendorModal()" style="background:#d9d9d9;">Cancel</button>
@@ -236,8 +228,6 @@
             document.getElementById('newVendorCode').value = '';
             document.getElementById('newVendorName').value = '';
             document.getElementById('newVendorCity').value = '';
-            document.getElementById('newVendorContact').value = '';
-            document.getElementById('newVendorEmail').value = '';
         }
 
         async function saveVendor() {
@@ -245,8 +235,6 @@
             const vendor_name = document.getElementById('newVendorName').value.trim();
             const category = document.getElementById('newVendorCategory').value;
             const city = document.getElementById('newVendorCity').value.trim();
-            const contact = document.getElementById('newVendorContact').value.trim();
-            const email = document.getElementById('newVendorEmail').value.trim();
             const errBox = document.getElementById('vendorModalError');
 
             if (!vendor_code || !vendor_name) {
@@ -259,7 +247,7 @@
                 const res = await fetch('/api/vendors', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vendor_code, vendor_name, category, city, contact, email })
+                    body: JSON.stringify({ vendor_code, vendor_name, category, city })
                 });
                 const data = await res.json();
                 if (!res.ok) {
