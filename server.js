@@ -213,6 +213,42 @@ async function ensureSchema() {
   } catch (err) {
     console.error('invoice_line_items migration warning:', err.message);
   }
+
+  // Vendors table — used by PO creation, invoice upload, and item master.
+  // Must exist before any vendor-related endpoint is called.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vendors (
+        vendor_code TEXT PRIMARY KEY,
+        vendor_name TEXT NOT NULL,
+        category TEXT,
+        city TEXT,
+        contact TEXT,
+        email TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Seed a few known vendors if the table is empty.
+    const vCount = await pool.query('SELECT COUNT(*) as cnt FROM vendors');
+    if (parseInt(vCount.rows[0].cnt) === 0) {
+      const seedVendors = [
+        ['VS001', 'Vendor Sample 1', 'HD', 'Shanghai', '', ''],
+        ['VS002', 'Vendor Sample 2', 'JW', 'Yiwu', '', ''],
+        ['VS003', 'Vendor Sample 3', 'AP', 'Guangzhou', '', '']
+      ];
+      for (const [code, name, cat, city, contact, email] of seedVendors) {
+        await pool.query(
+          `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, true) ON CONFLICT (vendor_code) DO NOTHING`,
+          [code, name, cat, city, contact, email]
+        );
+      }
+      console.log('Seeded vendors table with sample data');
+    }
+  } catch (err) {
+    console.error('vendors table migration warning:', err.message);
+  }
 }
 ensureSchema();
 
