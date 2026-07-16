@@ -216,6 +216,7 @@ async function ensureSchema() {
 
   // Vendors table — used by PO creation, invoice upload, and item master.
   // Must exist before any vendor-related endpoint is called.
+  // default_currency: RMB (China), BDT (Bangladesh), INR (India), USD (international)
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS vendors (
@@ -225,29 +226,66 @@ async function ensureSchema() {
         city TEXT,
         contact TEXT,
         email TEXT,
+        default_currency TEXT NOT NULL DEFAULT 'RMB',
         is_active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    // Add default_currency column if the table already existed without it.
+    await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS default_currency TEXT NOT NULL DEFAULT 'RMB'`);
+
     // Seed a few known vendors if the table is empty.
     const vCount = await pool.query('SELECT COUNT(*) as cnt FROM vendors');
     if (parseInt(vCount.rows[0].cnt) === 0) {
       const seedVendors = [
-        ['VS001', 'Vendor Sample 1', 'HD', 'Shanghai', '', ''],
-        ['VS002', 'Vendor Sample 2', 'JW', 'Yiwu', '', ''],
-        ['VS003', 'Vendor Sample 3', 'AP', 'Guangzhou', '', '']
+        ['VS001', 'Vendor Sample 1', 'HD', 'Shanghai', 'RMB'],
+        ['VS002', 'Vendor Sample 2', 'JW', 'Yiwu', 'RMB'],
+        ['VS003', 'Vendor Sample 3', 'AP', 'Guangzhou', 'RMB']
       ];
-      for (const [code, name, cat, city, contact, email] of seedVendors) {
+      for (const [code, name, cat, city, currency] of seedVendors) {
         await pool.query(
-          `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, true) ON CONFLICT (vendor_code) DO NOTHING`,
-          [code, name, cat, city, contact, email]
+          `INSERT INTO vendors (vendor_code, vendor_name, category, city, default_currency, is_active)
+           VALUES ($1, $2, $3, $4, $5, true) ON CONFLICT (vendor_code) DO NOTHING`,
+          [code, name, cat, city, currency]
         );
       }
       console.log('Seeded vendors table with sample data');
     }
   } catch (err) {
     console.error('vendors table migration warning:', err.message);
+  }
+
+  // Vendor-Item pricing junction table — links a vendor to an item at a specific
+  // price. Prices can change over time; is_current flags the active price.
+  // Same item can be supplied by multiple vendors at different prices/currencies.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vendor_item_prices (
+        id SERIAL PRIMARY KEY,
+        vendor_code TEXT NOT NULL REFERENCES vendors(vendor_code) ON DELETE CASCADE,
+        sku TEXT NOT NULL REFERENCES item_master(sku) ON DELETE CASCADE,
+        unit_price NUMERIC NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'RMB',
+        effective_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        is_current BOOLEAN NOT NULL DEFAULT true,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (vendor_code, sku, effective_date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vip_vendor_sku ON vendor_item_prices (vendor_code, sku) WHERE is_current = true`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vip_sku ON vendor_item_prices (sku) WHERE is_current = true`);
+  } catch (err) {
+    console.error('vendor_item_prices table migration warning:', err.message);
+  }
+
+  // Ensure item_master supports PENDING_IMAGE status for items created without images.
+  // Items uploaded via CSV start as PENDING_IMAGE and flip to ACTIVE once an image is uploaded.
+  // Only ACTIVE items can be added to POs.
+  try {
+    await pool.query(`ALTER TABLE item_master DROP CONSTRAINT IF EXISTS item_master_status_check`);
+  } catch (err) {
+    // Constraint may not exist — ignore
   }
 }
 ensureSchema();
@@ -765,16 +803,17 @@ app.get('/api/vendors', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS
 
 app.post('/api/vendors', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
-    const { vendor_code, vendor_name, category, city, contact, email } = req.body;
+    const { vendor_code, vendor_name, category, city, default_currency } = req.body;
     if (!vendor_code || !vendor_name || !category) {
       return res.status(400).json({ error: "vendor_code, vendor_name, and category are required" });
     }
+    const currency = default_currency || 'RMB';
     const result = await pool.query(
-      `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
+      `INSERT INTO vendors (vendor_code, vendor_name, category, city, default_currency, is_active)
+       VALUES ($1, $2, $3, $4, $5, true)
        ON CONFLICT (vendor_code) DO NOTHING
        RETURNING *`,
-      [vendor_code, vendor_name, category, city || null, contact || null, email || null]
+      [vendor_code, vendor_name, category, city || null, currency]
     );
     if (result.rows.length === 0) return res.status(409).json({ error: "Vendor code already exists" });
     logActivity(req.user, 'VENDOR_CREATED', vendor_code, { vendor_name });
@@ -785,15 +824,206 @@ app.post('/api/vendors', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) =>
   }
 });
 
-app.get('/api/items', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
-  const { category } = req.query;
-  let query = "SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, material, std_cost_rmb, std_cost_rmb/7.0 as std_cost_usd, status, barcode, vendor_item_number, hs_code, cbm FROM item_master WHERE status='ACTIVE'";
-  let params = [];
+// --- Vendor-Item Pricing ---
 
+// Get current prices for all items from a specific vendor.
+// Returns item details joined with the current price row.
+app.get('/api/vendors/:vendor_code/prices', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT vip.sku, vip.unit_price, vip.currency, vip.effective_date, vip.is_current,
+             m.friendly_name, m.vendor_item_number, m.barcode, m.status,
+             m.color_code, m.material, m.cbm
+      FROM vendor_item_prices vip
+      JOIN item_master m ON vip.sku = m.sku
+      WHERE vip.vendor_code = $1 AND vip.is_current = true
+      ORDER BY m.friendly_name
+    `, [req.params.vendor_code]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch vendor prices" });
+  }
+});
+
+// Bulk set/update prices for a vendor. Each entry: { sku, unit_price, currency }.
+// Marks previous prices as non-current and inserts new current price rows.
+app.post('/api/vendors/:vendor_code/prices', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { prices } = req.body;
+  if (!prices || !Array.isArray(prices) || prices.length === 0) {
+    return res.status(400).json({ error: "prices array is required (each: { sku, unit_price, currency })" });
+  }
+  const vendorCode = req.params.vendor_code;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Verify vendor exists
+    const vendorRes = await client.query('SELECT vendor_code, default_currency FROM vendors WHERE vendor_code = $1', [vendorCode]);
+    if (vendorRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "Vendor not found" });
+    }
+    const defaultCurrency = vendorRes.rows[0].default_currency || 'RMB';
+    const today = new Date().toISOString().split('T')[0];
+    let inserted = 0, skipped = 0;
+    const errors = [];
+
+    for (const p of prices) {
+      if (!p.sku || !p.unit_price || p.unit_price <= 0) {
+        skipped++;
+        continue;
+      }
+      // Verify item exists
+      const itemRes = await client.query('SELECT sku FROM item_master WHERE sku = $1', [p.sku]);
+      if (itemRes.rows.length === 0) {
+        errors.push({ sku: p.sku, error: 'Item not found' });
+        skipped++;
+        continue;
+      }
+
+      // Mark previous current prices as non-current for this vendor+sku
+      await client.query(
+        `UPDATE vendor_item_prices SET is_current = false WHERE vendor_code = $1 AND sku = $2 AND is_current = true`,
+        [vendorCode, p.sku]
+      );
+
+      // Insert new current price
+      await client.query(
+        `INSERT INTO vendor_item_prices (vendor_code, sku, unit_price, currency, effective_date, is_current, created_by)
+         VALUES ($1, $2, $3, $4, $5, true, $6)
+         ON CONFLICT (vendor_code, sku, effective_date) DO UPDATE SET unit_price = $3, is_current = true, currency = $4`,
+        [vendorCode, p.sku, parseFloat(p.unit_price), p.currency || defaultCurrency, today, req.user.email]
+      );
+      inserted++;
+    }
+
+    await client.query('COMMIT');
+    logActivity(req.user, 'VENDOR_PRICES_SET', vendorCode, { inserted, skipped, total: prices.length });
+    res.json({ success: true, inserted, skipped, errors });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: "Failed to set vendor prices" });
+  } finally {
+    client.release();
+  }
+});
+
+// Upload vendor prices from an Excel/CSV file. Expected columns:
+// "SKU" (or "sku"), "Unit Price" (or "Price"), optional "Currency".
+// Items are matched by SKU. Items not found in the database are reported as errors.
+const priceUpload = multer({ storage: multer.memoryStorage() });
+app.post('/api/vendors/:vendor_code/prices/upload', requireAuthApi(['ADMIN', 'BUYER']), priceUpload.single('priceFile'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const vendorCode = req.params.vendor_code;
+    const vendorRes = await pool.query('SELECT default_currency FROM vendors WHERE vendor_code = $1', [vendorCode]);
+    if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found" });
+    const defaultCurrency = vendorRes.rows[0].default_currency || 'RMB';
+
+    // Strip BOM
+    let fileBuffer = req.file.buffer;
+    if (fileBuffer.length >= 3 && fileBuffer[0] === 0xEF && fileBuffer[1] === 0xBB && fileBuffer[2] === 0xBF) {
+      fileBuffer = fileBuffer.subarray(3);
+    }
+
+    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+    // Find header columns
+    let colSku = -1, colPrice = -1, colCurrency = -1, headerIdx = -1;
+    for (let i = 0; i < Math.min(5, rows.length); i++) {
+      const row = rows[i];
+      colSku = row.findIndex(c => String(c).trim().match(/^sku$/i));
+      colPrice = row.findIndex(c => String(c).trim().match(/unit.?price|price/i));
+      colCurrency = row.findIndex(c => String(c).trim().match(/^currency$/i));
+      if (colSku !== -1 && colPrice !== -1) { headerIdx = i; break; }
+    }
+
+    if (headerIdx === -1) {
+      const foundHeaders = rows.length > 0 ? (rows[0] || []).map(c => String(c).trim()).filter(Boolean).join(', ') : '(empty)';
+      return res.status(400).json({ error: `Could not find "SKU" and "Unit Price" columns. Found: ${foundHeaders}` });
+    }
+
+    const prices = [];
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const row = rows[i];
+      const sku = colSku !== -1 ? String(row[colSku] || '').trim() : '';
+      let priceStr = colPrice !== -1 ? String(row[colPrice] || '') : '';
+      priceStr = priceStr.replace(/[^0-9.]/g, '');
+      const price = parseFloat(priceStr) || 0;
+      const currency = colCurrency !== -1 ? String(row[colCurrency] || '').trim() : defaultCurrency;
+
+      if (sku && price > 0) {
+        prices.push({ sku, unit_price: price, currency });
+      }
+    }
+
+    if (prices.length === 0) {
+      return res.status(400).json({ error: "No valid price rows found. Each row must have a SKU and a unit price > 0." });
+    }
+
+    // Use the bulk set endpoint logic
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const today = new Date().toISOString().split('T')[0];
+      let inserted = 0, skipped = 0;
+      const errors = [];
+
+      for (const p of prices) {
+        const itemRes = await client.query('SELECT sku FROM item_master WHERE sku = $1', [p.sku]);
+        if (itemRes.rows.length === 0) {
+          errors.push({ sku: p.sku, error: 'Item not found in Item Master' });
+          skipped++;
+          continue;
+        }
+        await client.query(
+          `UPDATE vendor_item_prices SET is_current = false WHERE vendor_code = $1 AND sku = $2 AND is_current = true`,
+          [vendorCode, p.sku]
+        );
+        await client.query(
+          `INSERT INTO vendor_item_prices (vendor_code, sku, unit_price, currency, effective_date, is_current, created_by)
+           VALUES ($1, $2, $3, $4, $5, true, $6)
+           ON CONFLICT (vendor_code, sku, effective_date) DO UPDATE SET unit_price = $3, is_current = true, currency = $4`,
+          [vendorCode, p.sku, p.unit_price, p.currency, today, req.user.email]
+        );
+        inserted++;
+      }
+      await client.query('COMMIT');
+      logActivity(req.user, 'VENDOR_PRICES_UPLOADED', vendorCode, { inserted, skipped, total: prices.length });
+      res.json({ success: true, inserted, skipped, errors, total_parsed: prices.length });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to upload prices: " + err.message });
+  }
+});
+
+app.get('/api/items', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  const { category, status } = req.query;
+  // By default return ACTIVE + PENDING_IMAGE items (everything except DISCONTINUED).
+  // If status param is provided, filter to that specific status.
+  let statusFilter = "status IN ('ACTIVE', 'PENDING_IMAGE')";
+  let params = [];
+  if (status) {
+    statusFilter = "status = $1";
+    params.push(status);
+  }
+  let query = `SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, material, std_cost_rmb, std_cost_rmb/7.0 as std_cost_usd, status, barcode, vendor_item_number, hs_code, cbm FROM item_master WHERE ${statusFilter}`;
   if (category) {
-    query += " AND category_code = $1";
+    query += ` AND category_code = $${params.length + 1}`;
     params.push(category);
   }
+  query += " ORDER BY status, sku";
 
   try {
     const result = await pool.query(query, params);
@@ -862,13 +1092,23 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
   const po_id = `PO-${Date.now().toString().slice(-6)}`;
   
   try {
-    const vendorRes = await pool.query("SELECT vendor_code, category FROM vendors WHERE vendor_code = $1", [vendor_code]);
-    if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found" });
-    const vendorCategory = vendorRes.rows[0].category;
+    // --- Validation Gate 1: Vendor must exist ---
+    const vendorRes = await pool.query("SELECT vendor_code, category, default_currency FROM vendors WHERE vendor_code = $1 AND is_active = true", [vendor_code]);
+    if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found or inactive" });
+    const vendor = vendorRes.rows[0];
+    const vendorCategory = vendor.category;
+
+    // Use vendor's default currency if not explicitly provided
+    const resolvedCurrency = po_currency || vendor.default_currency || 'RMB';
+
+    // --- Validation Gate 2: Invoice reference is required ---
+    if (!invoice_reference || !invoice_reference.trim()) {
+      return res.status(400).json({ error: "Invoice reference is required to create a PO" });
+    }
 
     // Validate linked invoice if provided
     let resolvedInvoiceId = invoice_id || null;
-    let resolvedInvoiceRef = invoice_reference || null;
+    let resolvedInvoiceRef = invoice_reference.trim();
     if (resolvedInvoiceId) {
       const invRes = await pool.query('SELECT id, invoice_number, vendor_code, status FROM vendor_invoices WHERE id = $1', [resolvedInvoiceId]);
       if (invRes.rows.length === 0) return res.status(400).json({ error: "Invoice not found" });
@@ -882,30 +1122,45 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       }
     }
 
-    let yearCode = 'A', collectionCode = 'PS', departmentCode = '1', colorCode = 'SLV', material = 'Glass';
-    if (vendorCategory === 'JW') { material = 'Sterling Silver'; colorCode = 'SLV'; }
-    if (vendorCategory === 'AP') { material = 'Cotton'; colorCode = 'BLK'; }
-    if (vendorCategory === 'HB') { material = 'Leather'; colorCode = 'BLK'; }
-
+    // --- Validation Gate 3: Every item must exist and be ACTIVE (has image) ---
+    const validationErrors = [];
     for (const item of items) {
-      const exists = await pool.query("SELECT sku FROM item_master WHERE sku = $1", [item.sku]);
-      if (exists.rows.length === 0) {
-        const newSku = `${vendorCategory}${yearCode}${collectionCode}-${departmentCode}${Date.now().toString().slice(-3)}-${colorCode}`;
-        await pool.query(
-          `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, color_code, hs_code, std_cost_rmb, description, material, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, '9505100090', $8, $9, $10, $11)`,
-          [newSku, `Auto-created ${newSku}`, vendorCategory, yearCode, collectionCode, departmentCode, colorCode, item.unit_price * 7.0, 'New Item', material, req.user.email]
-        );
-        await pool.query("INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0)", [newSku]);
-        item.sku = newSku;
+      const itemRes = await pool.query("SELECT sku, friendly_name, status, hs_code, cbm FROM item_master WHERE sku = $1", [item.sku]);
+      if (itemRes.rows.length === 0) {
+        validationErrors.push({ sku: item.sku, error: "Item not found in Item Master" });
+      } else if (itemRes.rows[0].status !== 'ACTIVE') {
+        validationErrors.push({ sku: item.sku, error: `Item status is ${itemRes.rows[0].status}. Only ACTIVE items (with images) can be added to POs.` });
       }
+    }
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ error: "PO validation failed", validation_errors: validationErrors });
+    }
+
+    // --- Validation Gate 4: Each item must have a current price from this vendor (or a manually entered price) ---
+    // If unit_price is provided in the request, use it (manual override). Otherwise look up from vendor_item_prices.
+    for (const item of items) {
+      if (!item.unit_price || item.unit_price <= 0) {
+        // Try to get current price from vendor_item_prices
+        const priceRes = await pool.query(
+          `SELECT unit_price, currency FROM vendor_item_prices WHERE vendor_code = $1 AND sku = $2 AND is_current = true`,
+          [vendor_code, item.sku]
+        );
+        if (priceRes.rows.length === 0) {
+          validationErrors.push({ sku: item.sku, error: "No current price from this vendor. Set a price first or enter one manually." });
+        } else {
+          item.unit_price = parseFloat(priceRes.rows[0].unit_price);
+        }
+      }
+    }
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ error: "PO validation failed — missing prices", validation_errors: validationErrors });
     }
 
     let total_usd = 0, total_rmb = 0;
     const exchange_rate_to_rmb = parseFloat(exchange_rate) || 7.0;
 
     for (const item of items) {
-      if (po_currency === 'RMB') {
+      if (resolvedCurrency === 'RMB') {
         const line_total_rmb = item.qty * item.unit_price;
         const line_total_usd = line_total_rmb / exchange_rate_to_rmb;
         total_rmb += line_total_rmb;
@@ -924,15 +1179,18 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     await pool.query(
       `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by, invoice_reference, invoice_id)
        VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10, $11, $12)`,
-      [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId]
+      [po_id, vendor_code, po_date, resolvedCurrency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId]
     );
 
     for (const item of items) {
-      const costRmb = po_currency === 'RMB' ? item.unit_price : item.unit_price * exchange_rate_to_rmb;
+      const costRmb = resolvedCurrency === 'RMB' ? item.unit_price : item.unit_price * exchange_rate_to_rmb;
+      // Get HS code from item master
+      const itemDetail = await pool.query("SELECT hs_code FROM item_master WHERE sku = $1", [item.sku]);
+      const hsCode = itemDetail.rows[0]?.hs_code || '9505100090';
       await pool.query(
         `INSERT INTO po_line_items (po_id, sku, quantity, unit_price_foreign, unit_cost_rmb, hs_code)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [po_id, item.sku, item.qty, item.unit_price, costRmb, '9505100090']
+        [po_id, item.sku, item.qty, item.unit_price, costRmb, hsCode]
       );
     }
 
@@ -955,7 +1213,7 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       po_id,
       vendor_code,
       po_date,
-      po_currency,
+      po_currency: resolvedCurrency,
       exchange_rate_to_rmb,
       status: 'DRAFT',
       total_usd: total_usd.toFixed(2),
@@ -1444,6 +1702,13 @@ app.post('/api/items/:sku/upload-image', requireAuthApi(['ADMIN', 'BUYER']), ima
     try { fs.unlinkSync(newPath); } catch (e) {}
     fs.renameSync(req.file.path, newPath);
 
+    // Flip status from PENDING_IMAGE to ACTIVE — the item is now complete and
+    // can be added to POs or pushed to external platforms (Shopify, etc.).
+    await pool.query(
+      `UPDATE item_master SET status = 'ACTIVE' WHERE sku = $1 AND status = 'PENDING_IMAGE'`,
+      [req.params.sku]
+    );
+
     logActivity(req.user, 'ITEM_IMAGE_UPLOADED', req.params.sku, { filename: `${baseName}.jpg` });
 
     res.json({ success: true, image_url: `/images/${baseName}.jpg` });
@@ -1679,9 +1944,11 @@ app.post('/api/save-mappings', requireAuthApi(['ADMIN', 'BUYER']), async (req, r
           }
 
           // CORRECTED: Saving 'price' as is (RMB). Removed 'price * 7.0'.
+          // Items start as PENDING_IMAGE — they must have an image uploaded before
+          // they can be added to POs or pushed to Shopify/other platforms.
           await client.query(
-            `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, hs_code, std_cost_rmb, description, material, barcode, vendor_item_number, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '9505100090', $9, $10, $11, $12, $13, $14)
+            `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, hs_code, std_cost_rmb, description, material, barcode, vendor_item_number, created_by, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '9505100090', $9, $10, $11, $12, $13, $14, 'PENDING_IMAGE')
              ON CONFLICT (sku) DO NOTHING`,
             [newSku, friendlyName || `Imported ${vendorItem}`, catCode, yearCode, colCode, deptCode, deptName, colorCode, price, `Imported from vendor ${vendorItem}`, material, currentBarcode, vendorItem, req.user.email]
           );

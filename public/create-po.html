@@ -6,8 +6,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-        .container { max-width: 900px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
-        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .container { max-width: 950px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; flex-wrap: wrap; align-items: center; }
         .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; }
         .nav a.active { color: #000; }
         .form-group { margin-bottom: 15px; }
@@ -34,6 +34,13 @@
         .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
         .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
         .company-header .logo .l2 { font-size: 9px; }
+        .section-box { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+        .section-box h3 { margin-top: 0; color: #333; font-size: 15px; }
+        .price-warning { color: #e65100; font-size: 12px; font-weight: bold; }
+        .price-ok { color: #2e7d32; font-size: 12px; }
+        .vendor-currency-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; background: #E3F2FD; color: #1565C0; }
+        .tab-btn { padding: 8px 16px; border: none; background: #D3D3D3; cursor: pointer; font-weight: bold; border-radius: 4px 4px 0 0; }
+        .tab-btn.active { background: #87CEEB; }
     </style>
 </head>
 <body>
@@ -57,72 +64,119 @@
             <a href="/admin-users.html">Manage Users</a>
         </div>
 
-        <h2 style="color:#333;">Create Purchase Order</h2>
-        <p style="color:#666; font-size:14px;">Select a vendor, enter the vendor invoice reference (or pick an uploaded invoice), review the line items, and submit. This saves a real PO to the database and prints a PDF.</p>
+        <!-- Tab buttons -->
+        <div style="display:flex; gap:5px; margin-bottom:0;">
+            <button class="tab-btn active" id="tabCreatePO" onclick="switchTab('createPO')">Create PO</button>
+            <button class="tab-btn" id="tabVendorPrices" onclick="switchTab('vendorPrices')">Vendor Price List</button>
+        </div>
 
-        <div class="input-row">
-            <div class="form-group" style="flex:2; min-width:220px;">
-                <label>Vendor</label>
-                <div style="display:flex; gap:8px;">
-                    <select id="vendorSelect" onchange="filterInvoicesByVendor()" style="flex:1;"></select>
-                    <button type="button" onclick="openVendorModal()" style="background:#52c41a; color:#fff; white-space:nowrap; padding:8px 12px;">+ Add</button>
+        <!-- ===== CREATE PO TAB ===== -->
+        <div id="createPOSection" class="section-box" style="border-radius: 0 6px 6px 6px;">
+            <h3>Create Purchase Order</h3>
+            <p style="color:#666; font-size:13px;">Select a vendor, enter the invoice reference, pick items with images, and submit.</p>
+
+            <div class="input-row">
+                <div class="form-group" style="flex:2; min-width:220px;">
+                    <label>Vendor</label>
+                    <div style="display:flex; gap:8px;">
+                        <select id="vendorSelect" onchange="onVendorChange()" style="flex:1;"></select>
+                        <button type="button" onclick="openVendorModal()" style="background:#52c41a; color:#fff; white-space:nowrap; padding:8px 12px;">+ Add</button>
+                    </div>
+                </div>
+                <div class="form-group" style="flex:2; min-width:220px;">
+                    <label>Invoice Reference *</label>
+                    <input type="text" id="invoiceReference" placeholder="e.g. INV-2026-0001">
+                </div>
+                <div class="form-group">
+                    <label>PO Date</label>
+                    <input type="date" id="poDate">
                 </div>
             </div>
-            <div class="form-group" style="flex:2; min-width:220px;">
-                <label>Invoice Reference</label>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" id="invoiceReference" placeholder="e.g. INV-2026-0001" style="flex:1;" oninput="clearInvoiceLink()">
-                    <select id="invoiceSelect" style="flex:1;" onchange="selectInvoiceFromDropdown()">
-                        <option value="">-- Select existing invoice --</option>
+            <div class="input-row">
+                <div class="form-group">
+                    <label>PO Currency</label>
+                    <select id="poCurrency">
+                        <option value="RMB" selected>RMB</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="BDT">BDT</option>
+                        <option value="INR">INR</option>
                     </select>
+                    <span id="vendorCurrencyBadge" class="vendor-currency-badge" style="margin-top:4px;">Vendor default: RMB</span>
                 </div>
-                <small style="color:#666; font-size:11px;">Type manually or select an uploaded invoice to auto-fill items.</small>
+                <div class="form-group">
+                    <label>Exchange Rate (to RMB)</label>
+                    <input type="number" id="exchangeRate" value="7.0" step="0.01">
+                </div>
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <div id="priceStatus" style="font-size:12px;"></div>
+                </div>
             </div>
-            <div class="form-group">
-                <label>PO Date</label>
-                <input type="date" id="poDate">
+
+            <h3 style="margin-top:20px;">Line Items</h3>
+            <div id="itemsLoading" style="color:#666; font-size:13px;">Loading items...</div>
+            <table id="lineTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th style="width:30%;">SKU (only items with images)</th>
+                        <th style="width:10%;">Qty</th>
+                        <th style="width:15%;">Unit Price</th>
+                        <th style="width:8%;"></th>
+                    </tr>
+                </thead>
+                <tbody id="lineTableBody"></tbody>
+            </table>
+            <button class="btn-add-row" onclick="addRow()" id="addRowBtn" style="display:none;">+ Add Line Item</button>
+            <br><br>
+            <button onclick="submitPO()" id="createPOBtn">Create PO &amp; Generate PDF</button>
+
+            <div id="errorBox" class="error-box" style="display:none;"></div>
+
+            <div id="result">
+                <div class="success-box">
+                    <h3 style="color:#333; margin-top:0;">PO Created (Draft)</h3>
+                    <p id="summaryText"></p>
+                    <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <button onclick="downloadPDF()" style="background:#FFB7C5;">Download PO PDF</button>
+                        <button id="submitBtn" onclick="submitForApproval()" style="background:#4CAF50; color:white;">Submit for Approval</button>
+                    </div>
+                    <div id="poStatusBadge" style="display:inline-block; margin-top:10px; padding:4px 12px; background:#fff3cd; color:#856404; border-radius:12px; font-size:12px; font-weight:bold;">DRAFT</div>
+                </div>
             </div>
         </div>
-        <div class="input-row">
-            <div class="form-group">
-                <label>PO Currency</label>
-                <select id="poCurrency">
-                    <option value="RMB" selected>RMB (¥)</option>
-                    <option value="USD">USD ($)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Exchange Rate (to RMB)</label>
-                <input type="number" id="exchangeRate" value="7.0" step="0.01">
-            </div>
-            <div class="form-group" style="display:flex; align-items:flex-end;">
-                <button type="button" onclick="loadInvoiceItems()" id="loadInvoiceBtn" style="background:#FFB7C5; display:none;">Load Invoice Items</button>
-            </div>
-        </div>
 
-        <h3 style="margin-top:20px;">Line Items</h3>
-        <table id="lineTable">
-            <thead>
-                <tr><th style="width:35%;">SKU</th><th style="width:20%;">Qty</th><th style="width:25%;">Unit Price</th><th style="width:10%;"></th></tr>
-            </thead>
-            <tbody id="lineTableBody"></tbody>
-        </table>
-        <button class="btn-add-row" onclick="addRow()">+ Add Line Item</button>
-        <br><br>
-        <button onclick="submitPO()">Create PO &amp; Generate PDF</button>
+        <!-- ===== VENDOR PRICE LIST TAB ===== -->
+        <div id="vendorPricesSection" class="section-box" style="border-radius: 0 6px 6px 6px; display:none;">
+            <h3>Vendor Price List</h3>
+            <p style="color:#666; font-size:13px;">Upload or update the current prices for each vendor. Prices are used when creating POs.</p>
 
-        <div id="errorBox" class="error-box" style="display:none;"></div>
-
-        <div id="result">
-            <div class="success-box">
-                <h3 style="color:#333; margin-top:0;">PO Created (Draft)</h3>
-                <p id="summaryText"></p>
-                <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-                    <button onclick="downloadPDF()" style="background:#FFB7C5;">Download PO PDF</button>
-                    <button id="submitBtn" onclick="submitForApproval()" style="background:#4CAF50; color:white;">Submit for Approval</button>
+            <div class="input-row">
+                <div class="form-group" style="flex:2;">
+                    <label>Select Vendor</label>
+                    <select id="priceVendorSelect" onchange="loadVendorPrices()"></select>
                 </div>
-                <div id="poStatusBadge" style="display:inline-block; margin-top:10px; padding:4px 12px; background:#fff3cd; color:#856404; border-radius:12px; font-size:12px; font-weight:bold;">DRAFT</div>
             </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center;">
+                <input type="file" id="priceFileUpload" accept=".xlsx,.xls,.csv" style="flex:1; min-width:200px;">
+                <button onclick="uploadPriceFile()" style="background:#52c41a; color:#fff;">Upload Price File</button>
+                <button onclick="downloadPriceTemplate()" style="background:#D3D3D3;">Download Format</button>
+            </div>
+            <div id="priceUploadStatus"></div>
+
+            <table id="priceTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th>Item Name</th>
+                        <th>Vendor Item No.</th>
+                        <th>Current Price</th>
+                        <th>Currency</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="priceTableBody"></tbody>
+            </table>
+            <div id="noPricesMsg" style="color:#666; font-size:13px; display:none;">No prices set for this vendor yet. Upload a price file above.</div>
         </div>
 
         <hr style="margin:30px 0; border:none; border-top:1px solid #ddd;">
@@ -157,17 +211,26 @@
             <div class="form-group">
                 <label>Category *</label>
                 <select id="newVendorCategory">
-                    <option value="HD">HD — Home Decor</option>
-                    <option value="JW">JW — Jewelry</option>
-                    <option value="AP">AP — Apparel</option>
-                    <option value="HB">HB — Handbag</option>
-                    <option value="EL">EL — Electronics</option>
-                    <option value="OT">OT — Other</option>
+                    <option value="HD">HD - Home Decor</option>
+                    <option value="JW">JW - Jewelry</option>
+                    <option value="AP">AP - Apparel</option>
+                    <option value="HB">HB - Handbag</option>
+                    <option value="EL">EL - Electronics</option>
+                    <option value="OT">OT - Other</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>City</label>
                 <input type="text" id="newVendorCity" placeholder="e.g. Shanghai">
+            </div>
+            <div class="form-group">
+                <label>Default Currency</label>
+                <select id="newVendorCurrency">
+                    <option value="RMB" selected>RMB (China)</option>
+                    <option value="BDT">BDT (Bangladesh)</option>
+                    <option value="INR">INR (India)</option>
+                    <option value="USD">USD (International)</option>
+                </select>
             </div>
             <div id="vendorModalError" style="display:none; color:#b71c1c; font-weight:bold; margin-bottom:10px;"></div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
@@ -185,46 +248,116 @@
             return originalFetch(url, options);
         };
 
-        let allItems = [];
-        let allInvoices = [];
+        let allVendors = [];
+        let allActiveItems = [];
+        let vendorPrices = {}; // { sku: { unit_price, currency } }
         let lastPO = null;
 
-        fetch('/api/vendors').then(r => {
-            if (!r.ok) throw new Error('Server returned ' + r.status);
-            return r.json();
-        }).then(data => {
-            const sel = document.getElementById('vendorSelect');
-            if (!data || data.length === 0) {
-                sel.innerHTML = '<option value="">No vendors yet — click + Add</option>';
-            } else {
-                (data || []).forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v.vendor_code;
-                    opt.innerText = `${v.vendor_code} - ${v.vendor_name || v.name || ''}`;
-                    sel.appendChild(opt);
-                });
-            }
-        }).catch((err) => {
-            const sel = document.getElementById('vendorSelect');
-            sel.innerHTML = '<option value="">Failed to load — click + Add to create</option>';
-            console.error('Vendor fetch error:', err);
-        });
-
-        function loadVendors() {
-            return fetch('/api/vendors').then(r => r.json()).then(data => {
-                const sel = document.getElementById('vendorSelect');
-                const currentVal = sel.value;
-                sel.innerHTML = '';
-                (data || []).forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v.vendor_code;
-                    opt.innerText = `${v.vendor_code} - ${v.vendor_name || v.name || ''}`;
-                    sel.appendChild(opt);
-                });
-                if (currentVal) sel.value = currentVal;
-            }).catch(() => {});
+        // --- Tab switching ---
+        function switchTab(tab) {
+            document.getElementById('createPOSection').style.display = tab === 'createPO' ? '' : 'none';
+            document.getElementById('vendorPricesSection').style.display = tab === 'vendorPrices' ? '' : 'none';
+            document.getElementById('tabCreatePO').classList.toggle('active', tab === 'createPO');
+            document.getElementById('tabVendorPrices').classList.toggle('active', tab === 'vendorPrices');
         }
 
+        // --- Load vendors into both dropdowns ---
+        async function loadVendors() {
+            try {
+                const res = await fetch('/api/vendors');
+                if (!res.ok) throw new Error('Server returned ' + res.status);
+                allVendors = await res.json();
+            } catch (err) {
+                console.error('Vendor fetch error:', err);
+                allVendors = [];
+            }
+
+            const sel = document.getElementById('vendorSelect');
+            const priceSel = document.getElementById('priceVendorSelect');
+            sel.innerHTML = '';
+            priceSel.innerHTML = '<option value="">-- Select vendor --</option>';
+
+            if (!allVendors || allVendors.length === 0) {
+                sel.innerHTML = '<option value="">No vendors - click + Add</option>';
+            } else {
+                allVendors.forEach(v => {
+                    const label = `${v.vendor_code} - ${v.vendor_name || ''} (${v.default_currency || 'RMB'})`;
+                    sel.innerHTML += `<option value="${v.vendor_code}" data-currency="${v.default_currency || 'RMB'}">${label}</option>`;
+                    priceSel.innerHTML += `<option value="${v.vendor_code}">${label}</option>`;
+                });
+            }
+
+            if (sel.options.length > 0 && sel.options[0].value) {
+                onVendorChange();
+            }
+        }
+
+        function onVendorChange() {
+            const sel = document.getElementById('vendorSelect');
+            const opt = sel.selectedOptions[0];
+            const currency = opt ? opt.dataset.currency : 'RMB';
+
+            // Set PO currency to vendor's default
+            document.getElementById('poCurrency').value = currency;
+            document.getElementById('vendorCurrencyBadge').innerText = `Vendor default: ${currency}`;
+
+            // Load vendor prices
+            loadVendorPricesForPO();
+        }
+
+        async function loadVendorPricesForPO() {
+            const vendorCode = document.getElementById('vendorSelect').value;
+            if (!vendorCode) { vendorPrices = {}; return; }
+
+            try {
+                const res = await fetch(`/api/vendors/${vendorCode}/prices`);
+                const data = await res.json();
+                vendorPrices = {};
+                (data || []).forEach(p => {
+                    vendorPrices[p.sku] = { unit_price: parseFloat(p.unit_price), currency: p.currency };
+                });
+                const count = Object.keys(vendorPrices).length;
+                const statusEl = document.getElementById('priceStatus');
+                if (count > 0) {
+                    statusEl.innerHTML = `<span class="price-ok">${count} items priced from this vendor</span>`;
+                } else {
+                    statusEl.innerHTML = `<span class="price-warning">No prices set for this vendor. Go to "Vendor Price List" tab to upload.</span>`;
+                }
+
+                // Refresh existing rows with updated prices
+                document.querySelectorAll('#lineTableBody tr').forEach(row => {
+                    autoFillPrice(row.querySelector('.line-sku'));
+                });
+            } catch (e) {
+                console.error('Failed to load vendor prices:', e);
+            }
+        }
+
+        // --- Load ACTIVE items only ---
+        async function loadActiveItems() {
+            try {
+                const res = await fetch('/api/items?status=ACTIVE');
+                allActiveItems = await res.json();
+            } catch (e) {
+                console.error('Failed to load items:', e);
+                allActiveItems = [];
+            }
+
+            document.getElementById('itemsLoading').style.display = 'none';
+            document.getElementById('lineTable').style.display = '';
+            document.getElementById('addRowBtn').style.display = '';
+
+            if (allActiveItems.length === 0) {
+                document.getElementById('itemsLoading').style.display = '';
+                document.getElementById('itemsLoading').innerHTML = '<span class="price-warning">No ACTIVE items found. Upload items with images in Item Master first.</span>';
+                document.getElementById('lineTable').style.display = 'none';
+                document.getElementById('addRowBtn').style.display = 'none';
+            } else {
+                addRow();
+            }
+        }
+
+        // --- Vendor modal ---
         function openVendorModal() {
             document.getElementById('vendorModal').style.display = 'flex';
             document.getElementById('vendorModalError').style.display = 'none';
@@ -242,6 +375,7 @@
             const vendor_name = document.getElementById('newVendorName').value.trim();
             const category = document.getElementById('newVendorCategory').value;
             const city = document.getElementById('newVendorCity').value.trim();
+            const default_currency = document.getElementById('newVendorCurrency').value;
             const errBox = document.getElementById('vendorModalError');
 
             if (!vendor_code || !vendor_name) {
@@ -255,7 +389,7 @@
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vendor_code, vendor_name, category, city })
+                    body: JSON.stringify({ vendor_code, vendor_name, category, city, default_currency })
                 });
                 const data = await res.json();
                 if (!res.ok) {
@@ -266,133 +400,46 @@
                 closeVendorModal();
                 await loadVendors();
                 document.getElementById('vendorSelect').value = vendor_code;
+                onVendorChange();
             } catch (e) {
                 errBox.textContent = 'Connection error: ' + e.message;
                 errBox.style.display = 'block';
             }
         }
 
-        fetch('/api/items').then(r => r.json()).then(data => {
-            allItems = data || [];
-            addRow();
-        });
-
-        fetch('/api/invoices').then(r => r.json()).then(data => {
-            allInvoices = (data || []).filter(inv => inv.status !== 'PO_CREATED');
-            populateInvoiceDropdown();
-        }).catch(() => {});
-
-        document.getElementById('poDate').value = new Date().toISOString().slice(0, 10);
-
-        function populateInvoiceDropdown() {
-            const sel = document.getElementById('invoiceSelect');
-            sel.innerHTML = '<option value="">-- Select existing invoice --</option>';
-            const vendor = document.getElementById('vendorSelect').value;
-            allInvoices.forEach(inv => {
-                if (!vendor || inv.vendor_code === vendor) {
-                    const opt = document.createElement('option');
-                    opt.value = inv.id;
-                    opt.innerText = `${inv.invoice_number || 'No ref'} — ${inv.vendor_code} (${inv.total_items || 0} items)`;
-                    opt.dataset.vendor = inv.vendor_code;
-                    opt.dataset.ref = inv.invoice_number || '';
-                    sel.appendChild(opt);
-                }
-            });
-        }
-
-        function filterInvoicesByVendor() {
-            const vendor = document.getElementById('vendorSelect').value;
-            // If a linked invoice is selected and vendor changed, break the link
-            const invSel = document.getElementById('invoiceSelect');
-            if (invSel.value) {
-                const opt = invSel.selectedOptions[0];
-                if (opt && opt.dataset.vendor && opt.dataset.vendor !== vendor) {
-                    clearInvoiceLink();
-                }
-            }
-            populateInvoiceDropdown();
-        }
-
-        function clearInvoiceLink() {
-            document.getElementById('invoiceSelect').value = '';
-        }
-
-        async function selectInvoiceFromDropdown() {
-            const invSel = document.getElementById('invoiceSelect');
-            const id = invSel.value;
-            if (!id) return;
-            const opt = invSel.selectedOptions[0];
-            document.getElementById('invoiceReference').value = opt.dataset.ref || '';
-            // Auto-select vendor if not already selected
-            const vendorSel = document.getElementById('vendorSelect');
-            if (opt.dataset.vendor && (!vendorSel.value || vendorSel.value !== opt.dataset.vendor)) {
-                vendorSel.value = opt.dataset.vendor;
-                populateInvoiceDropdown();
-                invSel.value = id;
-            }
-            await loadInvoiceItems();
-        }
-
-        async function loadInvoiceItems() {
-            const id = document.getElementById('invoiceSelect').value;
-            if (!id) { alert('Please select an invoice first.'); return; }
-            try {
-                const res = await fetch(`/api/invoices/${id}`);
-                const data = await res.json();
-                if (!res.ok) { alert('Error loading invoice: ' + (data.error || res.status)); return; }
-
-                const items = data.line_items || [];
-                if (items.length === 0) { alert('No line items found in this invoice.'); return; }
-
-                // Clear existing rows and add from invoice
-                const tbody = document.getElementById('lineTableBody');
-                tbody.innerHTML = '';
-
-                items.forEach(li => {
-                    const sku = li.matched_sku || '';
-                    const qty = parseFloat(li.quantity) || 1;
-                    const price = parseFloat(li.unit_price) || 0;
-                    const row = document.createElement('tr');
-                    const skuOptions = allItems.map(i => `<option value="${i.sku}" data-cost="${i.std_cost_rmb}" ${i.sku === sku ? 'selected' : ''}>${i.sku} - ${i.friendly_name}</option>`).join('');
-                    row.innerHTML = `
-                        <td><select class="line-sku" onchange="autoFillPrice(this)">${skuOptions}</select></td>
-                        <td><input type="number" class="line-qty" value="${qty}" min="1"></td>
-                        <td><input type="number" class="line-price" step="0.01" value="${price.toFixed(2)}"></td>
-                        <td><button class="btn-remove" onclick="this.closest('tr').remove()">✕</button></td>
-                    `;
-                    tbody.appendChild(row);
-                });
-
-                // Set currency if invoice has it
-                if (data.currency) document.getElementById('poCurrency').value = data.currency;
-
-            } catch (e) {
-                alert('Connection error loading invoice items.');
-            }
-        }
-
+        // --- Line items ---
         function addRow() {
             const tbody = document.getElementById('lineTableBody');
             const row = document.createElement('tr');
-            const skuOptions = allItems.map(i => `<option value="${i.sku}" data-cost="${i.std_cost_rmb}">${i.sku} - ${i.friendly_name}</option>`).join('');
+            const skuOptions = allActiveItems.map(i =>
+                `<option value="${i.sku}" data-cost="${i.std_cost_rmb || 0}">${i.sku} - ${i.friendly_name || ''}</option>`
+            ).join('');
             row.innerHTML = `
                 <td><select class="line-sku" onchange="autoFillPrice(this)">${skuOptions}</select></td>
                 <td><input type="number" class="line-qty" value="96" min="1"></td>
                 <td><input type="number" class="line-price" step="0.01" value="0.00"></td>
-                <td><button class="btn-remove" onclick="this.closest('tr').remove()">✕</button></td>
+                <td><button class="btn-remove" onclick="this.closest('tr').remove()">X</button></td>
             `;
             tbody.appendChild(row);
             autoFillPrice(row.querySelector('.line-sku'));
         }
 
         function autoFillPrice(sel) {
-            const opt = sel.selectedOptions[0];
-            if (!opt) return;
+            if (!sel || !sel.selectedOptions[0]) return;
+            const sku = sel.value;
             const row = sel.closest('tr');
-            const cost = parseFloat(opt.dataset.cost) || 0;
-            row.querySelector('.line-price').value = cost.toFixed(2);
+            const priceInput = row.querySelector('.line-price');
+
+            if (vendorPrices[sku]) {
+                priceInput.value = vendorPrices[sku].unit_price.toFixed(2);
+                priceInput.style.borderColor = '#4CAF50';
+            } else {
+                priceInput.value = '0.00';
+                priceInput.style.borderColor = '#ff9800';
+            }
         }
 
+        // --- Submit PO ---
         async function submitPO() {
             const errorBox = document.getElementById('errorBox');
             errorBox.style.display = 'none';
@@ -402,7 +449,7 @@
             const po_currency = document.getElementById('poCurrency').value;
             const exchange_rate = document.getElementById('exchangeRate').value;
             const invoice_reference = document.getElementById('invoiceReference').value.trim();
-            const invoice_id = document.getElementById('invoiceSelect').value || null;
+            const invoice_id = null;
 
             const items = [];
             document.querySelectorAll('#lineTableBody tr').forEach(row => {
@@ -413,9 +460,18 @@
             });
 
             if (!vendor_code) { errorBox.textContent = 'Please select a vendor.'; errorBox.style.display = 'block'; return; }
+            if (!invoice_reference) { errorBox.textContent = 'Invoice reference is required.'; errorBox.style.display = 'block'; return; }
             if (items.length === 0) { errorBox.textContent = 'Add at least one line item.'; errorBox.style.display = 'block'; return; }
 
-            const btn = document.querySelector('button[onclick="submitPO()"]');
+            // Check for items with zero price
+            const zeroPriceItems = items.filter(i => !i.unit_price || i.unit_price <= 0);
+            if (zeroPriceItems.length > 0) {
+                errorBox.innerHTML = `${zeroPriceItems.length} item(s) have no price. Set prices in the "Vendor Price List" tab or enter manually.<br>SKUs: ${zeroPriceItems.map(i => i.sku).join(', ')}`;
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('createPOBtn');
             if (btn) { btn.disabled = true; btn.innerText = 'Creating PO...'; }
 
             try {
@@ -425,11 +481,19 @@
                     body: JSON.stringify({ vendor_code, po_date, po_currency, exchange_rate, items, invoice_reference, invoice_id })
                 });
                 const data = await res.json();
-                if (!data.success) { errorBox.textContent = 'Error: ' + data.error; errorBox.style.display = 'block'; if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; } return; }
+                if (!data.success) {
+                    let errMsg = data.error || 'Unknown error';
+                    if (data.validation_errors) {
+                        errMsg += '<br>' + data.validation_errors.map(e => `${e.sku}: ${e.error}`).join('<br>');
+                    }
+                    errorBox.innerHTML = errMsg;
+                    errorBox.style.display = 'block';
+                    if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; }
+                    return;
+                }
 
                 lastPO = data;
 
-                // Fetch the current user's name for the "Issued by" field.
                 try {
                     const me = await fetch('/api/me').then(r => r.json());
                     lastPO.issued_by_name = me.name || me.email;
@@ -440,12 +504,11 @@
                     <b>PO Number:</b> ${data.po_id}<br>
                     <b>Vendor:</b> ${data.vendor_code}<br>
                     <b>Invoice Ref:</b> ${data.invoice_reference || 'N/A'}<br>
-                    <b>Total:</b> ${data.po_currency === 'RMB' ? '¥' : '$'}${data.po_currency === 'RMB' ? data.total_rmb : data.total_usd}
+                    <b>Total:</b> ${data.po_currency === 'RMB' ? 'RMB ' : '$'}${data.po_currency === 'RMB' ? data.total_rmb : data.total_usd}
                 `;
                 document.getElementById('result').style.display = 'block';
                 if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; }
 
-                // Generate PDF separately so PDF errors don't mask the successful PO creation
                 try {
                     await generatePDF(data);
                 } catch (pdfErr) {
@@ -456,12 +519,115 @@
                 loadPOList();
             } catch (err) {
                 console.error('PO creation failed:', err);
-                errorBox.textContent = 'Connection error creating PO. The server may be sleeping — try again in 30 seconds.';
+                errorBox.textContent = 'Connection error. Server may be sleeping - try again in 30 seconds.';
                 errorBox.style.display = 'block';
                 if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; }
             }
         }
 
+        // --- Vendor Price List tab ---
+        async function loadVendorPrices() {
+            const vendorCode = document.getElementById('priceVendorSelect').value;
+            const table = document.getElementById('priceTable');
+            const noMsg = document.getElementById('noPricesMsg');
+            const tbody = document.getElementById('priceTableBody');
+
+            if (!vendorCode) {
+                table.style.display = 'none';
+                noMsg.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/vendors/${vendorCode}/prices`);
+                const data = await res.json();
+
+                if (!data || data.length === 0) {
+                    table.style.display = 'none';
+                    noMsg.style.display = '';
+                    return;
+                }
+
+                table.style.display = '';
+                noMsg.style.display = 'none';
+                tbody.innerHTML = '';
+                data.forEach(p => {
+                    const statusBadge = p.status === 'ACTIVE'
+                        ? '<span style="color:#2e7d32; font-weight:bold;">ACTIVE</span>'
+                        : `<span style="color:#e65100; font-weight:bold;">${p.status || 'PENDING'}</span>`;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${p.sku}</td>
+                            <td>${p.friendly_name || ''}</td>
+                            <td>${p.vendor_item_number || ''}</td>
+                            <td>${parseFloat(p.unit_price).toFixed(2)}</td>
+                            <td>${p.currency}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                console.error('Failed to load vendor prices:', e);
+            }
+        }
+
+        async function uploadPriceFile() {
+            const vendorCode = document.getElementById('priceVendorSelect').value;
+            const fileInput = document.getElementById('priceFileUpload');
+            const statusEl = document.getElementById('priceUploadStatus');
+
+            if (!vendorCode) {
+                statusEl.innerHTML = '<span style="color:#d32f2f;">Select a vendor first.</span>';
+                return;
+            }
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusEl.innerHTML = '<span style="color:#d32f2f;">Choose a file first.</span>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('priceFile', fileInput.files[0]);
+
+            statusEl.innerHTML = '<span style="color:#666;">Uploading...</span>';
+
+            try {
+                const res = await fetch(`/api/vendors/${vendorCode}/prices/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    let msg = `<span style="color:#2e7d32; font-weight:bold;">Done! ${data.inserted} prices set.`;
+                    if (data.skipped > 0) msg += ` ${data.skipped} skipped.`;
+                    if (data.errors && data.errors.length > 0) {
+                        msg += ` Errors: ${data.errors.map(e => e.sku).join(', ')}`;
+                    }
+                    msg += '</span>';
+                    statusEl.innerHTML = msg;
+                    fileInput.value = '';
+                    loadVendorPrices();
+                    // Also refresh prices in the PO section
+                    loadVendorPricesForPO();
+                } else {
+                    statusEl.innerHTML = `<span style="color:#d32f2f;">${data.error}</span>`;
+                }
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#d32f2f;">Connection error: ${e.message}</span>`;
+            }
+        }
+
+        function downloadPriceTemplate() {
+            const csv = 'SKU,Unit Price,Currency\nCDAXM-01001-SLV,15.50,RMB\nCDAXM-01002-RED,12.00,RMB';
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'vendor_price_template.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- PDF Generation (unchanged from before) ---
         async function loadImageDataUrl(url) {
             try {
                 const res = await fetch(url);
@@ -476,9 +642,6 @@
             } catch (e) { return null; }
         }
 
-        // jsPDF's built-in fonts (helvetica etc.) have no Chinese glyphs, so doc.text()
-        // garbles CJK strings. Render them on a canvas (browser's own font engine
-        // handles CJK fine) and embed the result as an image instead.
         function cjkTextToImage(text, fontSizePt, color) {
             const scale = 6;
             const fontPx = Math.round(fontSizePt * scale * (96 / 72));
@@ -498,28 +661,20 @@
             return { dataUrl: canvas.toDataURL('image/png'), widthMM, heightMM };
         }
 
-        // ─── PO PDF Generator — matches reference format from 0001.pdf ───
-        // Layout: company header → PO info block → line items table with photos
-        // → grand total → issued-by footer with company chop space.
-        // Supports multi-page with repeating table headers.
         async function generatePDF(data) {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             const logoDataUrl = await loadImageDataUrl('/sahi_logo.png');
-
             const items = data.items || [];
 
-            // Pre-load all product images (by vendor_item_number, fallback to sku).
             const imageUrls = items.map(i => {
                 const base = i.vendor_item_number || i.sku;
                 return `./images/${base}.jpg`;
             });
             const images = await Promise.all(imageUrls.map(u => loadImageDataUrl(u)));
 
-            // ─── PAGE 1 HEADER ───
             doc.setFillColor('#87CEEB');
             doc.rect(0, 0, 210, 32, 'F');
-
             doc.setTextColor(0, 0, 0).setFontSize(11).setFont("helvetica", "bold");
             doc.text("SAHI SHANGHAI COMPANY LTD.", 10, 12);
             const line2 = cjkTextToImage("飒鹤（上海）贸易有限公司", 9, '#000000');
@@ -527,26 +682,19 @@
             const line3 = cjkTextToImage("统一社会信用代码：91310000MAC67Y4R3QE", 7, '#000000');
             doc.addImage(line3.dataUrl, 'PNG', 10, 24 - line3.heightMM * 0.78, line3.widthMM, line3.heightMM);
 
-            // Logo box (right side)
             doc.setDrawColor(200, 200, 200);
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(174, 7, 27, 17, 1, 1, 'FD');
-            if (logoDataUrl) {
-                try { doc.addImage(logoDataUrl, 'PNG', 180.5, 8.5, 14, 14); } catch (e) {}
-            }
+            if (logoDataUrl) { try { doc.addImage(logoDataUrl, 'PNG', 180.5, 8.5, 14, 14); } catch (e) {} }
 
-            // Pink divider line
             doc.setDrawColor('#FFB7C5');
             doc.setLineWidth(1.5);
             doc.line(0, 32, 210, 32);
-
-            // Grey title bar
             doc.setFillColor('#D3D3D3');
             doc.rect(0, 32, 210, 10, 'F');
             doc.setTextColor(0, 0, 0).setFontSize(13).setFont("helvetica", "bold");
             doc.text("P U R C H A S E   O R D E R", 105, 39, { align: "center" });
 
-            // ─── PO INFO BLOCK ───
             doc.setTextColor(0, 0, 0).setFontSize(10).setFont("helvetica", "normal");
             let infoY = 50;
             doc.text(`PO Number: ${data.po_id}`, 14, infoY);
@@ -559,12 +707,9 @@
             const curSym = data.po_currency === 'RMB' ? 'RMB ' : '$';
             doc.text(`30% Deposit: ${curSym}${data.deposit_rmb || data.deposit_usd}  |  70% Balance: ${curSym}${data.balance_rmb || data.balance_usd}`, 14, infoY + 21);
 
-            // ─── LINE ITEMS TABLE ───
-            // Columns: Photo | SKU | Vendor Item Code | Item | Color | Material | HS Code | CBM | Ordered | Received | Unit (RMB) | Barcode
             const tableStartY = infoY + 28;
-            const colWidths = [20, 22, 22, 32, 12, 14, 18, 14, 12, 12, 16, 18]; // mm — totals ~210
+            const colWidths = [20, 22, 22, 32, 12, 14, 18, 14, 12, 12, 16, 18];
 
-            // Draw table header
             function drawTableHeader(y) {
                 doc.setFillColor('#87CEEB');
                 doc.setDrawColor(180, 180, 180);
@@ -575,161 +720,91 @@
                 let x = 5;
                 for (let c = 0; c < headers.length; c++) {
                     const lines = headers[c].split('\n');
-                    lines.forEach((line, li) => {
-                        doc.text(line, x + 1, y + 3 + li * 2.5);
-                    });
+                    lines.forEach((line, li) => { doc.text(line, x + 1, y + 3 + li * 2.5); });
                     x += colWidths[c];
                 }
             }
 
             drawTableHeader(tableStartY);
-
-            // Draw line items
             let y = tableStartY + 8;
-            const rowHeight = 22; // mm — tall enough for photos
+            const rowHeight = 22;
             let pageNo = 1;
             let missingPhotoCount = 0;
-            const pageBottomLimit = 280; // leave space for footer
+            const pageBottomLimit = 280;
 
             doc.setFont("helvetica", "normal").setFontSize(7);
-
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
                 const imgData = images[i];
 
-                // Check if we need a new page
                 if (y + rowHeight > pageBottomLimit) {
-                    // Footer for current page
                     doc.setFontSize(7).setTextColor(120, 120, 120);
-                    doc.text(`Page ${pageNo} — continued on next page`, 105, 287, { align: "center" });
+                    doc.text(`Page ${pageNo} - continued on next page`, 105, 287, { align: "center" });
                     doc.addPage();
                     pageNo++;
-                    // Redraw header on new page
                     let newY = 15;
                     drawTableHeader(newY);
                     y = newY + 8;
                     doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(0, 0, 0);
                 }
 
-                // Row background (alternate shading)
-                if (i % 2 === 1) {
-                    doc.setFillColor(248, 248, 248);
-                    doc.rect(5, y, 200, rowHeight, 'F');
-                }
-
-                // Row border
+                if (i % 2 === 1) { doc.setFillColor(248, 248, 248); doc.rect(5, y, 200, rowHeight, 'F'); }
                 doc.setDrawColor(200, 200, 200).setLineWidth(0.2);
                 doc.rect(5, y, 200, rowHeight);
 
-                // Photo cell
                 let x = 5;
                 if (imgData) {
-                    try {
-                        doc.addImage(imgData, 'JPEG', x + 1, y + 1, colWidths[0] - 2, rowHeight - 2);
-                    } catch (e) {
-                        doc.setFontSize(6).setTextColor(150, 150, 150);
-                        doc.text('(no photo)', x + 2, y + 11);
-                        missingPhotoCount++;
-                    }
-                } else {
-                    doc.setFontSize(6).setTextColor(150, 150, 150);
-                    doc.text('(no photo)', x + 2, y + 11);
-                    missingPhotoCount++;
-                }
+                    try { doc.addImage(imgData, 'JPEG', x + 1, y + 1, colWidths[0] - 2, rowHeight - 2); }
+                    catch (e) { doc.setFontSize(6).setTextColor(150, 150, 150); doc.text('(no photo)', x + 2, y + 11); missingPhotoCount++; }
+                } else { doc.setFontSize(6).setTextColor(150, 150, 150); doc.text('(no photo)', x + 2, y + 11); missingPhotoCount++; }
 
-                // Text cells
-                x += colWidths[0]; // skip photo column
+                x += colWidths[0];
                 doc.setTextColor(0, 0, 0).setFontSize(7).setFont("helvetica", "normal");
-
-                // SKU
-                doc.text(String(item.sku || ''), x + 1, y + 8);
-                x += colWidths[1];
-
-                // Vendor Item Code
+                doc.text(String(item.sku || ''), x + 1, y + 8); x += colWidths[1];
                 const vic = String(item.vendor_item_number || '');
-                doc.text(vic.length > 10 ? vic.substring(0, 10) + '\n' + vic.substring(10) : vic, x + 1, y + 8);
-                x += colWidths[2];
-
-                // Item name (wrap if long)
+                doc.text(vic.length > 10 ? vic.substring(0, 10) + '\n' + vic.substring(10) : vic, x + 1, y + 8); x += colWidths[2];
                 const itemName = String(item.item_name || '');
                 const itemNameLines = doc.splitTextToSize(itemName, colWidths[3] - 2);
-                doc.text(itemNameLines.slice(0, 3), x + 1, y + 8);
-                x += colWidths[3];
-
-                // Color
-                doc.text(String(item.color || ''), x + 1, y + 8);
-                x += colWidths[4];
-
-                // Material
+                doc.text(itemNameLines.slice(0, 3), x + 1, y + 8); x += colWidths[3];
+                doc.text(String(item.color || ''), x + 1, y + 8); x += colWidths[4];
                 const mat = String(item.material || '');
-                doc.text(mat.length > 7 ? mat.substring(0, 7) : mat, x + 1, y + 8);
-                x += colWidths[5];
-
-                // HS Code
-                doc.text(String(item.hs_code || '9505100090'), x + 1, y + 8);
-                x += colWidths[6];
-
-                // CBM
-                const cbm = parseFloat(item.cbm || 0).toFixed(4);
-                doc.text(cbm, x + 1, y + 8);
-                x += colWidths[7];
-
-                // Ordered
-                doc.text(String(item.quantity || ''), x + 1, y + 8);
-                x += colWidths[8];
-
-                // Received
-                doc.text(String(item.received_qty || 0), x + 1, y + 8);
-                x += colWidths[9];
-
-                // Unit (RMB)
-                doc.text(`RMB ${parseFloat(item.unit_cost_rmb || item.unit_price_foreign || 0).toFixed(2)}`, x + 1, y + 8);
-                x += colWidths[10];
-
-                // Barcode
-                if (item.barcode) {
-                    doc.text(String(item.barcode), x + 1, y + 8);
-                }
+                doc.text(mat.length > 7 ? mat.substring(0, 7) : mat, x + 1, y + 8); x += colWidths[5];
+                doc.text(String(item.hs_code || '9505100090'), x + 1, y + 8); x += colWidths[6];
+                doc.text(parseFloat(item.cbm || 0).toFixed(4), x + 1, y + 8); x += colWidths[7];
+                doc.text(String(item.quantity || ''), x + 1, y + 8); x += colWidths[8];
+                doc.text(String(item.received_qty || 0), x + 1, y + 8); x += colWidths[9];
+                doc.text(`RMB ${parseFloat(item.unit_cost_rmb || item.unit_price_foreign || 0).toFixed(2)}`, x + 1, y + 8); x += colWidths[10];
+                if (item.barcode) { doc.text(String(item.barcode), x + 1, y + 8); }
                 x += colWidths[11];
-
                 y += rowHeight;
             }
 
-            // ─── GRAND TOTAL ───
             y += 5;
             doc.setFontSize(12).setFont("helvetica", "bold").setTextColor(0, 0, 0);
-            const grandTotal = parseFloat(data.total_rmb || 0).toFixed(2);
-            doc.text(`GRAND TOTAL: RMB ${grandTotal}`, 200, y, { align: "right" });
+            doc.text(`GRAND TOTAL: RMB ${parseFloat(data.total_rmb || 0).toFixed(2)}`, 200, y, { align: "right" });
 
-            // ─── NOTES ───
             y += 8;
             doc.setFontSize(8).setFont("helvetica", "italic").setTextColor(80, 80, 80);
             if (missingPhotoCount > 0) {
-                doc.text(`Note: ${missingPhotoCount} of ${items.length} lines had no product photo available; those are marked (no photo) above.`, 14, y);
+                doc.text(`Note: ${missingPhotoCount} of ${items.length} lines had no product photo.`, 14, y);
                 y += 5;
             }
 
-            // ─── ISSUED BY FOOTER ───
             y += 10;
             doc.setDrawColor('#FFB7C5').setLineWidth(1);
             doc.line(10, y - 3, 200, y - 3);
-
             doc.setFontSize(9).setFont("helvetica", "bold").setTextColor(0, 0, 0);
             doc.text("Issued by:", 14, y + 3);
             doc.setFont("helvetica", "normal");
             doc.text(data.issued_by_name || data.created_by || '', 35, y + 3);
-
             doc.text("WeChat / WhatsApp:", 14, y + 9);
             doc.text("+86 13817827547", 50, y + 9);
-
-            // Company chop space
             doc.setDrawColor(180, 180, 180).setLineWidth(0.5);
             doc.setDash(1, 1);
             doc.roundedRect(130, y, 60, 25, 2, 2, 'S');
             doc.setDash(0, 0);
             doc.setFontSize(7).setFont("helvetica", "italic").setTextColor(120, 120, 120);
             doc.text("[space reserved for company seal]", 160, y + 13, { align: "center" });
-
             doc.save(`SAHI_${data.po_id}.pdf`);
         }
 
@@ -737,8 +812,7 @@
             if (lastPO) await generatePDF(lastPO);
         }
 
-        // --- PO State Machine: submit, approve, reject, issue ---
-
+        // --- PO State Machine ---
         async function submitForApproval() {
             if (!lastPO) return;
             const btn = document.getElementById('submitBtn');
@@ -773,10 +847,7 @@
             if (statusFilter) url += `?status=${statusFilter}`;
             try {
                 const res = await fetch(url);
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.error || `HTTP ${res.status}`);
-                }
+                if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.error || `HTTP ${res.status}`); }
                 const pos = await res.json();
                 const tbody = document.getElementById('poListBody');
                 tbody.innerHTML = '';
@@ -785,28 +856,21 @@
                     return;
                 }
                 let me = { role: 'ADMIN', email: '' };
-                try {
-                    me = await fetch('/api/me').then(r => r.json());
-                } catch (e) { /* use default */ }
+                try { me = await fetch('/api/me').then(r => r.json()); } catch (e) {}
                 pos.forEach(po => {
                     const sc = STATUS_COLORS[po.status] || { bg: '#E0E0E0', color: '#424242' };
                     let actions = '';
-                    // Submit button: DRAFT, creator or admin
                     if (po.status === 'DRAFT' && (me.role === 'ADMIN' || po.created_by === me.email)) {
                         actions += `<button onclick="submitPOFromList('${po.po_id}')" style="padding:4px 8px; background:#4CAF50; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Submit</button> `;
                     }
-                    // Approve/Reject: SUBMITTED, admin only
                     if (po.status === 'SUBMITTED' && me.role === 'ADMIN') {
                         actions += `<button onclick="approvePO('${po.po_id}')" style="padding:4px 8px; background:#2196F3; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Approve</button> `;
                         actions += `<button onclick="rejectPO('${po.po_id}')" style="padding:4px 8px; background:#f44336; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Reject</button> `;
                     }
-                    // Issue: APPROVED
                     if (po.status === 'APPROVED') {
                         actions += `<button onclick="issuePO('${po.po_id}')" style="padding:4px 8px; background:#FF9800; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Issue to Supplier</button> `;
                     }
-                    // View PDF
                     actions += `<button onclick="viewPOPDF('${po.po_id}')" style="padding:4px 8px; background:#D3D3D3; border:none; border-radius:3px; cursor:pointer; font-size:11px;">View</button>`;
-
                     tbody.innerHTML += `
                         <tr>
                             <td><strong>${po.po_id}</strong></td>
@@ -837,7 +901,7 @@
             if (!confirm('Approve this PO?')) return;
             const res = await fetch(`/api/purchase-orders/${poId}/approve`, { method: 'POST' });
             const data = await res.json();
-            if (data.success) { alert('PO approved! It can now be issued to the supplier.'); loadPOList(); }
+            if (data.success) { alert('PO approved!'); loadPOList(); }
             else alert('Error: ' + data.error);
         }
 
@@ -850,15 +914,15 @@
                 body: JSON.stringify({ reason })
             });
             const data = await res.json();
-            if (data.success) { alert('PO rejected and sent back to creator.'); loadPOList(); }
+            if (data.success) { alert('PO rejected.'); loadPOList(); }
             else alert('Error: ' + data.error);
         }
 
         async function issuePO(poId) {
-            if (!confirm('Issue this PO to the supplier? This will finalize it.')) return;
+            if (!confirm('Issue this PO to the supplier?')) return;
             const res = await fetch(`/api/purchase-orders/${poId}/issue`, { method: 'POST' });
             const data = await res.json();
-            if (data.success) { alert('PO issued to supplier! Stock can now be received.'); loadPOList(); }
+            if (data.success) { alert('PO issued to supplier!'); loadPOList(); }
             else alert('Error: ' + data.error);
         }
 
@@ -869,11 +933,12 @@
             else alert('Error: ' + data.error);
         }
 
-        // Load PO list on page load.
+        // --- Init ---
+        document.getElementById('poDate').value = new Date().toISOString().slice(0, 10);
+        loadVendors().then(() => loadActiveItems());
         loadPOList();
     </script>
     <script>
-        // --- Auth / role-based nav (shared pattern across all pages) ---
         const NAV_PERMISSIONS = {
             '/': ['ADMIN'],
             '/create-po.html': ['ADMIN', 'BUYER'],
@@ -929,9 +994,7 @@
                 if (b) { b.style.display = d.count > 0 ? 'inline-block' : 'none'; b.innerText = d.count > 99 ? '99+' : d.count; }
             } catch (e) {}
         }
-        function toggleNotif() {
-            alert('View notifications on the Item Master page.'); // Simplified for create-po
-        }
+        function toggleNotif() { alert('View notifications on the Item Master page.'); }
         initAuthNav();
     </script>
 </body>

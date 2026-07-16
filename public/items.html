@@ -17,6 +17,9 @@
         .status-badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
         .status-active { background: #d4edda; color: #155724; }
         .status-discontinued { background: #f8d7da; color: #721c24; }
+        .status-pending-image { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+        .pending-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 10px 15px; margin-bottom: 15px; font-size: 14px; color: #856404; }
+        .pending-banner strong { font-size: 16px; }
         .upload-box { background: #f9f9f9; padding: 20px; border: 2px dashed #87CEEB; border-radius: 8px; margin-bottom: 25px; text-align: center; }
         .preview-box { display: none; background: #e6fffa; border: 1px solid #87CEEB; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         #uploadStatus { margin-top: 10px; font-weight: bold; }
@@ -61,7 +64,9 @@
         </div>
 
         <h2 style="color:#333;">Item Master</h2>
-        <p style="color:#666; font-size:14px;">Upload vendor Excel, map items to existing SKUs, or create new ones.</p>
+        <p style="color:#666; font-size:14px;">Upload vendor Excel, map items to existing SKUs, or create new ones. Items without images are <span class="status-badge status-pending-image">PENDING_IMAGE</span> and cannot be added to POs.</p>
+
+        <div id="pendingBanner" class="pending-banner" style="display:none;"></div>
 
         <div class="upload-box">
             <h3 style="margin-top:0;">Upload Vendor Excel</h3>
@@ -132,7 +137,7 @@
                 <div class="form-group"><label>Std Cost (RMB)</label><input type="number" step="0.01" id="editStdCostRmb"></div>
                 <div class="form-group"><label>CBM (per unit)</label><input type="number" step="0.0001" id="editCbm" placeholder="0.0000"></div>
                 <div class="form-group"><label>Status</label>
-                    <select id="editStatus"><option value="ACTIVE">ACTIVE</option><option value="DISCONTINUED">DISCONTINUED</option></select>
+                    <select id="editStatus"><option value="ACTIVE">ACTIVE</option><option value="PENDING_IMAGE">PENDING_IMAGE</option><option value="DISCONTINUED">DISCONTINUED</option></select>
                 </div>
             </div>
             <div class="form-group"><label>Description</label><textarea id="editDescription" rows="3" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;"></textarea></div>
@@ -188,14 +193,29 @@
                 existingSkuMap = data;
                 const tbody = document.getElementById('itemTableBody');
                 tbody.innerHTML = '';
+
+                // Count pending items and show banner
+                const pendingCount = data.filter(i => i.status === 'PENDING_IMAGE').length;
+                const banner = document.getElementById('pendingBanner');
+                if (pendingCount > 0) {
+                    banner.style.display = '';
+                    banner.innerHTML = `<strong>${pendingCount} item(s) need images!</strong> Click Edit on each item below to upload a photo. Items without images cannot be added to POs.`;
+                } else {
+                    banner.style.display = 'none';
+                }
+
                 data.forEach(item => {
-                    const statusClass = item.status === 'ACTIVE' ? 'status-active' : 'status-discontinued';
+                    let statusClass = 'status-active';
+                    if (item.status === 'DISCONTINUED') statusClass = 'status-discontinued';
+                    else if (item.status === 'PENDING_IMAGE') statusClass = 'status-pending-image';
+
                     const imgBase = (item.vendor_item_number || item.sku || '').replace(/[^a-zA-Z0-9._-]/g, '_');
                     const imgCell = imgBase
                         ? `<img src="/images/${imgBase}.jpg" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=&quot;font-size:10px;color:#bbb;&quot;>No photo</span>'" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid #ddd;">`
                         : '<span style="font-size:10px;color:#bbb;">No photo</span>';
+                    const rowStyle = item.status === 'PENDING_IMAGE' ? 'background:#fffbe6;' : '';
                     const row = `
-                        <tr>
+                        <tr style="${rowStyle}">
                             <td style="text-align:center;">${imgCell}</td>
                             <td><strong>${item.sku}</strong></td>
                             <td>${item.friendly_name}</td>
@@ -212,7 +232,7 @@
                     tbody.innerHTML += row;
                 });
             }).catch(err => {
-                document.getElementById('itemTableBody').innerHTML = '<tr><td colspan="11" style="text-align:center; color:orange;">⚠️ Cannot connect to database.</td></tr>';
+                document.getElementById('itemTableBody').innerHTML = '<tr><td colspan="11" style="text-align:center; color:orange;">Cannot connect to database.</td></tr>';
             });
         }
 
@@ -442,9 +462,11 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    statusDiv.innerText = '✅ Image uploaded!';
+                    statusDiv.innerText = 'Image uploaded! Item is now ACTIVE.';
                     statusDiv.style.color = '#2e7d32';
                     document.getElementById('editImagePreview').src = data.image_url + '?t=' + Date.now();
+                    // Reload the master list so the PENDING_IMAGE banner count updates
+                    loadMasterList();
                 } else {
                     statusDiv.innerText = '❌ ' + (data.error || 'Upload failed');
                     statusDiv.style.color = '#d32f2f';
