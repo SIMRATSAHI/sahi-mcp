@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAHI London — Wholesale Catalogue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #87CFEB;
+    --blush: #FFB8C4;
+    --black: #1A1A1A;
+    --grey: #8A8A8A;
+    --light: #F5F0EB;
+    --white: #FFFFFF;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: var(--white);
+    color: var(--black);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  /* ── Brand ── */
+  .brand {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .brand h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    color: var(--black);
+    margin-bottom: 6px;
+  }
+  .brand .sub {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--grey);
+    text-transform: uppercase;
+  }
+  .brand .rule {
+    width: 80px;
+    height: 1px;
+    background: var(--sky);
+    margin: 16px auto 0;
+  }
+  .brand .rule.pink {
+    width: 50px;
+    background: var(--blush);
+    margin: 4px auto 0;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--white);
+    border: 1px solid #E8E4DC;
+    border-radius: 2px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .card h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .card .desc {
+    font-size: 13px;
+    color: var(--grey);
+    text-align: center;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+
+  /* ── Form ── */
+  .field {
+    margin-bottom: 20px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--grey);
+    margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #E8E4DC;
+    border-radius: 2px;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 15px;
+    color: var(--black);
+    background: #FAFAFA;
+    transition: border-color 0.2s;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: var(--sky);
+    background: var(--white);
+  }
+  .field input::placeholder {
+    color: #C4C4C4;
+  }
+
+  .field .hint {
+    font-size: 11px;
+    color: var(--grey);
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  /* ── Button ── */
+  .btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 2px;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--black);
+    color: var(--white);
+  }
+  .btn-primary:hover {
+    background: #333;
+  }
+  .btn-primary:disabled {
+    background: #CCC;
+    cursor: not-allowed;
+  }
+
+  /* ── Messages ── */
+  .msg {
+    padding: 12px 16px;
+    border-radius: 2px;
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 20px;
+    display: none;
+    line-height: 1.5;
+  }
+  .msg.show { display: block; }
+  .msg.info { background: #E3F2FD; color: #1565C0; border: 1px solid #BBDEFB; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+    color: var(--grey);
+    letter-spacing: 1px;
+  }
+  .footer .chinese {
+    margin-top: 4px;
+    font-size: 10px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 480px) {
+    .card { padding: 28px 20px; }
+    .brand h1 { font-size: 22px; letter-spacing: 3px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="brand">
+    <h1>SAHI LONDON</h1>
+    <div class="sub">Wholesale Catalogue — Autumn/Winter 2025</div>
+    <div class="rule"></div>
+    <div class="rule pink"></div>
+  </div>
+
+  <div class="card">
+    <h2>View Catalogue</h2>
+    <p class="desc">Please share your details below to access the wholesale catalogue.</p>
+
+    <div id="msg-info" class="msg info">
+      Redirecting you to the catalogue...
+    </div>
+
+    <form id="access-form">
+      <div class="field">
+        <label for="whatsapp">WhatsApp Number</label>
+        <input type="tel" id="whatsapp" placeholder="+44 7123 456789" required autocomplete="tel">
+        <div class="hint">Include country code, e.g. +44 for UK, +1 for Canada/US</div>
+      </div>
+      <div class="field">
+        <label for="company">Company Name</label>
+        <input type="text" id="company" placeholder="e.g. Larkin Greenhouses" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="submit-btn">View Catalogue</button>
+    </form>
+  </div>
+</div>
+
+<div class="footer">
+  SAHI SHANGHAI COMPANY LTD.<br>
+  <span class="chinese">飒鹤（上海）贸易有限公司</span>
+</div>
+
+<script>
+const form = document.getElementById('access-form');
+const btn = document.getElementById('submit-btn');
+const msgInfo = document.getElementById('msg-info');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const whatsapp = document.getElementById('whatsapp').value.trim();
+  const company = document.getElementById('company').value.trim();
+
+  if (!whatsapp || whatsapp.length < 5) {
+    alert('Please enter a valid WhatsApp number with country code.');
+    return;
+  }
+  if (!company) {
+    alert('Please enter your company name.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Opening Catalogue...';
+  msgInfo.classList.add('show');
+
+  // Fire-and-forget: register in background, redirect immediately
+  fetch('/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ whatsapp, company })
+  }).catch(() => {}); // Don't block - redirect anyway
+
+  // Redirect to catalogue
+  setTimeout(() => {
+    window.location.href = '/catalogue.html';
+  }, 600);
+});
+</script>
+
+</body>
+</html>
