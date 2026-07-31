@@ -123,13 +123,16 @@
   }
   
   .tile-price {
+    display: none;  /* hidden by default, shown via ?sales param */
+  }
+  body.sales .tile-price {
+    display: inline-block;
     font-size: 12px;
     font-weight: 600;
     color: #1A1A1A;
     letter-spacing: 0.5px;
     margin-top: 6px;
     padding: 4px 10px;
-    display: inline-block;
     background: #F5F0EB;
     border-radius: 2px;
   }
@@ -1039,5 +1042,11 @@
   Contact: <a href="mailto:info@sahilondon.com">info@sahilondon.com</a> &middot; WhatsApp: +44 7518 130380
 </footer>
 
+<script>
+  // Show wholesale prices only for sales team via ?sales
+  if (location.search.includes('sales')) {
+    document.body.classList.add('sales');
+  }
+</script>
 </body>
 </html>
