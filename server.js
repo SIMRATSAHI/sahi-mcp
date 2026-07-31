@@ -249,6 +249,21 @@ async function ensureSchema() {
   } catch (err) {
     console.error('vendors table migration warning:', err.message);
   }
+
+  // Catalogue visitor tracking — WhatsApp + Company for B2B wholesale catalogue access
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS catalogue_visitors (
+        id SERIAL PRIMARY KEY,
+        whatsapp TEXT NOT NULL,
+        company TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        visit_count INTEGER NOT NULL DEFAULT 1
+      )
+    `);
+  } catch (err) {
+    console.error('catalogue_visitors migration warning:', err.message);
+  }
 }
 ensureSchema();
 
@@ -2185,6 +2200,61 @@ app.get('/api/health', async (req, res) => {
     checks.database = 'error: ' + e.message;
   }
   res.json(checks);
+});
+
+// ── Catalogue visitor tracking (WhatsApp-gated B2B catalogue access) ──
+app.post('/api/register', async (req, res) => {
+  try {
+    const { whatsapp, company } = req.body;
+    if (!whatsapp || whatsapp.trim().length < 5) {
+      return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
+    }
+    if (!company || company.trim().length < 1) {
+      return res.status(400).json({ error: 'Please enter your company name.' });
+    }
+    const wa = whatsapp.trim();
+    const co = company.trim();
+    const existing = await pool.query('SELECT id, visit_count FROM catalogue_visitors WHERE whatsapp = $1', [wa]);
+    if (existing.rows.length > 0) {
+      await pool.query(
+        'UPDATE catalogue_visitors SET company = $1, visit_count = visit_count + 1, created_at = NOW() WHERE id = $2',
+        [co, existing.rows[0].id]
+      );
+    } else {
+      await pool.query('INSERT INTO catalogue_visitors (whatsapp, company) VALUES ($1, $2)', [wa, co]);
+    }
+    console.log(`[CATALOGUE VISIT] ${co} — WhatsApp: ${wa}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Register error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/customers', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, whatsapp, company, created_at, visit_count FROM catalogue_visitors ORDER BY created_at DESC'
+    );
+    res.json({ count: result.rows.length, customers: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stats', async (req, res) => {
+  try {
+    const total = await pool.query('SELECT COUNT(*) as count FROM catalogue_visitors');
+    const unique = await pool.query('SELECT COUNT(DISTINCT whatsapp) as count FROM catalogue_visitors');
+    const totalVisits = await pool.query('SELECT SUM(visit_count) as count FROM catalogue_visitors');
+    res.json({
+      total: parseInt(total.rows[0].count),
+      unique: parseInt(unique.rows[0].count),
+      totalVisits: parseInt(totalVisits.rows[0].count) || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
