@@ -16,6 +16,8 @@ const EMAIL_USER = process.env.EMAIL_USER || 'B2B-order@sahilondon.com';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
 const ORDER_EMAIL = process.env.ORDER_EMAIL || 'B2B-order@sahilondon.com';
 
+console.log(`[EMAIL CONFIG] user=${EMAIL_USER}, host=${EMAIL_HOST}:${EMAIL_PORT}, pass=${EMAIL_PASS ? 'SET(' + EMAIL_PASS.length + 'chars)' : 'MISSING'}, order_to=${ORDER_EMAIL}`);
+
 const mailer = nodemailer.createTransport({
   host: EMAIL_HOST,
   port: EMAIL_PORT,
@@ -2514,7 +2516,10 @@ View in admin: https://sahi-mcp.onrender.com/index.html
         console.log(emailBody);
       }
     } catch (mailErr) {
-      console.error('Email send failed:', mailErr.message);
+      console.error(`[B2B ORDER] #${orderId} EMAIL FAILED — user: ${EMAIL_USER}, host: ${EMAIL_HOST}:${EMAIL_PORT}`);
+      console.error('Error details:', mailErr.message, mailErr.code, mailErr.command || '');
+      if (mailErr.response) console.error('Gmail response:', mailErr.response);
+      console.error('Full error:', JSON.stringify(mailErr, Object.getOwnPropertyNames(mailErr)));
       console.log(emailBody);
     }
 
