@@ -12,9 +12,9 @@ const nodemailer = require('nodemailer');
 // ── Email config (for B2B order notifications) ──
 const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
 const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '587');
-const EMAIL_USER = process.env.EMAIL_USER || 'order@sahilondon.com';
+const EMAIL_USER = process.env.EMAIL_USER || 'B2B-order@sahilondon.com';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
-const ORDER_EMAIL = process.env.ORDER_EMAIL || 'order@sahilondon.com';
+const ORDER_EMAIL = process.env.ORDER_EMAIL || 'B2B-order@sahilondon.com';
 
 const mailer = nodemailer.createTransport({
   host: EMAIL_HOST,
@@ -2499,7 +2499,7 @@ ${itemsTable}
 View in admin: https://sahi-mcp.onrender.com/index.html
 `;
 
-    // Send email to order@sahilondon.com
+    // Send email to B2B-order@sahilondon.com
     try {
       if (EMAIL_PASS) {
         await mailer.sendMail({
