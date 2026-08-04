@@ -7,6 +7,21 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const xlsx = require('xlsx');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
+
+// ── Email config (for B2B order notifications) ──
+const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
+const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '587');
+const EMAIL_USER = process.env.EMAIL_USER || 'order@sahilondon.com';
+const EMAIL_PASS = process.env.EMAIL_PASS || '';
+const ORDER_EMAIL = process.env.ORDER_EMAIL || 'order@sahilondon.com';
+
+const mailer = nodemailer.createTransport({
+  host: EMAIL_HOST,
+  port: EMAIL_PORT,
+  secure: EMAIL_PORT === 465,
+  auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+});
 
 // Ensure public/images directory exists (needed for image uploads on fresh deployments)
 fs.mkdirSync(path.join(__dirname, 'public', 'images'), { recursive: true });
@@ -263,6 +278,75 @@ async function ensureSchema() {
     `);
   } catch (err) {
     console.error('catalogue_visitors migration warning:', err.message);
+  }
+
+  // B2B customer accounts — self-registration with company details (HST/GST etc.)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_customers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        company_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        address TEXT,
+        city TEXT,
+        province TEXT,
+        postal_code TEXT,
+        hst_gst_number TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_customers migration warning:', err.message);
+  }
+
+  // B2B orders
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_orders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        company_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        hst_gst_number TEXT,
+        shipping_address TEXT,
+        notes TEXT,
+        total_amount NUMERIC NOT NULL DEFAULT 0,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_orders migration warning:', err.message);
+  }
+
+  // B2B order line items
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_order_items (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES b2b_orders(id) ON DELETE CASCADE,
+        sku TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_price NUMERIC NOT NULL DEFAULT 0,
+        total NUMERIC NOT NULL DEFAULT 0
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_order_items migration warning:', err.message);
+  }
+
+  // Widen role constraint to include B2B_CUSTOMER
+  try {
+    await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
+    await pool.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS', 'B2B_CUSTOMER'))`);
+  } catch (err) {
+    console.error('B2B role migration warning:', err.message);
   }
 }
 ensureSchema();
@@ -2254,6 +2338,219 @@ app.get('/api/stats', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── B2B Customer Auth ──
+app.post('/api/b2b/register', async (req, res) => {
+  try {
+    const { email, password, company_name, contact_name, phone, address, city, province, postal_code, hst_gst_number } = req.body;
+    const missing = [];
+    if (!email) missing.push('email');
+    if (!password || password.length < 6) missing.push('password (min 6 chars)');
+    if (!company_name) missing.push('company_name');
+    if (!contact_name) missing.push('contact_name');
+    if (!phone) missing.push('phone');
+    if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(', ')}` });
+
+    // Check duplicate email
+    const dup = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (dup.rows.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
+
+    const { salt, hash } = hashPassword(password);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const u = await client.query(
+        'INSERT INTO users (email, password_hash, password_salt, role, name, is_active) VALUES ($1, $2, $3, $4, $5, true) RETURNING id',
+        [email, hash, salt, 'B2B_CUSTOMER', contact_name]
+      );
+      await client.query(
+        `INSERT INTO b2b_customers (user_id, company_name, contact_name, phone, address, city, province, postal_code, hst_gst_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [u.rows[0].id, company_name, contact_name, phone, address || null, city || null, province || null, postal_code || null, hst_gst_number || null]
+      );
+      await client.query('COMMIT');
+      logActivity({ email, role: 'B2B_CUSTOMER' }, 'B2B_REGISTER', null, { company_name, contact_name });
+      console.log(`[B2B REGISTER] ${company_name} — ${email} (${contact_name})`);
+      res.json({ success: true, message: 'Account created. You can now log in.' });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('B2B register error:', err.message);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/b2b/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+    const r = await pool.query("SELECT * FROM users WHERE email = $1 AND role = 'B2B_CUSTOMER' AND is_active = true", [email]);
+    if (r.rows.length === 0) return res.status(401).json({ error: 'Invalid email or password.' });
+    const u = r.rows[0];
+    if (!verifyPassword(password, u.password_salt, u.password_hash)) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+    // Load company info
+    const co = await pool.query('SELECT * FROM b2b_customers WHERE user_id = $1', [u.id]);
+    const sid = crypto.randomBytes(32).toString('hex');
+    sessions.set(sid, {
+      userId: u.id,
+      email: u.email,
+      role: u.role,
+      name: u.name,
+      company: co.rows.length ? co.rows[0].company_name : '',
+      hst_gst: co.rows.length ? co.rows[0].hst_gst_number || '' : ''
+    });
+    res.setHeader('Set-Cookie', `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
+    logActivity({ email: u.email, role: u.role }, 'B2B_LOGIN', null, null);
+    res.json({ success: true, name: u.name, company: co.rows[0]?.company_name || '' });
+  } catch (err) {
+    console.error('B2B login error:', err.message);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.get('/api/b2b/me', (req, res) => {
+  const user = getSessionUser(req);
+  if (!user || user.role !== 'B2B_CUSTOMER') return res.status(401).json({ error: 'Not authenticated' });
+  res.json({ email: user.email, name: user.name, company: user.company || '', hst_gst: user.hst_gst || '' });
+});
+
+// ── B2B Ordering ──
+app.post('/api/b2b/order', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Please log in to place an order.' });
+
+  try {
+    const { items, notes } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Cart is empty.' });
+    }
+
+    // Load full company details
+    const co = await pool.query('SELECT * FROM b2b_customers WHERE user_id = $1', [user.userId]);
+    const company = co.rows.length ? co.rows[0] : null;
+    const companyName = company ? company.company_name : (user.company || user.name);
+    const contactName = company ? company.contact_name : user.name;
+    const phone = company ? company.phone : '';
+    const hstGst = company ? company.hst_gst_number || '' : (user.hst_gst || '');
+    const shipping = company
+      ? [company.address, company.city, company.province, company.postal_code].filter(Boolean).join(', ')
+      : '';
+
+    let totalAmount = 0;
+    let itemCount = 0;
+    for (const item of items) {
+      totalAmount += (item.unit_price || 0) * (item.quantity || 0);
+      itemCount += item.quantity || 0;
+    }
+
+    const client = await pool.connect();
+    let orderId;
+    try {
+      await client.query('BEGIN');
+      const ord = await client.query(
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, itemCount]
+      );
+      orderId = ord.rows[0].id;
+      for (const item of items) {
+        const lineTotal = (item.unit_price || 0) * (item.quantity || 0);
+        await client.query(
+          'INSERT INTO b2b_order_items (order_id, sku, product_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)',
+          [orderId, item.sku, item.product_name, item.quantity, item.unit_price || 0, lineTotal]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    // Build order summary for email
+    let itemsTable = items.map(i =>
+      `${i.sku}\t${i.product_name}\t${i.quantity}\t$${Number(i.unit_price || 0).toFixed(2)}\t$${(Number(i.unit_price || 0) * i.quantity).toFixed(2)}`
+    ).join('\n');
+
+    const emailBody = `NEW B2B ORDER #${orderId}
+
+Company: ${companyName}
+Contact: ${contactName}
+Email: ${user.email}
+Phone: ${phone}
+HST/GST: ${hstGst || 'N/A'}
+Shipping: ${shipping || 'N/A'}
+Notes: ${notes || 'None'}
+Items: ${itemCount} | Total: CAD $${totalAmount.toFixed(2)}
+
+--- ORDER LINES ---
+SKU\tProduct\tQty\tUnit Price\tLine Total
+${itemsTable}
+
+View in admin: https://sahi-mcp.onrender.com/index.html
+`;
+
+    // Send email to order@sahilondon.com
+    try {
+      if (EMAIL_PASS) {
+        await mailer.sendMail({
+          from: EMAIL_USER,
+          to: ORDER_EMAIL,
+          subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${totalAmount.toFixed(2)})`,
+          text: emailBody
+        });
+        console.log(`[B2B ORDER] #${orderId} emailed to ${ORDER_EMAIL}`);
+      } else {
+        console.log(`[B2B ORDER] #${orderId} — EMAIL SKIPPED (no EMAIL_PASS set)`);
+        console.log(emailBody);
+      }
+    } catch (mailErr) {
+      console.error('Email send failed:', mailErr.message);
+      console.log(emailBody);
+    }
+
+    logActivity({ email: user.email, role: 'B2B_CUSTOMER' }, 'B2B_ORDER', String(orderId), { total: totalAmount, items: itemCount });
+    res.json({ success: true, orderId, total: totalAmount, message: `Order #${orderId} placed successfully!` });
+  } catch (err) {
+    console.error('B2B order error:', err.message);
+    res.status(500).json({ error: 'Failed to place order.' });
+  }
+});
+
+// View own orders
+app.get('/api/b2b/orders', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const ord = await pool.query(
+      'SELECT id, company_name, total_amount, item_count, status, notes, created_at FROM b2b_orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [user.userId]
+    );
+    res.json(ord.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Admin: view all B2B orders
+app.get('/api/b2b/admin/orders', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const ord = await pool.query(
+      'SELECT o.*, array_agg(json_build_object(\'sku\', i.sku, \'product_name\', i.product_name, \'quantity\', i.quantity, \'unit_price\', i.unit_price, \'total\', i.total)) as items FROM b2b_orders o LEFT JOIN b2b_order_items i ON i.order_id = o.id GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100'
+    );
+    res.json(ord.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
 

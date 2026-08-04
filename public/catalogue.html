@@ -181,6 +181,230 @@
     border-radius: 2px;
     margin-bottom: 6px;
   }
+
+  /* ── Cart UI ── */
+  .cart-fab {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--near-black);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    z-index: 900;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+  }
+  .cart-fab:hover { transform: scale(1.08); }
+  .cart-fab .badge-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--blush-pink);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  .cart-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 950;
+  }
+  .cart-drawer {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    max-width: 100vw;
+    height: 100vh;
+    background: #fff;
+    z-index: 1000;
+    flex-direction: column;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .cart-drawer-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cart-drawer-header h3 {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .cart-drawer-header button {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--grey-text);
+    line-height: 1;
+  }
+  .cart-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px;
+  }
+  .cart-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: flex-start;
+  }
+  .cart-item-info { flex: 1; min-width: 0; }
+  .cart-item-info .ci-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .cart-item-info .ci-sku {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    color: var(--grey-text);
+    letter-spacing: 0.5px;
+  }
+  .cart-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .cart-item-qty button {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  .cart-item-qty span { min-width: 24px; text-align: center; font-family: Helvetica, Arial, sans-serif; font-size: 13px; }
+  .cart-item-price {
+    text-align: right;
+    min-width: 80px;
+  }
+  .cart-item-price .ci-unit {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--grey-text);
+  }
+  .cart-item-price .ci-total {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 1px;
+  }
+  .cart-item-price .ci-remove {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    color: var(--blush-pink);
+    cursor: pointer;
+    margin-top: 2px;
+  }
+  .cart-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--grey-text);
+    font-size: 14px;
+  }
+  .cart-footer {
+    padding: 16px 24px 28px;
+    border-top: 1px solid #eee;
+  }
+  .cart-footer .total-line {
+    display: flex;
+    justify-content: space-between;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .cart-footer button.checkout-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--near-black);
+    color: #fff;
+    border: none;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .cart-footer button.checkout-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .cart-footer .notes-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #E0E0E0;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    border-radius: 2px;
+    margin-bottom: 12px;
+    resize: vertical;
+    min-height: 50px;
+  }
+
+  /* Add to Cart button on tiles */
+  .tile .add-cart-btn {
+    display: none;
+    margin-top: 6px;
+    padding: 5px 12px;
+    background: none;
+    border: 1px solid var(--near-black);
+    color: var(--near-black);
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .tile .add-cart-btn:hover { background: var(--near-black); color: #fff; }
+  .tile .add-cart-btn.in-cart { background: #F5F0EB; border-color: #F5F0EB; color: #555; }
+
+  /* Login prompt for checkout */
+  .login-prompt {
+    text-align: center;
+    padding: 20px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    color: var(--grey-text);
+  }
+  .login-prompt a {
+    color: var(--near-black);
+    font-weight: 600;
+  }
+
+  body.sales .cart-fab { display: flex; }
+  body.sales .tile .add-cart-btn { display: inline-block; }
 </style>
 </head>
 <body>
@@ -1037,16 +1261,264 @@
   </div>
 </section>
 
+<!-- Cart FAB -->
+<button class="cart-fab" id="cartFab" onclick="toggleCart()" title="Cart">
+  &#128722;
+  <span class="badge-count" id="cartCount" style="display:none">0</span>
+</button>
+
+<!-- Cart Overlay -->
+<div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+
+<!-- Cart Drawer -->
+<div class="cart-drawer" id="cartDrawer">
+  <div class="cart-drawer-header">
+    <h3>Your Order</h3>
+    <button onclick="toggleCart()">&times;</button>
+  </div>
+  <div class="cart-items" id="cartItems">
+    <div class="cart-empty">Your cart is empty.<br>Browse the catalogue and add items.</div>
+  </div>
+  <div class="cart-footer">
+    <textarea class="notes-input" id="orderNotes" placeholder="Order notes (optional)"></textarea>
+    <div class="total-line">
+      <span>Total</span>
+      <span id="cartTotal">CAD $0.00</span>
+    </div>
+    <div id="cartActionArea">
+      <button class="checkout-btn" id="checkoutBtn" onclick="handleCheckout()" disabled>Place Order</button>
+    </div>
+  </div>
+</div>
+
 <footer>
   SAHI LONDON &middot; Photography &copy; Sahi London / sahilondon.com<br>
   Contact: <a href="mailto:info@sahilondon.com">info@sahilondon.com</a> &middot; WhatsApp: +44 7518 130380
 </footer>
 
 <script>
-  // Show wholesale prices only for sales team via ?sales
-  if (location.search.includes('sales')) {
-    document.body.classList.add('sales');
+// ── Sales mode ──
+const isSales = location.search.includes('sales');
+if (isSales) {
+  document.body.classList.add('sales');
+}
+
+// ── Cart state (localStorage) ──
+let cart = [];
+try { cart = JSON.parse(localStorage.getItem('sahi_b2b_cart') || '[]'); } catch(e) { cart = []; }
+function saveCart() { localStorage.setItem('sahi_b2b_cart', JSON.stringify(cart)); updateCartUI(); }
+
+function getSkuKey(sku) {
+  // Normalize SKU: remove leading variants like "-1", "-2", "-OWT-1", "-MEG-1" etc.
+  // But keep the full sku as key for multi-variant products
+  return sku.trim();
+}
+
+// ── Build add-to-cart buttons on tiles ──
+function buildCartButtons() {
+  document.querySelectorAll('.tile').forEach(tile => {
+    // Get first SKU as primary
+    const skuEl = tile.querySelector('.tile-sku');
+    const variantEls = tile.querySelectorAll('.variant-sku');
+    const nameEl = tile.querySelector('.tile-name');
+    const priceEl = tile.querySelector('.tile-price');
+
+    const productName = nameEl ? nameEl.textContent.trim() : 'Product';
+    const priceText = priceEl ? priceEl.textContent.replace('Wholesale CAD $', '').trim() : '';
+    const unitPrice = parseFloat(priceText) || 0;
+
+    // For multi-variant tiles, add button per variant
+    if (variantEls.length > 1) {
+      variantEls.forEach(vEl => {
+        const sku = vEl.textContent.trim();
+        const btn = document.createElement('button');
+        btn.className = 'add-cart-btn';
+        btn.textContent = isInCart(sku) ? 'In Cart' : '+ Add';
+        if (isInCart(sku)) btn.classList.add('in-cart');
+        btn.onclick = (e) => { e.stopPropagation(); addToCart(sku, productName, unitPrice); };
+        vEl.insertAdjacentElement('afterend', btn);
+      });
+    } else if (skuEl) {
+      // Single SKU tile
+      const sku = skuEl.textContent.trim();
+      const btn = document.createElement('button');
+      btn.className = 'add-cart-btn';
+      btn.textContent = isInCart(sku) ? 'In Cart' : '+ Add';
+      if (isInCart(sku)) btn.classList.add('in-cart');
+      btn.onclick = (e) => { e.stopPropagation(); addToCart(sku, productName, unitPrice); };
+      skuEl.insertAdjacentElement('afterend', btn);
+    }
+  });
+}
+
+function isInCart(sku) { return cart.some(i => i.sku === sku); }
+
+function addToCart(sku, productName, unitPrice) {
+  const existing = cart.find(i => i.sku === sku);
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    cart.push({ sku, product_name: productName, unit_price: unitPrice || 0, quantity: 1 });
   }
+  saveCart();
+  buildCartButtons(); // refresh button states
+}
+
+function removeFromCart(sku) {
+  cart = cart.filter(i => i.sku !== sku);
+  saveCart();
+  buildCartButtons();
+}
+
+function updateQty(sku, delta) {
+  const item = cart.find(i => i.sku === sku);
+  if (!item) return;
+  item.quantity += delta;
+  if (item.quantity <= 0) {
+    cart = cart.filter(i => i.sku !== sku);
+  }
+  saveCart();
+  buildCartButtons();
+}
+
+// ── Cart UI ──
+function updateCartUI() {
+  const count = cart.reduce((s, i) => s + i.quantity, 0);
+  const total = cart.reduce((s, i) => s + (i.unit_price * i.quantity), 0);
+
+  const badge = document.getElementById('cartCount');
+  const itemsEl = document.getElementById('cartItems');
+  const totalEl = document.getElementById('cartTotal');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  const cartActionArea = document.getElementById('cartActionArea');
+
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  totalEl.textContent = 'CAD $' + total.toFixed(2);
+
+  if (cart.length === 0) {
+    itemsEl.innerHTML = '<div class="cart-empty">Your cart is empty.<br>Browse the catalogue and add items.</div>';
+    checkoutBtn.disabled = true;
+  } else {
+    itemsEl.innerHTML = cart.map((item, idx) => {
+      const lineTotal = (item.unit_price * item.quantity).toFixed(2);
+      const priceDisplay = item.unit_price > 0 ? '$' + item.unit_price.toFixed(2) : '';
+      return `<div class="cart-item">
+        <div class="cart-item-info">
+          <div class="ci-name">${escHtml(item.product_name)}</div>
+          <div class="ci-sku">${escHtml(item.sku)}</div>
+          <div class="cart-item-qty">
+            <button onclick="updateQty('${escAttr(item.sku)}', -1)">-</button>
+            <span>${item.quantity}</span>
+            <button onclick="updateQty('${escAttr(item.sku)}', 1)">+</button>
+          </div>
+        </div>
+        <div class="cart-item-price">
+          ${priceDisplay ? '<div class="ci-unit">' + priceDisplay + ' ea</div>' : ''}
+          <div class="ci-total">$${lineTotal}</div>
+          <div class="ci-remove" onclick="removeFromCart('${escAttr(item.sku)}')">Remove</div>
+        </div>
+      </div>`;
+    }).join('');
+    checkoutBtn.disabled = false;
+  }
+
+  // Check auth state for checkout
+  checkAuthState().then(loggedIn => {
+    const cartActionArea = document.getElementById('cartActionArea');
+    if (!loggedIn) {
+      cartActionArea.innerHTML = `
+        <div class="login-prompt">
+          <p style="margin:0 0 12px">Please log in to place your order.</p>
+          <a href="/b2b-login.html?redirect=/catalogue.html?sales&cart" style="display:inline-block;padding:12px 28px;background:var(--near-black);color:#fff;text-decoration:none;font-family:'Lora',serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;border-radius:2px">Log In to Order</a>
+        </div>
+      `;
+    } else if (cart.length > 0) {
+      cartActionArea.innerHTML = `
+        <button class="checkout-btn" id="checkoutBtn" onclick="handleCheckout()">Place Order</button>
+      `;
+    }
+  });
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+function toggleCart() {
+  const drawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('cartOverlay');
+  const isOpen = drawer.style.display === 'flex';
+  drawer.style.display = isOpen ? 'none' : 'flex';
+  overlay.style.display = isOpen ? 'none' : 'block';
+  document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+
+// ── Auth check ──
+async function checkAuthState() {
+  try {
+    const r = await fetch('/api/b2b/me');
+    return r.ok;
+  } catch(e) { return false; }
+}
+
+// ── Checkout ──
+async function handleCheckout() {
+  if (cart.length === 0) return;
+  const loggedIn = await checkAuthState();
+  if (!loggedIn) {
+    window.location.href = '/b2b-login.html?redirect=/catalogue.html?sales&cart';
+    return;
+  }
+
+  const notes = document.getElementById('orderNotes').value.trim();
+  const btn = document.getElementById('checkoutBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+  }
+
+  try {
+    const r = await fetch('/api/b2b/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart, notes })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      cart = [];
+      saveCart();
+      buildCartButtons();
+      document.getElementById('orderNotes').value = '';
+      document.getElementById('cartItems').innerHTML = `
+        <div class="cart-empty" style="color:#2A7D2A;">
+          Order #${data.orderId} placed!<br>
+          Total: CAD $${data.total.toFixed(2)}<br>
+          <small>We'll confirm shortly at your registered email.</small>
+        </div>
+      `;
+      document.getElementById('cartActionArea').innerHTML = '';
+      document.getElementById('cartTotal').textContent = 'CAD $0.00';
+      document.getElementById('cartCount').style.display = 'none';
+    } else {
+      alert(data.error || 'Failed to place order.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Place Order'; }
+    }
+  } catch (err) {
+    alert('Network error. Please try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Place Order'; }
+  }
+}
+
+// ── Init ──
+if (isSales) {
+  buildCartButtons();
+}
+updateCartUI();
 </script>
 </body>
 </html>
