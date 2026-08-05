@@ -36,45 +36,45 @@ function generateOrderPDF(order) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      // Colors
-      const DARK = '#1a1a2e';
-      const ACCENT = '#e94560';
-      const GRAY = '#666666';
-      const LIGHT_GRAY = '#f5f5f5';
+      // Colors — SAHI palette
+      const SKY_BLUE = '#87CEEB';
+      const PASTEL_PINK = '#FFB7C5';
+      const LIGHT_GREY = '#D3D3D3';
       const WHITE = '#ffffff';
+      const BLACK = '#111111';
 
-      // Header bar
-      doc.rect(0, 0, 595, 95).fill(DARK);
-      doc.fillColor(WHITE).fontSize(26).font('Helvetica-Bold')
+      // Header bar — Sky Blue with black text
+      doc.rect(0, 0, 595, 95).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(26).font('Helvetica-Bold')
         .text('SAHI LONDON', 50, 28);
       doc.fontSize(11).font('Helvetica')
         .text('Wholesale B2B Order Confirmation', 50, 58);
-      doc.fontSize(9).fillColor('#cccccc')
+      doc.fontSize(9).fillColor('#555555')
         .text(`Generated: ${new Date().toISOString().split('T')[0]}`, 350, 58, { width: 195, align: 'right' });
 
       // Order info section
       const topY = 115;
-      doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold')
+      doc.fillColor(BLACK).fontSize(18).font('Helvetica-Bold')
         .text(`Order #${order.id}`, 50, topY);
-      doc.fontSize(10).font('Helvetica').fillColor(ACCENT)
+      doc.fontSize(10).font('Helvetica').fillColor(PASTEL_PINK)
         .text(`Status: ${order.status}`, 50, topY + 25);
 
-      // Company details box
+      // Company details box — Light Grey
       const boxY = topY + 50;
-      doc.roundedRect(50, boxY, 230, 100, 4).fill(LIGHT_GRAY).stroke('#dddddd');
-      doc.fillColor(DARK).fontSize(11).font('Helvetica-Bold')
+      doc.roundedRect(50, boxY, 230, 100, 4).fill(LIGHT_GREY).stroke('#bbbbbb');
+      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold')
         .text('SOLD TO', 65, boxY + 12);
-      doc.fontSize(10).font('Helvetica').fillColor('#333333')
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
         .text(`${order.company_name || ''}`, 65, boxY + 30)
         .text(`Contact: ${order.contact_name || ''}`, 65, boxY + 45)
         .text(`Email: ${order.email || ''}`, 65, boxY + 60);
       if (order.phone) doc.text(`Phone: ${order.phone}`, 65, boxY + 75);
 
-      // Order details box
-      doc.roundedRect(315, boxY, 230, 100, 4).fill(LIGHT_GRAY).stroke('#dddddd');
-      doc.fillColor(DARK).fontSize(11).font('Helvetica-Bold')
+      // Order details box — Light Grey
+      doc.roundedRect(315, boxY, 230, 100, 4).fill(LIGHT_GREY).stroke('#bbbbbb');
+      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold')
         .text('ORDER DETAILS', 330, boxY + 12);
-      doc.fontSize(10).font('Helvetica').fillColor('#333333')
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
         .text(`Date: ${order.created_at ? new Date(order.created_at).toLocaleDateString('en-CA') : 'N/A'}`, 330, boxY + 30)
         .text(`HST/GST: ${order.hst_gst_number || 'N/A'}`, 330, boxY + 45)
         .text(`Items: ${order.item_count || 0}`, 330, boxY + 60);
@@ -84,28 +84,28 @@ function generateOrderPDF(order) {
 
       // Items table
       const tableY = boxY + 120;
-      const colX = [50, 130, 280, 370, 440, 500]; // SKU, Product, Qty, Unit, Line Total
+      const colX = [50, 130, 280, 370, 440, 500];
       const colW = [80, 150, 50, 70, 60];
 
-      // Table header
-      doc.roundedRect(50, tableY, 495, 22, 4).fill(DARK);
-      doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold');
+      // Table header — Sky Blue with black text
+      doc.roundedRect(50, tableY, 495, 22, 4).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(9).font('Helvetica-Bold');
       doc.text('SKU', colX[0] + 5, tableY + 6, { width: colW[0] });
       doc.text('Product', colX[1] + 5, tableY + 6, { width: colW[1] });
       doc.text('Qty', colX[2] + 5, tableY + 6, { width: colW[2], align: 'center' });
       doc.text('Unit Price', colX[3] + 5, tableY + 6, { width: colW[3], align: 'right' });
       doc.text('Total', colX[4] + 5, tableY + 6, { width: colW[4], align: 'right' });
 
-      // Table rows
+      // Table rows — alternating White / Light Grey
       let rowY = tableY + 24;
       const items = order.items || [];
       doc.font('Helvetica').fontSize(9);
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const bg = i % 2 === 0 ? WHITE : LIGHT_GRAY;
+        const bg = i % 2 === 0 ? WHITE : LIGHT_GREY;
         doc.roundedRect(50, rowY, 495, 20, 0).fill(bg);
 
-        doc.fillColor('#333333');
+        doc.fillColor(BLACK);
         doc.text(it.sku || '', colX[0] + 5, rowY + 5, { width: colW[0] });
         doc.text(it.product_name || '', colX[1] + 5, rowY + 5, { width: colW[1] });
         doc.text(String(it.quantity || 0), colX[2] + 5, rowY + 5, { width: colW[2], align: 'center' });
@@ -119,24 +119,24 @@ function generateOrderPDF(order) {
         }
       }
 
-      // Total bar
+      // Total bar — Pastel Pink with black text
       const totalBarY = rowY + 10;
-      doc.roundedRect(300, totalBarY, 245, 20, 4).fill(DARK);
-      doc.fillColor(WHITE).fontSize(12).font('Helvetica-Bold')
+      doc.roundedRect(300, totalBarY, 245, 20, 4).fill(PASTEL_PINK);
+      doc.fillColor(BLACK).fontSize(12).font('Helvetica-Bold')
         .text(`TOTAL: CAD $${Number(order.total_amount || 0).toFixed(2)}`, 310, totalBarY + 4, { width: 225, align: 'right' });
 
       // Notes
       if (order.notes) {
         const notesY = totalBarY + 40;
-        doc.fillColor('#999999').fontSize(9).font('Helvetica')
+        doc.fillColor('#777777').fontSize(9).font('Helvetica')
           .text('NOTES:', 50, notesY);
-        doc.fillColor('#333333')
+        doc.fillColor(BLACK)
           .text(order.notes, 50, notesY + 14, { width: 495 });
       }
 
       // Footer
       const footerY = 790;
-      doc.fillColor('#cccccc').fontSize(8).font('Helvetica')
+      doc.fillColor('#999999').fontSize(8).font('Helvetica')
         .text(`SAHI London B2B ● Order #${order.id} ● ${new Date().toISOString().split('T')[0]}`, 50, footerY, { width: 495, align: 'center' });
 
       doc.end();
