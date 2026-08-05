@@ -8,6 +8,7 @@ const multer = require('multer');
 const xlsx = require('xlsx');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
 
 // ── Email config (for B2B order notifications) ──
 const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
@@ -24,6 +25,126 @@ const mailer = nodemailer.createTransport({
   secure: EMAIL_PORT === 465,
   auth: { user: EMAIL_USER, pass: EMAIL_PASS }
 });
+
+// ── PDF Generator for B2B Order Confirmations ──
+function generateOrderPDF(order) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks = [];
+      doc.on('data', c => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      // Colors
+      const DARK = '#1a1a2e';
+      const ACCENT = '#e94560';
+      const GRAY = '#666666';
+      const LIGHT_GRAY = '#f5f5f5';
+      const WHITE = '#ffffff';
+
+      // Header bar
+      doc.rect(0, 0, 595, 95).fill(DARK);
+      doc.fillColor(WHITE).fontSize(26).font('Helvetica-Bold')
+        .text('SAHI LONDON', 50, 28);
+      doc.fontSize(11).font('Helvetica')
+        .text('Wholesale B2B Order Confirmation', 50, 58);
+      doc.fontSize(9).fillColor('#cccccc')
+        .text(`Generated: ${new Date().toISOString().split('T')[0]}`, 350, 58, { width: 195, align: 'right' });
+
+      // Order info section
+      const topY = 115;
+      doc.fillColor(DARK).fontSize(18).font('Helvetica-Bold')
+        .text(`Order #${order.id}`, 50, topY);
+      doc.fontSize(10).font('Helvetica').fillColor(ACCENT)
+        .text(`Status: ${order.status}`, 50, topY + 25);
+
+      // Company details box
+      const boxY = topY + 50;
+      doc.roundedRect(50, boxY, 230, 100, 4).fill(LIGHT_GRAY).stroke('#dddddd');
+      doc.fillColor(DARK).fontSize(11).font('Helvetica-Bold')
+        .text('SOLD TO', 65, boxY + 12);
+      doc.fontSize(10).font('Helvetica').fillColor('#333333')
+        .text(`${order.company_name || ''}`, 65, boxY + 30)
+        .text(`Contact: ${order.contact_name || ''}`, 65, boxY + 45)
+        .text(`Email: ${order.email || ''}`, 65, boxY + 60);
+      if (order.phone) doc.text(`Phone: ${order.phone}`, 65, boxY + 75);
+
+      // Order details box
+      doc.roundedRect(315, boxY, 230, 100, 4).fill(LIGHT_GRAY).stroke('#dddddd');
+      doc.fillColor(DARK).fontSize(11).font('Helvetica-Bold')
+        .text('ORDER DETAILS', 330, boxY + 12);
+      doc.fontSize(10).font('Helvetica').fillColor('#333333')
+        .text(`Date: ${order.created_at ? new Date(order.created_at).toLocaleDateString('en-CA') : 'N/A'}`, 330, boxY + 30)
+        .text(`HST/GST: ${order.hst_gst_number || 'N/A'}`, 330, boxY + 45)
+        .text(`Items: ${order.item_count || 0}`, 330, boxY + 60);
+      if (order.shipping_address) {
+        doc.text(`Ship To: ${order.shipping_address.substring(0, 50)}`, 330, boxY + 75);
+      }
+
+      // Items table
+      const tableY = boxY + 120;
+      const colX = [50, 130, 280, 370, 440, 500]; // SKU, Product, Qty, Unit, Line Total
+      const colW = [80, 150, 50, 70, 60];
+
+      // Table header
+      doc.roundedRect(50, tableY, 495, 22, 4).fill(DARK);
+      doc.fillColor(WHITE).fontSize(9).font('Helvetica-Bold');
+      doc.text('SKU', colX[0] + 5, tableY + 6, { width: colW[0] });
+      doc.text('Product', colX[1] + 5, tableY + 6, { width: colW[1] });
+      doc.text('Qty', colX[2] + 5, tableY + 6, { width: colW[2], align: 'center' });
+      doc.text('Unit Price', colX[3] + 5, tableY + 6, { width: colW[3], align: 'right' });
+      doc.text('Total', colX[4] + 5, tableY + 6, { width: colW[4], align: 'right' });
+
+      // Table rows
+      let rowY = tableY + 24;
+      const items = order.items || [];
+      doc.font('Helvetica').fontSize(9);
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const bg = i % 2 === 0 ? WHITE : LIGHT_GRAY;
+        doc.roundedRect(50, rowY, 495, 20, 0).fill(bg);
+
+        doc.fillColor('#333333');
+        doc.text(it.sku || '', colX[0] + 5, rowY + 5, { width: colW[0] });
+        doc.text(it.product_name || '', colX[1] + 5, rowY + 5, { width: colW[1] });
+        doc.text(String(it.quantity || 0), colX[2] + 5, rowY + 5, { width: colW[2], align: 'center' });
+        doc.text(`$${Number(it.unit_price || 0).toFixed(2)}`, colX[3] + 5, rowY + 5, { width: colW[3], align: 'right' });
+        doc.text(`$${Number(it.total || 0).toFixed(2)}`, colX[4] + 5, rowY + 5, { width: colW[4], align: 'right' });
+
+        rowY += 20;
+        if (rowY > 720) {
+          doc.addPage();
+          rowY = 50;
+        }
+      }
+
+      // Total bar
+      const totalBarY = rowY + 10;
+      doc.roundedRect(300, totalBarY, 245, 20, 4).fill(DARK);
+      doc.fillColor(WHITE).fontSize(12).font('Helvetica-Bold')
+        .text(`TOTAL: CAD $${Number(order.total_amount || 0).toFixed(2)}`, 310, totalBarY + 4, { width: 225, align: 'right' });
+
+      // Notes
+      if (order.notes) {
+        const notesY = totalBarY + 40;
+        doc.fillColor('#999999').fontSize(9).font('Helvetica')
+          .text('NOTES:', 50, notesY);
+        doc.fillColor('#333333')
+          .text(order.notes, 50, notesY + 14, { width: 495 });
+      }
+
+      // Footer
+      const footerY = 790;
+      doc.fillColor('#cccccc').fontSize(8).font('Helvetica')
+        .text(`SAHI London B2B ● Order #${order.id} ● ${new Date().toISOString().split('T')[0]}`, 50, footerY, { width: 495, align: 'center' });
+
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
 
 // Ensure public/images directory exists (needed for image uploads on fresh deployments)
 fs.mkdirSync(path.join(__dirname, 'public', 'images'), { recursive: true });
@@ -2501,6 +2622,30 @@ ${itemsTable}
 View in admin: https://sahi-mcp.onrender.com/index.html
 `;
 
+    // Generate PDF
+    const orderForPdf = {
+      id: orderId,
+      company_name: companyName,
+      contact_name: contactName,
+      email: user.email,
+      phone: phone,
+      hst_gst_number: hstGst || '',
+      shipping_address: shipping || '',
+      notes: notes || '',
+      total_amount: totalAmount,
+      item_count: itemCount,
+      status: 'NEW',
+      created_at: new Date().toISOString(),
+      items: items.map(i => ({
+        sku: i.sku,
+        product_name: i.product_name,
+        quantity: i.quantity,
+        unit_price: Number(i.unit_price || 0),
+        total: (Number(i.unit_price || 0) * i.quantity)
+      }))
+    };
+    const pdfBuffer = await generateOrderPDF(orderForPdf);
+
     // Send email to B2B-order@sahilondon.com
     try {
       if (EMAIL_PASS) {
@@ -2508,9 +2653,14 @@ View in admin: https://sahi-mcp.onrender.com/index.html
           from: EMAIL_USER,
           to: ORDER_EMAIL,
           subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${totalAmount.toFixed(2)})`,
-          text: emailBody
+          text: emailBody,
+          attachments: [{
+            filename: `SAHI_B2B_Order_${orderId}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }]
         });
-        console.log(`[B2B ORDER] #${orderId} emailed to ${ORDER_EMAIL}`);
+        console.log(`[B2B ORDER] #${orderId} emailed to ${ORDER_EMAIL} (with PDF)`);
       } else {
         console.log(`[B2B ORDER] #${orderId} — EMAIL SKIPPED (no EMAIL_PASS set)`);
         console.log(emailBody);
@@ -2556,6 +2706,58 @@ app.get('/api/b2b/admin/orders', requireAuthApi(['ADMIN']), async (req, res) => 
     res.json(ord.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Admin: export B2B order as Shopify-compatible CSV
+app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ord = await pool.query(
+      'SELECT * FROM b2b_orders WHERE id = $1',
+      [id]
+    );
+    if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const order = ord.rows[0];
+
+    const items = await pool.query(
+      'SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id',
+      [id]
+    );
+
+    // Shopify-compatible CSV columns
+    const header = [
+      'SKU', 'Product Name', 'Quantity', 'Unit Price (CAD)', 'Line Total (CAD)',
+      'Order ID', 'Company', 'Contact', 'Email', 'Phone',
+      'HST/GST', 'Shipping Address', 'Notes', 'Order Date', 'Status'
+    ];
+
+    const rows = items.rows.map(it => [
+      it.sku,
+      `"${(it.product_name || '').replace(/"/g, '""')}"`,
+      it.quantity,
+      Number(it.unit_price).toFixed(2),
+      Number(it.total).toFixed(2),
+      order.id,
+      `"${(order.company_name || '').replace(/"/g, '""')}"`,
+      `"${(order.contact_name || '').replace(/"/g, '""')}"`,
+      order.email,
+      order.phone || '',
+      order.hst_gst_number || '',
+      `"${(order.shipping_address || '').replace(/"/g, '""')}"`,
+      `"${(order.notes || '').replace(/"/g, '""')}"`,
+      order.created_at ? new Date(order.created_at).toISOString().split('T')[0] : '',
+      order.status
+    ]);
+
+    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="B2B_Order_${id}_Shopify.csv"`);
+    res.send('\uFEFF' + csv); // BOM for Excel UTF-8 compatibility
+  } catch (err) {
+    console.error('CSV export error:', err.message);
+    res.status(500).json({ error: 'Failed to export CSV' });
   }
 });
 
