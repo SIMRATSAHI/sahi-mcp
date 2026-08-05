@@ -2646,6 +2646,14 @@ View in admin: https://sahi-mcp.onrender.com/index.html
     };
     const pdfBuffer = await generateOrderPDF(orderForPdf);
 
+    // Build CSV content
+    const csvHeader = 'SKU,Product Name,Quantity,Unit Price (CAD),Line Total (CAD)';
+    const csvRows = items.map(i => {
+      const name = `"${(i.product_name || '').replace(/"/g, '""')}"`;
+      return `${i.sku},${name},${i.quantity},${Number(i.unit_price||0).toFixed(2)},${(Number(i.unit_price||0)*i.quantity).toFixed(2)}`;
+    });
+    const csvContent = '\uFEFF' + [csvHeader, ...csvRows].join('\n'); // BOM for Excel
+
     // Send email to B2B-order@sahilondon.com
     try {
       if (EMAIL_PASS) {
@@ -2654,11 +2662,18 @@ View in admin: https://sahi-mcp.onrender.com/index.html
           to: ORDER_EMAIL,
           subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${totalAmount.toFixed(2)})`,
           text: emailBody,
-          attachments: [{
-            filename: `SAHI_B2B_Order_${orderId}.pdf`,
-            content: pdfBuffer,
-            contentType: 'application/pdf'
-          }]
+          attachments: [
+            {
+              filename: `SAHI_B2B_Order_${orderId}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf'
+            },
+            {
+              filename: `SAHI_B2B_Order_${orderId}.csv`,
+              content: csvContent,
+              contentType: 'text/csv; charset=utf-8'
+            }
+          ]
         });
         console.log(`[B2B ORDER] #${orderId} emailed to ${ORDER_EMAIL} (with PDF)`);
       } else {
