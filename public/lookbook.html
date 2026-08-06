@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAHI London — New Arrival Lookbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #87CEEB;
+    --blush: #FFB7C5;
+    --grey: #D3D3D3;
+    --white: #FFFFFF;
+    --black: #111111;
+    --warm-white: #FAFAF8;
+    --text-light: #666666;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: var(--white);
+    color: var(--black);
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  .top-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--grey);
+    padding: 14px 40px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .top-nav .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px; font-weight: 700;
+    letter-spacing: 4px; color: var(--black);
+  }
+  .top-nav a {
+    text-decoration: none; color: var(--black);
+    font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; margin-left: 24px;
+    transition: color 0.3s;
+  }
+  .top-nav a:hover { color: var(--sky); }
+
+  /* ── HERO COVER ── */
+  .hero {
+    margin-top: 56px;
+    height: 90vh;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    background: linear-gradient(135deg, var(--sky) 0%, var(--blush) 50%, var(--grey) 100%);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: radial-gradient(circle at 70% 30%, rgba(255,255,255,0.3) 0%, transparent 50%),
+                radial-gradient(circle at 30% 70%, rgba(135,206,235,0.2) 0%, transparent 50%);
+    animation: float 20s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(2%, 1%) rotate(1deg); }
+    66% { transform: translate(-1%, -2%) rotate(-1deg); }
+  }
+  .hero-content {
+    position: relative; z-index: 1; text-align: center;
+    padding: 40px;
+  }
+  .hero-content .season-tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.9);
+    color: var(--black);
+    padding: 8px 24px; border-radius: 2px;
+    font-size: 11px; letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .hero-content h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 64px; font-weight: 700;
+    letter-spacing: 2px; line-height: 1.1;
+    margin-bottom: 16px; color: var(--black);
+  }
+  .hero-content .subtitle {
+    font-size: 18px; font-style: italic;
+    letter-spacing: 1px; color: var(--text-light);
+    margin-bottom: 32px;
+  }
+  .hero-content .accent-line {
+    width: 60px; height: 2px; background: var(--black);
+    margin: 0 auto 24px;
+  }
+  .hero-content .tagline {
+    font-size: 14px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--text-light);
+  }
+
+  /* ── SECTION ── */
+  .section {
+    padding: 100px 60px;
+    max-width: 1400px; margin: 0 auto;
+  }
+  .section-header {
+    text-align: center; margin-bottom: 64px;
+  }
+  .section-header .collection-tag {
+    font-size: 11px; letter-spacing: 4px;
+    text-transform: uppercase; color: var(--blush);
+    margin-bottom: 12px;
+  }
+  .section-header h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 40px; font-weight: 600;
+    letter-spacing: 1px; margin-bottom: 12px;
+  }
+  .section-header .desc {
+    font-size: 15px; font-style: italic;
+    color: var(--text-light); max-width: 600px;
+    margin: 0 auto; line-height: 1.6;
+  }
+  .section-header .section-line {
+    width: 40px; height: 1px; background: var(--sky);
+    margin: 20px auto 0;
+  }
+
+  /* ── GRID ── */
+  .look-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .look-grid.four-col {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .look-card {
+    position: relative; overflow: hidden;
+    border-radius: 2px; background: var(--warm-white);
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    cursor: pointer;
+  }
+  .look-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+  }
+  .look-card img {
+    width: 100%; display: block;
+    transition: transform 0.8s ease;
+  }
+  .look-card:hover img {
+    transform: scale(1.03);
+  }
+  .look-card .overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.6));
+    padding: 24px 20px 16px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .look-card:hover .overlay { opacity: 1; }
+  .look-card .overlay .item-name {
+    color: var(--white); font-size: 13px;
+    font-weight: 500; letter-spacing: 1px;
+  }
+
+  /* ── FEATURE (large) cards ── */
+  .look-card.feature {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
+
+  /* ── Lightbox ── */
+  .lightbox {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; z-index: 1000;
+    background: rgba(0,0,0,0.92);
+    justify-content: center; align-items: center;
+    cursor: pointer;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img {
+    max-width: 90%; max-height: 90%;
+    object-fit: contain; border-radius: 2px;
+  }
+  .lightbox .close {
+    position: absolute; top: 24px; right: 32px;
+    color: var(--white); font-size: 32px;
+    cursor: pointer; background: none; border: none;
+    transition: opacity 0.3s;
+  }
+  .lightbox .close:hover { opacity: 0.6; }
+
+  /* ── DIVIDER ── */
+  .divider {
+    text-align: center; padding: 40px 0;
+    color: var(--blush); font-size: 28px;
+    letter-spacing: 8px;
+  }
+
+  /* ── CTA SECTION ── */
+  .cta-section {
+    background: linear-gradient(135deg, var(--sky) 0%, var(--blush) 100%);
+    text-align: center; padding: 80px 40px;
+    margin: 0;
+  }
+  .cta-section h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px; font-weight: 700;
+    letter-spacing: 2px; margin-bottom: 12px;
+    color: var(--black);
+  }
+  .cta-section p {
+    font-size: 15px; font-style: italic;
+    color: var(--text-light); margin-bottom: 28px;
+  }
+  .cta-section .btn {
+    display: inline-block;
+    padding: 14px 40px;
+    background: var(--black); color: var(--white);
+    text-decoration: none; border-radius: 2px;
+    font-size: 12px; letter-spacing: 3px;
+    text-transform: uppercase;
+    transition: background 0.3s;
+  }
+  .cta-section .btn:hover {
+    background: #333;
+  }
+
+  /* ── FOOTER ── */
+  .lb-footer {
+    text-align: center; padding: 40px 20px;
+    background: var(--warm-white);
+    border-top: 1px solid var(--grey);
+  }
+  .lb-footer .footer-brand {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; font-weight: 700;
+    letter-spacing: 4px; margin-bottom: 4px;
+  }
+  .lb-footer .footer-sub {
+    font-size: 11px; color: var(--text-light);
+    letter-spacing: 1px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .look-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .look-grid.four-col { grid-template-columns: repeat(2, 1fr); }
+    .look-card.feature { grid-column: span 2; }
+    .section { padding: 60px 24px; }
+    .hero-content h1 { font-size: 40px; }
+    .top-nav { padding: 12px 20px; }
+    .top-nav a { margin-left: 14px; font-size: 10px; }
+  }
+  @media (max-width: 540px) {
+    .look-grid { grid-template-columns: 1fr; }
+    .look-grid.four-col { grid-template-columns: 1fr; }
+    .look-card.feature { grid-column: span 1; }
+    .section { padding: 40px 16px; }
+    .hero { height: 70vh; }
+    .hero-content h1 { font-size: 32px; }
+    .top-nav a { display: none; }
+    .top-nav .logo { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <span class="logo">SAHI LONDON</span>
+  <div>
+    <a href="/wholesale.html">Wholesale</a>
+    <a href="#jewellery">Jewellery</a>
+    <a href="#bags">Bags</a>
+    <a href="#cta">Inquire</a>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="season-tag">Autumn/Winter 2026</div>
+    <h1>New Arrival</h1>
+    <div class="subtitle">Where timeless elegance meets today's fashion</div>
+    <div class="accent-line"></div>
+    <div class="tagline">Discover the collection</div>
+  </div>
+</section>
+
+<!-- ═══════════ JEWELLERY ═══════════ -->
+<section class="section" id="jewellery">
+  <div class="section-header">
+    <div class="collection-tag">Collection I</div>
+    <h2>The Jewellery Edit</h2>
+    <div class="desc">Enamel, pearl, and gold-toned pieces crafted for the modern woman. Each design tells a story of artistry and grace.</div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="look-grid four-col">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_02.png')"><img src="images/lookbook/look_02.png" alt="Rabbit Stud" loading="lazy"><div class="overlay"><span class="item-name">Rabbit Stud Earrings</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_04.png')"><img src="images/lookbook/look_04.png" alt="Monster Enamel" loading="lazy"><div class="overlay"><span class="item-name">Monster Enamel Collection</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_05.png')"><img src="images/lookbook/look_05.png" alt="Monster White" loading="lazy"><div class="overlay"><span class="item-name">Monster White Enamel</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_06.png')"><img src="images/lookbook/look_06.png" alt="Monster Stud" loading="lazy"><div class="overlay"><span class="item-name">Monster Drop Earrings</span></div></div>
+  </div>
+  <div class="look-grid four-col" style="margin-top: 24px;">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_08.png')"><img src="images/lookbook/look_08.png" alt="Monster" loading="lazy"><div class="overlay"><span class="item-name">Monster Charm Bracelet</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_09.png')"><img src="images/lookbook/look_09.png" alt="Fantasy" loading="lazy"><div class="overlay"><span class="item-name">Fantasy Chain & Link</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_10.png')"><img src="images/lookbook/look_10.png" alt="Fantasy Starfish" loading="lazy"><div class="overlay"><span class="item-name">Fantasy Starfish Pearl</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_11.png')"><img src="images/lookbook/look_11.png" alt="Fantasy Pearl" loading="lazy"><div class="overlay"><span class="item-name">Fantasy Pearl Drop</span></div></div>
+  </div>
+  <div class="look-grid four-col" style="margin-top: 24px;">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_13.png')"><img src="images/lookbook/look_13.png" alt="Enchanting Garden" loading="lazy"><div class="overlay"><span class="item-name">Enchanting Garden Drop</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_14.png')"><img src="images/lookbook/look_14.png" alt="Enchanting Garden Dangle" loading="lazy"><div class="overlay"><span class="item-name">Enchanting Garden Dangle</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_15.png')"><img src="images/lookbook/look_15.png" alt="With Love" loading="lazy"><div class="overlay"><span class="item-name">With Love Heart Enamel</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_16.png')"><img src="images/lookbook/look_16.png" alt="With Love Bow" loading="lazy"><div class="overlay"><span class="item-name">With Love Bow Drop</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ FORGET ME NOT ═══════════ -->
+<section class="section">
+  <div class="section-header">
+    <div class="collection-tag">Collection II</div>
+    <h2>Romance in Bloom</h2>
+    <div class="desc">Delicate florals and soft pastels define this season's most romantic collection. Forget-me-not blues meet golden accents.</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="look-grid">
+    <div class="look-card feature" onclick="openLightbox('images/lookbook/look_18.png')"><img src="images/lookbook/look_18.png" alt="Forget Me Not" loading="lazy"><div class="overlay"><span class="item-name">Forget Me Not Collection</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_19.png')"><img src="images/lookbook/look_19.png" alt="Forget Me Not Tassel" loading="lazy"><div class="overlay"><span class="item-name">Blue-Violet Tassels</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_20.png')"><img src="images/lookbook/look_20.png" alt="Forget Me Not Charm" loading="lazy"><div class="overlay"><span class="item-name">Flower Charm Bracelet</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_21.png')"><img src="images/lookbook/look_21.png" alt="Camellia Bear" loading="lazy"><div class="overlay"><span class="item-name">Camellia Bear</span></div></div>
+    <div class="look-card feature" onclick="openLightbox('images/lookbook/look_23.png')"><img src="images/lookbook/look_23.png" alt="Camellia Bear Collection" loading="lazy"><div class="overlay"><span class="item-name">Camellia Bear Collection</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_24.png')"><img src="images/lookbook/look_24.png" alt="Camellia Bear Brooch" loading="lazy"><div class="overlay"><span class="item-name">Camellia Bear Brooch</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_25.png')"><img src="images/lookbook/look_25.png" alt="Camellia Bear Enamel" loading="lazy"><div class="overlay"><span class="item-name">Bear Gold Enamel</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ IN BLOSSOM ═══════════ -->
+<section class="section">
+  <div class="section-header">
+    <div class="collection-tag">Collection III</div>
+    <h2>Garden Whispers</h2>
+    <div class="desc">Pearls, bees, and lilies come together in a celebration of nature's finest details. Each piece captures the quiet poetry of a garden in bloom.</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="look-grid four-col">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_27.png')"><img src="images/lookbook/look_27.png" alt="In Blossom Lily" loading="lazy"><div class="overlay"><span class="item-name">In Blossom Lily Charm</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_28.png')"><img src="images/lookbook/look_28.png" alt="In Blossom Bee" loading="lazy"><div class="overlay"><span class="item-name">In Blossom Bee Brooch</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_29.png')"><img src="images/lookbook/look_29.png" alt="In Blossom Pearl" loading="lazy"><div class="overlay"><span class="item-name">In Blossom Pearl Drop</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_30.png')"><img src="images/lookbook/look_30.png" alt="In Blossom" loading="lazy"><div class="overlay"><span class="item-name">In Blossom Earrings</span></div></div>
+  </div>
+  <div class="look-grid four-col" style="margin-top: 24px;">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_31.png')"><img src="images/lookbook/look_31.png" alt="In Blossom Bracelet" loading="lazy"><div class="overlay"><span class="item-name">In Blossom Bracelet</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_32.png')"><img src="images/lookbook/look_32.png" alt="Love Collection" loading="lazy"><div class="overlay"><span class="item-name">Love Collection</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_34.png')"><img src="images/lookbook/look_34.png" alt="Love Affair" loading="lazy"><div class="overlay"><span class="item-name">Love Affair Collection</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_35.png')"><img src="images/lookbook/look_35.png" alt="Love Affair Bracelet" loading="lazy"><div class="overlay"><span class="item-name">Love Affair Chain</span></div></div>
+  </div>
+  <div class="look-grid four-col" style="margin-top: 24px;">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_36.png')"><img src="images/lookbook/look_36.png" alt="Age of Innocence" loading="lazy"><div class="overlay"><span class="item-name">Age of Innocence</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_37.png')"><img src="images/lookbook/look_37.png" alt="Age of Innocence Bag" loading="lazy"><div class="overlay"><span class="item-name">Age of Innocence Bag</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_41.png')"><img src="images/lookbook/look_41.png" alt="Little Flower" loading="lazy"><div class="overlay"><span class="item-name">Little Flower Collection</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_42.png')"><img src="images/lookbook/look_42.png" alt="Little Flower Crossbody" loading="lazy"><div class="overlay"><span class="item-name">Little Flower Crossbody</span></div></div>
+  </div>
+</section>
+
+<div class="divider">&#10022;</div>
+
+<!-- ═══════════ BAGS ═══════════ -->
+<section class="section" id="bags">
+  <div class="section-header">
+    <div class="collection-tag">Collection IV</div>
+    <h2>Bags &amp; Accessories</h2>
+    <div class="desc">Leather craftsmanship meets floral artistry. Crossbody bags and clutches designed to carry elegance with every step.</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="look-grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_44.png')"><img src="images/lookbook/look_44.png" alt="Little Flower Daisy" loading="lazy"><div class="overlay"><span class="item-name">Little Flower Daisy Crossbody</span></div></div>
+    <div class="look-card" onclick="openLightbox('images/lookbook/look_45.png')"><img src="images/lookbook/look_45.png" alt="Little Flower Canna" loading="lazy"><div class="overlay"><span class="item-name">Little Flower Canna Leather</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section class="cta-section" id="cta">
+  <h2>Interested in Wholesale?</h2>
+  <p>Discover the full collection and place your order today.</p>
+  <a href="/catalogue.html" class="btn">View Full Catalogue</a>
+</section>
+
+<footer class="lb-footer">
+  <div class="footer-brand">SAHI LONDON</div>
+  <div class="footer-sub">SAHI SHANGHAI COMPANY LTD. &mdash; Autumn/Winter 2026</div>
+</footer>
+
+<!-- ═══════════ LIGHTBOX ═══════════ -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="close">&times;</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+</script>
+
+</body>
+</html>
