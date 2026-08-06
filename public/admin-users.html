@@ -90,7 +90,7 @@
         <h3>Existing Users</h3>
         <table>
             <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Enable/Disable</th><th>Reset Password</th></tr>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Change Role</th><th>Enable/Disable</th><th>Reset Password</th></tr>
             </thead>
             <tbody id="userTableBody"></tbody>
         </table>
@@ -115,9 +115,19 @@
                 row.innerHTML = `
                     <td>${u.name || '-'}</td>
                     <td>${u.email}</td>
-                    <td>${u.role}</td>
+                    <td><span class="badge badge-role">${u.role}</span></td>
                     <td><span class="badge ${u.is_active ? 'badge-active' : 'badge-inactive'}">${u.is_active ? 'ACTIVE' : 'DISABLED'}</span></td>
                     <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <select onchange="changeRole(${u.id}, this.value)" style="padding:4px; font-size:12px; border:1px solid #ddd; border-radius:4px;">
+                            <option value="">--</option>
+                            <option value="ADMIN" ${u.role === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
+                            <option value="BUYER" ${u.role === 'BUYER' ? 'selected' : ''}>BUYER</option>
+                            <option value="ACCOUNTS" ${u.role === 'ACCOUNTS' ? 'selected' : ''}>ACCOUNTS</option>
+                            <option value="LOGISTICS" ${u.role === 'LOGISTICS' ? 'selected' : ''}>LOGISTICS</option>
+                            <option value="B2B_CUSTOMER" ${u.role === 'B2B_CUSTOMER' ? 'selected' : ''}>B2B_CUSTOMER</option>
+                        </select>
+                    </td>
                     <td><button class="btn-toggle" onclick="toggleActive(${u.id}, ${!u.is_active})">${u.is_active ? 'Disable' : 'Enable'}</button></td>
                     <td>
                         <input type="password" id="pw-${u.id}" placeholder="New password" style="width:120px; padding:5px; font-size:12px; display:inline-block;">
@@ -155,6 +165,18 @@
             successBox.textContent = `Password reset for ${data.user.email}.`;
             successBox.style.display = 'block';
             input.value = '';
+        }
+
+        async function changeRole(id, newRole) {
+            if (!newRole) return;
+            const res = await fetch(`/api/admin/users/${id}/role`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole })
+            });
+            if (res.ok) {
+                loadUsers();
+            }
         }
 
         async function createUser() {

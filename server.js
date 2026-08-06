@@ -965,6 +965,25 @@ app.patch('/api/admin/users/:id/password', requireAuthApi(['ADMIN']), async (req
   }
 });
 
+app.patch('/api/admin/users/:id/role', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!role || !['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS', 'B2B_CUSTOMER'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role.' });
+    }
+    const r = await pool.query(
+      'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, role',
+      [role, req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    logActivity(req.user, 'ROLE_CHANGED', r.rows[0].email, { new_role: role });
+    res.json({ success: true, user: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
 app.get('/api/buyers', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
   const result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd FROM buyers");
   res.json(result.rows);
