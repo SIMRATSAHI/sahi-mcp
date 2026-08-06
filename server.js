@@ -2776,5 +2776,29 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
   }
 });
 
+// Admin: download B2B order as PDF
+app.get('/api/b2b/admin/orders/:id/pdf', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ord = await pool.query('SELECT * FROM b2b_orders WHERE id = $1', [id]);
+    if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const order = ord.rows[0];
+
+    const items = await pool.query('SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id', [id]);
+
+    const pdfBuffer = await generateOrderPDF({
+      ...order,
+      items: items.rows
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="SAHI_B2B_Order_${id}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('PDF export error:', err.message);
+    res.status(500).json({ error: 'Failed to export PDF' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Portal running on port ${PORT}`));
