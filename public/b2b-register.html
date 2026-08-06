@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAHI London — B2B Registration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky-blue: #87CFEB;
+    --blush-pink: #FFB8C4;
+    --near-black: #1A1A1A;
+    --grey-text: #8A8A8A;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Lora', Georgia, serif;
+    color: var(--near-black);
+    background: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+  .card {
+    width: 100%;
+    max-width: 520px;
+    padding: 48px 40px;
+  }
+  .card h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .card .subtitle {
+    text-align: center;
+    font-style: italic;
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: var(--near-black);
+  }
+  .card .rule {
+    width: 80px;
+    height: 1px;
+    background: var(--sky-blue);
+    margin: 0 auto 28px;
+  }
+  .card label {
+    display: block;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--grey-text);
+    margin-bottom: 6px;
+    margin-top: 18px;
+  }
+  .card input, .card textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #E0E0E0;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    border-radius: 2px;
+    transition: border-color 0.2s;
+  }
+  .card input:focus, .card textarea:focus {
+    outline: none;
+    border-color: var(--sky-blue);
+  }
+  .card textarea { resize: vertical; min-height: 60px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 28px;
+    background: var(--near-black);
+    color: #fff;
+    border: none;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.2s;
+  }
+  .card button:hover { background: #333; }
+  .card button:disabled { background: #ccc; cursor: not-allowed; }
+  .card .footer-link {
+    text-align: center;
+    margin-top: 20px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: var(--grey-text);
+  }
+  .card .footer-link a { color: var(--near-black); text-decoration: underline; }
+  .msg { text-align: center; font-size: 13px; margin-top: 12px; font-family: Helvetica, Arial, sans-serif; }
+  .msg.error { color: #D00; }
+  .msg.success { color: #2A7D2A; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>SAHI LONDON</h1>
+  <div class="subtitle">B2B Wholesale Account</div>
+  <div class="rule"></div>
+
+  <form id="regForm">
+    <label>Email Address</label>
+    <input type="email" id="email" required placeholder="you@company.com">
+
+    <label>Password</label>
+    <input type="password" id="password" required placeholder="Min 6 characters" minlength="6">
+
+    <label>Company Name</label>
+    <input type="text" id="company_name" required placeholder="Your business name">
+
+    <label>Contact Name</label>
+    <input type="text" id="contact_name" required placeholder="Full name">
+
+    <label>Phone Number</label>
+    <input type="tel" id="phone" required placeholder="+1 555 123 4567">
+
+    <label>Address</label>
+    <textarea id="address" placeholder="Street address"></textarea>
+
+    <div class="row">
+      <div><label>City</label><input type="text" id="city"></div>
+      <div><label>Province / State</label><input type="text" id="province"></div>
+    </div>
+
+    <div class="row">
+      <div><label>Postal Code</label><input type="text" id="postal_code"></div>
+      <div><label>HST / GST Number</label><input type="text" id="hst_gst_number" placeholder="Tax registration #"></div>
+    </div>
+
+    <button type="submit" id="submitBtn">Create Account</button>
+  </form>
+
+  <div class="msg" id="msg"></div>
+  <div class="footer-link">
+    Already have an account? <a href="/b2b-login.html">Log in</a>
+  </div>
+</div>
+
+<script>
+document.getElementById('regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+  btn.disabled = true; btn.textContent = 'Creating account...'; msg.className = 'msg'; msg.textContent = '';
+
+  const body = {};
+  ['email','password','company_name','contact_name','phone','address','city','province','postal_code','hst_gst_number'].forEach(id => {
+    body[id] = document.getElementById(id).value.trim();
+  });
+
+  try {
+    const r = await fetch('/api/b2b/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (r.ok) {
+      msg.className = 'msg success';
+      msg.textContent = data.message + ' Redirecting to login...';
+      setTimeout(() => { window.location.href = '/b2b-login.html'; }, 1500);
+    } else {
+      msg.className = 'msg error';
+      msg.textContent = data.error || 'Registration failed.';
+      btn.disabled = false; btn.textContent = 'Create Account';
+    }
+  } catch (err) {
+    msg.className = 'msg error';
+    msg.textContent = 'Network error. Please try again.';
+    btn.disabled = false; btn.textContent = 'Create Account';
+  }
+});
+</script>
+</body>
+</html>

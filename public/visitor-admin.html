@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAHI London — Visitor Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #87CFEB;
+    --blush: #FFB8C4;
+    --black: #1A1A1A;
+    --grey: #8A8A8A;
+    --light: #F5F0EB;
+    --white: #FFFFFF;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: var(--white);
+    color: var(--black);
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; }
+
+  /* Brand */
+  .brand {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .brand h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    margin-bottom: 4px;
+  }
+  .brand .sub {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--grey);
+    text-transform: uppercase;
+  }
+  .brand .rule {
+    width: 60px; height: 1px; background: var(--sky);
+    margin: 12px auto 0;
+  }
+  .brand .rule.pink {
+    width: 40px; background: var(--blush); margin: 3px auto 0;
+  }
+
+  /* Stats */
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    flex: 1;
+    background: var(--light);
+    padding: 20px 24px;
+    text-align: center;
+    border-radius: 2px;
+  }
+  .stat-card .num {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--black);
+  }
+  .stat-card .lbl {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--grey);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Table */
+  .table-wrap {
+    background: var(--white);
+    border: 1px solid #E8E4DC;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  thead { background: var(--light); }
+  th {
+    padding: 14px 20px;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--grey);
+    text-align: left;
+    border-bottom: 1px solid #E8E4DC;
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 14px;
+    border-bottom: 1px solid #F0ECE6;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFAF8; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-new { background: #E3F2FD; color: #1565C0; }
+  .badge-repeat { background: #F3E5F5; color: #7B1FA2; }
+
+  .empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--grey);
+    font-style: italic;
+  }
+
+  .refresh {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .refresh .updated {
+    font-size: 12px;
+    color: var(--grey);
+  }
+  .btn-refresh {
+    background: var(--black);
+    color: var(--white);
+    border: none;
+    padding: 8px 20px;
+    border-radius: 2px;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .btn-refresh:hover { background: #333; }
+
+  .export {
+    margin-top: 24px;
+    text-align: right;
+  }
+  .btn-export {
+    background: none;
+    border: 1px solid #E8E4DC;
+    padding: 8px 20px;
+    border-radius: 2px;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--grey);
+    cursor: pointer;
+  }
+  .btn-export:hover { border-color: var(--black); color: var(--black); }
+
+  @media (max-width: 600px) {
+    .stats { flex-direction: column; }
+    th, td { padding: 10px 14px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand">
+    <h1>SAHI LONDON</h1>
+    <div class="sub">B2B Visitor Log</div>
+    <div class="rule"></div>
+    <div class="rule pink"></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="num" id="stat-total">—</div>
+      <div class="lbl">Total Visits</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="stat-unique">—</div>
+      <div class="lbl">Unique Visitors</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="stat-today">—</div>
+      <div class="lbl">Today</div>
+    </div>
+  </div>
+
+  <div class="refresh">
+    <span class="updated" id="last-updated">Loading…</span>
+    <button class="btn-refresh" onclick="loadData()">Refresh</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>WhatsApp</th>
+          <th>Company</th>
+          <th>Date</th>
+          <th>Visits</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="6" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="export">
+    <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+  </div>
+</div>
+
+<script>
+async function loadData() {
+  try {
+    const res = await fetch('/api/customers');
+    const data = await res.json();
+
+    // Stats
+    document.getElementById('stat-total').textContent = data.count;
+    document.getElementById('stat-unique').textContent = new Set(data.customers.map(c => c.whatsapp)).size;
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayCount = data.customers.filter(c => c.created_at.startsWith(today)).length;
+    document.getElementById('stat-today').textContent = todayCount;
+
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+    // Table
+    const tbody = document.getElementById('tbody');
+    if (!data.customers.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No visitors yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.customers.map((c, i) => {
+      const date = new Date(c.created_at);
+      const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+                      ' ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const badge = c.visit_count === 1
+        ? '<span class="badge badge-new">New</span>'
+        : '<span class="badge badge-repeat">Returning</span>';
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${c.whatsapp}</td>
+        <td>${c.company}</td>
+        <td>${dateStr}</td>
+        <td>${c.visit_count}</td>
+        <td>${badge}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="6" class="empty">Failed to load data.</td></tr>';
+  }
+}
+
+function exportCSV() {
+  fetch('/api/customers')
+    .then(r => r.json())
+    .then(data => {
+      let csv = 'WhatsApp,Company,Date,Visits\n';
+      data.customers.forEach(c => {
+        csv += `"${c.whatsapp}","${c.company}","${c.created_at}",${c.visit_count}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sahi-visitors-' + new Date().toISOString().split('T')[0] + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+}
+
+loadData();
+</script>
+
+</body>
+</html>

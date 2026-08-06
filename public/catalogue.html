@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SAHI London — Wholesale Order Catalogue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky-blue: #87CFEB;
+    --blush-pink: #FFB8C4;
+    --near-black: #1A1A1A;
+    --grey-text: #8A8A8A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Lora', Georgia, serif;
+    color: var(--near-black);
+    margin: 0;
+    background: #ffffff;
+  }
+  .cover {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .cover .rule {
+    width: 140px;
+    height: 1px;
+    background: var(--sky-blue);
+    margin: 24px 0;
+  }
+  .cover .rule.pink {
+    width: 80px;
+    background: var(--blush-pink);
+  }
+  .cover h1 {
+    font-size: 46px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    margin: 0;
+  }
+  .cover .subtitle {
+    font-style: italic;
+    font-size: 20px;
+    margin-top: 8px;
+    color: var(--near-black);
+  }
+  .cover .meta {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--grey-text);
+    text-transform: uppercase;
+    margin-top: 20px;
+  }
+  .cover .site {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: var(--grey-text);
+    margin-top: 60px;
+  }
+  section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+  section h2 {
+    text-align: center;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 30px;
+    margin-bottom: 10px;
+  }
+  .section-rule {
+    height: 1px;
+    background: #cccccc;
+    margin: 0 auto 10px;
+    max-width: 1100px;
+  }
+  .section-meta {
+    text-align: center;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--grey-text);
+    margin-bottom: 32px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 32px 20px;
+  }
+  .tile {
+    text-align: center;
+  }
+  .tile-img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: #F7F7F5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .tile-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .placeholder {
+    color: var(--blush-pink);
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+  
+  .tile-price {
+    display: none;  /* hidden by default, shown via ?sales param */
+  }
+  body.sales .tile-price {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1A1A1A;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+    padding: 4px 10px;
+    background: #F5F0EB;
+    border-radius: 2px;
+  }
+  .tile-sku {
+    font-family: Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--near-black);
+  }
+  .tile-name {
+    font-size: 13px;
+    line-height: 1.3;
+    margin-bottom: 4px;
+    min-height: 34px;
+  }
+  .tile-skus {
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  .variant-sku {
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--blush-pink);
+    line-height: 1.6;
+  }
+  footer {
+    text-align: center;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--grey-text);
+    padding: 30px 0 60px;
+  }
+  .page-band {
+    height: 4px;
+    background: var(--sky-blue);
+  }
+  .badge {
+    display: inline-block;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: var(--sky-blue);
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin-bottom: 6px;
+  }
+
+  /* ── Cart UI ── */
+  .cart-fab {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--near-black);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    z-index: 900;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+  }
+  .cart-fab:hover { transform: scale(1.08); }
+  .cart-fab .badge-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--blush-pink);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  .cart-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 950;
+  }
+  .cart-drawer {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    max-width: 100vw;
+    height: 100vh;
+    background: #fff;
+    z-index: 1000;
+    flex-direction: column;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .cart-drawer-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cart-drawer-header h3 {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .cart-drawer-header button {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--grey-text);
+    line-height: 1;
+  }
+  .cart-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px;
+  }
+  .cart-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: flex-start;
+  }
+  .cart-item-info { flex: 1; min-width: 0; }
+  .cart-item-info .ci-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .cart-item-info .ci-sku {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    color: var(--grey-text);
+    letter-spacing: 0.5px;
+  }
+  .cart-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .cart-item-qty button {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  .cart-item-qty span { min-width: 24px; text-align: center; font-family: Helvetica, Arial, sans-serif; font-size: 13px; }
+  .cart-item-price {
+    text-align: right;
+    min-width: 80px;
+  }
+  .cart-item-price .ci-unit {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--grey-text);
+  }
+  .cart-item-price .ci-total {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 1px;
+  }
+  .cart-item-price .ci-remove {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    color: var(--blush-pink);
+    cursor: pointer;
+    margin-top: 2px;
+  }
+  .cart-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--grey-text);
+    font-size: 14px;
+  }
+  .cart-footer {
+    padding: 16px 24px 28px;
+    border-top: 1px solid #eee;
+  }
+  .cart-footer .total-line {
+    display: flex;
+    justify-content: space-between;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .cart-footer button.checkout-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--near-black);
+    color: #fff;
+    border: none;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .cart-footer button.checkout-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .cart-footer .notes-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #E0E0E0;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    border-radius: 2px;
+    margin-bottom: 12px;
+    resize: vertical;
+    min-height: 50px;
+  }
+
+  /* Add to Cart button on tiles */
+  .tile .add-cart-btn {
+    display: none;
+    margin-top: 6px;
+    padding: 5px 12px;
+    background: none;
+    border: 1px solid var(--near-black);
+    color: var(--near-black);
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .tile .add-cart-btn:hover { background: var(--near-black); color: #fff; }
+  .tile .add-cart-btn.in-cart { background: #F5F0EB; border-color: #F5F0EB; color: #555; }
+
+  /* Login prompt for checkout */
+  .login-prompt {
+    text-align: center;
+    padding: 20px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    color: var(--grey-text);
+  }
+  .login-prompt a {
+    color: var(--near-black);
+    font-weight: 600;
+  }
+
+  body.sales .cart-fab { display: flex; }
+  body.sales .tile .add-cart-btn { display: inline-block; }
+</style>
+</head>
+<body>
+
+<div class="page-band"></div>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>SAHI LONDON</h1>
+  <div class="subtitle">Wholesale Order Catalogue</div>
+  <div class="rule pink"></div>
+  <div class="site">sahilondon.com</div>
+</div>
+
+<!-- ================================================ -->
+<!-- HAND BAGS -->
+<!-- ================================================ -->
+<section>
+  <h2>Hand Bags</h2>
+  <div class="section-rule"></div>
+  <div class="section-meta">10 designs &middot; 14 SKU lines</div>
+  <div class="grid">
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_6b694b65-b2b3-46e9-a010-9cd58ea4caa4.jpg?v=1749180952" alt="BGUAWRF201-1" loading="lazy"></div>
+      <div class="tile-sku">BGUAWRF201-1</div>
+      <div class="tile-price">Wholesale CAD $60.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_30e0282c-8268-42ef-9016-65001783b756.jpg?v=1749180950" alt="BGUAWRF501-1" loading="lazy"></div>
+      <div class="tile-sku">BGUAWRF501-1</div>
+      <div class="tile-price">Wholesale CAD $40.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_30e0282c-8268-42ef-9016-65001783b756.jpg?v=1749180950" alt="BGUAWRF501-4" loading="lazy"></div>
+      <div class="tile-sku">BGUAWRF501-4</div>
+      <div class="tile-price">Wholesale CAD $40.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_0fe262be-3eb4-444b-b8ab-79e11811bafd.jpg?v=1749180949" alt="BGUAWRF701-5" loading="lazy"></div>
+      <div class="tile-sku">BGUAWRF701-5</div>
+      <div class="tile-price">Wholesale CAD $74.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_8468b998-ed4c-4df6-adff-ebaab38010b9.jpg?v=1749180962" alt="BGUSSAI201-1" loading="lazy"></div>
+      <div class="tile-sku">BGUSSAI201-1</div>
+      <div class="tile-price">Wholesale CAD $60.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_8468b998-ed4c-4df6-adff-ebaab38010b9.jpg?v=1749180962" alt="BGUSSAI201-2" loading="lazy"></div>
+      <div class="tile-sku">BGUSSAI201-2</div>
+      <div class="tile-price">Wholesale CAD $60.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_8468b998-ed4c-4df6-adff-ebaab38010b9.jpg?v=1749180962" alt="BGUSSAI201-3" loading="lazy"></div>
+      <div class="tile-sku">BGUSSAI201-3</div>
+      <div class="tile-price">Wholesale CAD $60.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_bdcb8c0b-819e-4867-b196-7ca55d2a8c3d.jpg?v=1749180961" alt="BGUSSAI501-2" loading="lazy"></div>
+      <div class="tile-sku">BGUSSAI501-2</div>
+      <div class="tile-price">Wholesale CAD $40.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/3_ac5b0ecf-bbdd-4400-8ece-79372eb63132.jpg?v=1749180959" alt="BGUSSAI701-1" loading="lazy"></div>
+      <div class="tile-sku">BGUSSAI701-1</div>
+      <div class="tile-price">Wholesale CAD $74.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_65ba384e-19c5-4d3d-b451-06e5fa667815.jpg?v=1749180907" alt="BGVSSLV501-2" loading="lazy"></div>
+      <div class="tile-sku">BGVSSLV501-2</div>
+      <div class="tile-price">Wholesale CAD $25.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/FRONT.jpg?v=1749180789" alt="BGZBM210-SLV" loading="lazy"></div>
+      <div class="tile-sku">BGZBM210-SLV</div>
+      <div class="tile-price">Wholesale CAD $46.33</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/PINKY-BACK_0fb31845-d97b-4503-97cb-241524a490af.jpg?v=1749180790" alt="BGZBM212-SLV-PNK" loading="lazy"></div>
+      <div class="tile-sku">BGZBM212-SLV-PNK</div>
+      <div class="tile-price">Wholesale CAD $25.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/SLV-BACK.jpg?v=1749180771" alt="BGZBM212-SLV-SLV" loading="lazy"></div>
+      <div class="tile-sku">BGZBM212-SLV-SLV</div>
+      <div class="tile-price">Wholesale CAD $25.00</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/LADY-ANGEL_1f5a6cdd-7919-48ac-814f-e53fcd4ed23f.jpg?v=1749180762" alt="BGZPP201-BLK" loading="lazy"></div>
+      <div class="tile-sku">BGZPP201-BLK</div>
+      <div class="tile-price">Wholesale CAD $80.00</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================ -->
+<!-- T-SHIRTS & APPAREL (model photos, no brooches) -->
+<!-- ================================================ -->
+<section>
+  <h2>T-Shirts &amp; Apparel</h2>
+  <div class="section-rule"></div>
+  <div class="section-meta">22 designs &middot; 4 sweatshirt variants</div>
+  <div class="grid">
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS401_model.jpg" alt="Cotton Flamingo Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Flamingo Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS401-BLU-1</div><div class="variant-sku">APAPS401-BLU-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS402_model.jpg" alt="Cotton Rabbit Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Rabbit Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS402-OWT-1</div><div class="variant-sku">APAPS402-OWT-2</div><div class="variant-sku">APAPS402-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS403_model.jpg" alt="Cotton Bear Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Bear Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS403-OWT-1</div><div class="variant-sku">APAPS403-OWT-2</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS404_model.jpg" alt="Cotton Butterfly Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Butterfly Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS404-OWT-1</div><div class="variant-sku">APAPS404-OWT-2</div><div class="variant-sku">APAPS404-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS406_model.jpg" alt="Cotton Doggy Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Doggy Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS406-PNK-1</div><div class="variant-sku">APAPS406-PNK-2</div><div class="variant-sku">APAPS406-PNK-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS407_model.jpg" alt="Cotton Cat Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Cat Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS407-BLU-1</div><div class="variant-sku">APAPS407-BLU-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS408_model.jpg" alt="Cotton Eiffel Tower Printed & Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Eiffel Tower Printed & Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS408-WHT-1</div><div class="variant-sku">APAPS408-WHT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS409_model.jpg" alt="Face Printed & Sequence Embroidered T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Face Printed & Sequence Embroidered T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS409-PNK-1</div><div class="variant-sku">APAPS409-PNK-2</div><div class="variant-sku">APAPS409-PNK-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS410_model.jpg" alt="Cotton Printer & Hotfix T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Printer & Hotfix T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS410-WHT-1</div><div class="variant-sku">APAPS410-WHT-2</div><div class="variant-sku">APAPS410-WHT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS411_model.jpg" alt="Cotton Embroidered Beads & Thread Cat T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Embroidered Beads & Thread Cat T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS411-OWT-1</div><div class="variant-sku">APAPS411-OWT-2</div><div class="variant-sku">APAPS411-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS412_model.jpg" alt="Cotton Embroidered Beads & Thread Parrot T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Embroidered Beads & Thread Parrot T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS412-BLU-1</div><div class="variant-sku">APAPS412-BLU-2</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS501_model.jpg" alt="Cotton Printed and Embroidered Sweatshirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Printed and Embroidered Sweatshirt</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS501-BLU-1</div><div class="variant-sku">APAPS501-BLU-2</div><div class="variant-sku">APAPS501-BLU-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/APAPS503_model.jpg" alt="Cotton Printed and Embroidered Sweatshirt" loading="lazy"></div>
+      <div class="tile-name">Cotton Printed and Embroidered Sweatshirt</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-skus"><div class="variant-sku">APAPS503-OWT-1</div><div class="variant-sku">APAPS503-OWT-2</div><div class="variant-sku">APAPS503-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA401-MEG-1.jpg?v=1778228284" alt="Pop Art Bunny Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Bunny Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA401-MEG-1</div><div class="variant-sku">APZPA401-PNK-1</div><div class="variant-sku">APZPA401-PNK-2</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02361copy1.png?v=1778228283" alt="Pop Art Rabbit Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Rabbit Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA402-MEG-1</div><div class="variant-sku">APZPA402-MEG-3</div><div class="variant-sku">APZPA402-OWT-3</div><div class="variant-sku">APZPA402-PNK-1</div><div class="variant-sku">APZPA402-PNK-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02536copy1.png?v=1778228278" alt="Pop Art Deer Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Deer Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA403-MEG-1</div><div class="variant-sku">APZPA403-OWT-1</div><div class="variant-sku">APZPA403-OWT-2</div><div class="variant-sku">APZPA403-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02171copy4_8eafc454-b3cd-48ac-9fce-6b111a1a71f4.png?v=1778215481" alt="Pop Art Roger Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Roger Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA404-MEG-1</div><div class="variant-sku">APZPA404-MEG-2</div><div class="variant-sku">APZPA404-MEG-3</div><div class="variant-sku">APZPA404-OWT-1</div><div class="variant-sku">APZPA404-OWT-2</div><div class="variant-sku">APZPA404-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01994copy1.png?v=1778228272" alt="Pop Art Save the Dog Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Save the Dog Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA405-MEG-1</div><div class="variant-sku">APZPA405-MEG-2</div><div class="variant-sku">APZPA405-OWT-1</div><div class="variant-sku">APZPA405-OWT-2</div><div class="variant-sku">APZPA405-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02040copy_1_1.png?v=1778228267" alt="Pop Art Jumbo Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Jumbo Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA406-OWT-1</div><div class="variant-sku">APZPA406-OWT-2</div><div class="variant-sku">APZPA406-PNK-1</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02314copy3.png?v=1778228262" alt="Pop Art Alice Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art Alice Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA408-OWT-1</div><div class="variant-sku">APZPA408-OWT-2</div><div class="variant-sku">APZPA408-OWT-3</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02011copy1.png?v=1778228264" alt="Pop Art 411 Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art 411 Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA411-OWT-1</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02254copy1.png?v=1778228261" alt="Pop Art 417 Cotton Unisex T-Shirt" loading="lazy"></div>
+      <div class="tile-name">Pop Art 417 Cotton Unisex T-Shirt</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA417-OWT-1</div><div class="variant-sku">APZPA417-OWT-3</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================ -->
+<!-- JEWELRY (includes brooches now) -->
+<!-- ================================================ -->
+<section>
+  <h2>Jewelry &amp; Brooches</h2>
+  <div class="section-rule"></div>
+  <div class="section-meta">102 designs &middot; 121 SKU lines</div>
+  <div class="grid">
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA201_94aa2173-3acf-4b70-99e1-e45051440ff2.png?v=1749180770" alt="Pop Art Multi Color Chameleon Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Multi Color Chameleon Brooch</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA201</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA202_872edea2-8b90-4624-a443-9649f3874974.png?v=1749180769" alt="Pop Art Tear Heart Eye Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Tear Heart Eye Brooch</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA202</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA203_76db6a57-79cb-4077-a566-a5c577a6edd6.png?v=1749180768" alt="Pop Art Turquoise Heart Eye Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Turquoise Heart Eye Brooch</div>
+      <div class="tile-price">Wholesale CAD $12.00</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA203</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA204_d5c4783d-6506-43be-8e6e-bda14818efcc.png?v=1749180767" alt="Pop Art Turquoise Eiffel Tower Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Turquoise Eiffel Tower Brooch</div>
+      <div class="tile-price">Wholesale CAD $12.00</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA204</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA205_2a41cc73-525c-491e-80a6-4cff5b02b7cb.png?v=1749180766" alt="Pop Art Black Silver Camera Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Black Silver Camera Brooch</div>
+      <div class="tile-price">Wholesale CAD $12.00</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA205</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA206_b2dffa9b-6b0c-42cc-a388-32b1b18edc2e.png?v=1749180765" alt="Pop Art Purple Flower Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Purple Flower Brooch</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA206</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><span class="badge">Brooch</span><br><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA207_8751bd92-ad66-4c1c-8a3f-40aafa641fc7.png?v=1749180764" alt="Pop Art Coral Shrimp Brooch" loading="lazy"></div>
+      <div class="tile-name">Pop Art Coral Shrimp Brooch</div>
+      <div class="tile-price">Wholesale CAD $12.00</div>
+      <div class="tile-skus"><div class="variant-sku">APZPA207</div></div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/19AWPK101_0000_1_1e1b15d9-0b42-4554-8fee-4b79b690cfb6.jpg?v=1749180864" alt="Pumpkin Bracelet for Halloween" loading="lazy"></div>
+      <div class="tile-name">Pumpkin Bracelet for Halloween</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWSAWPK101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_b8615dae-bc49-4544-a2c8-3da4f3c63f3b.jpg?v=1749180943" alt="Sahi Little Red Flower Red Heart Hoop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Little Red Flower Red Heart Hoop Earrings</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWUAWRF302C</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_65211807-e656-43d9-97bc-3a5b518f0db0.jpg?v=1749180938" alt="Sahi Little Red Flower Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Little Red Flower Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWUAWRF303C / JWUAWRF303H</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_b9a44603-e96f-4aa9-8b96-5702c4d9a726.jpg?v=1749180941" alt="Sahi Little Red Flower Flip Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi Little Red Flower Flip Stud Earring</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWUAWRF304T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_103ab11d-b36d-4e37-a85b-43ba5b7fb7b9.jpg?v=1749180946" alt="Sahi Little Flower Flip Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Little Flower Flip Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWUAWRF401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_18ce3636-ce39-4da5-988b-628428fb2995.jpg?v=1749180939" alt="Sahi Little Red Flower Adjustable Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Little Red Flower Adjustable Ring</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWUAWRF501</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_53309d19-c635-4ff6-9bc2-b780c710b9b6.jpg?v=1749180936" alt="Sahi London Shine Zircon Crystal Chain Link Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi London Shine Zircon Crystal Chain Link Bracelet</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWUAWSH102</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_5fde50b5-1a77-4888-a4fe-de0c8f4a1add.jpg?v=1749180935" alt="Sahi London Shine Green Zircon Crystal Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi London Shine Green Zircon Crystal Stud Earring</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWUAWSH301C / JWUAWSH301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_3b84bd3d-5c50-4439-8647-8913a4861e0b.jpg?v=1749180934" alt="Sahi London Shine Collection Drop Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi London Shine Collection Drop Earring</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWUAWSH302C / JWUAWSH302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_45b29569-ae1a-4377-97e0-68b5daa13f19.jpg?v=1749180932" alt="Sahi London Shine Collection Dangling Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi London Shine Collection Dangling Earring</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWUAWSH303C / JWUAWSH303T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/3_fd99983b-73b3-4ea5-a59b-6780cae2db04.png?v=1749180956" alt="Sahi Age of Innocence Crystal Drop Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi Age of Innocence Crystal Drop Earring</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWUSSAI302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/4_ef844cfb-7ddb-403c-8674-7fb93b73f7bd.png?v=1749180955" alt="Sahi White Pearl Zircon Stones Crystal Hoop Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi White Pearl Zircon Stones Crystal Hoop Earring</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWUSSAI303T-1 / JWUSSAI303T-2</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2_422712d8-0216-4ad6-acd6-c015aecac775.png?v=1749180953" alt="Sahi Heart Shaped Enamel Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Heart Shaped Enamel Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWUSSAI304C-1 / JWUSSAI304T-1</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JW20SSCW401-26_ee115d01-7de9-4ace-a331-7f77cf2b69ef.jpg?v=1749180964" alt="SAHI London Womens Cow Necklace" loading="lazy"></div>
+      <div class="tile-name">SAHI London Womens Cow Necklace</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWUSSCW401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/3_7f32d504-d753-4b3a-96c4-d2c8925de5dd.jpg?v=1749180847" alt="Sahi Enchanting Garden Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Enchanting Garden Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $28.33</div>
+      <div class="tile-sku">JWVAWEG301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/4_6dcff398-253b-4d69-90b3-4aea2af76e48.jpg?v=1749180845" alt="Sahi Enchanting Garden Dangling Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Enchanting Garden Dangling Earrings</div>
+      <div class="tile-price">Wholesale CAD $33.00</div>
+      <div class="tile-sku">JWVAWEG302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/4_8d1ae7b5-3edb-44c9-a3d1-df2f4f8bb692.jpg?v=1749180844" alt="Sahi Enchanting Garden Hoop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Enchanting Garden Hoop Earrings</div>
+      <div class="tile-price">Wholesale CAD $28.33</div>
+      <div class="tile-sku">JWVAWEG303H</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_03fef33c-ccc4-4ab7-9048-207399ab6ec4.jpg?v=1749180853" alt="Sahi Red Mushroom Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi Red Mushroom Stud Earring</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWVAWEG304C</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/4_5307b057-a8c9-4644-9390-2db4d078a72f.jpg?v=1749180830" alt="Sahi Enchanting Garden Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Enchanting Garden Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $46.33</div>
+      <div class="tile-sku">JWVAWEG402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/4_9095c9a1-1a21-4754-a1eb-7b66b4055f83.jpg?v=1749180842" alt="Sahi Enchanting Garden Blue Adjustable Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Enchanting Garden Blue Adjustable Ring</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWVAWEG501</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/4_473e209b-b89a-40de-ae63-efe4ff228bb9.jpg?v=1749180840" alt="Sahi Enchanting Garden Pink Adjustable Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Enchanting Garden Pink Adjustable Ring</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWVAWEG502</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_0be014a2-d7d2-4c92-9578-6851a0cb240b.jpg?v=1749180857" alt="Sahi Fantasy Chain & Link Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi Fantasy Chain & Link Bracelet</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWVAWFA101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2_30ccb29c-5b85-4623-b3b5-b1ab340005f9.jpg?v=1749180861" alt="Sahi Fantasy Starfish Pearl Hoop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Fantasy Starfish Pearl Hoop Earrings</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWVAWFA301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_b944ee2a-ac36-4b76-871a-707a111c3747.jpg?v=1749180860" alt="Sahi Fantasy Wave Pearl Dangle Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Fantasy Wave Pearl Dangle Earrings</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWVAWFA302C / JWVAWFA302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_3240e21f-3096-43b5-85e9-c9e545d9cfd5.jpg?v=1749180858" alt="Sahi Fantasy Pearl Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Fantasy Pearl Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWVAWFA303D</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_52222423-2842-4b7c-9a5b-a68f2127cb74.jpg?v=1749180856" alt="Sahi Fantasy Pearl Charm Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Fantasy Pearl Charm Necklace</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWVAWFA401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_6d43b9e9-5ee5-4809-834e-9aee1be45f96.jpg?v=1749180854" alt="Sahi Fantasy Adjustable Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Fantasy Adjustable Ring</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWVAWFA501</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_89eb7b0a-e373-4ccd-a303-8ff82f757264.jpg?v=1749180875" alt="Sahi Heart Enameled Pearl Chain & Link Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi Heart Enameled Pearl Chain & Link Bracelet</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWVAWWL101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_e8ac2789-fc99-4b4a-b410-cb98d81a87ea.jpg?v=1749180873" alt="Sahi Love Heart Enamel Bow Stud Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Heart Enamel Bow Stud Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $61.66</div>
+      <div class="tile-sku">JWVAWWL301C / JWVAWWL301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_181e22a1-0946-40f6-8f20-ca941a601545.jpg?v=1749180871" alt="Sahi Heart Enamel Metaverse Rain Dangling Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Heart Enamel Metaverse Rain Dangling Earrings</div>
+      <div class="tile-price">Wholesale CAD $33.00</div>
+      <div class="tile-sku">JWVAWWL302H</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_dfc89591-6d5a-4469-9cb7-8beeeb9d6e7a.jpg?v=1749180877" alt="Sahi Love Heart Enameled Drop Dangling Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Heart Enameled Drop Dangling Earring</div>
+      <div class="tile-price">Wholesale CAD $31.66</div>
+      <div class="tile-sku">JWVAWWL303D</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_dc41df0f-ed47-4f3b-a446-d5db30157dc4.jpg?v=1749180870" alt="Sahi Love Heart Enamel Pearl Charm Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Heart Enamel Pearl Charm Necklace</div>
+      <div class="tile-price">Wholesale CAD $61.66</div>
+      <div class="tile-sku">JWVAWWL401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_f9f3d272-385e-4b15-af2e-487552f4bd95.jpg?v=1749180868" alt="Sahi Love Heart Enamel Collar Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Heart Enamel Collar Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $39.67</div>
+      <div class="tile-sku">JWVAWWL402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_51ab6226-f33d-4059-8d3c-447d973abc06.jpg?v=1749180867" alt="Sahi Love Heart Enamel Adjustable Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Heart Enamel Adjustable Ring</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWVAWWL501</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_f48ec2bd-53fa-4288-897a-765d33358925.jpg?v=1749180865" alt="Sahi Love Heart Enamel Bow Adjustable Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Heart Enamel Bow Adjustable Ring</div>
+      <div class="tile-price">Wholesale CAD $33.00</div>
+      <div class="tile-sku">JWVAWWL502</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_4d6e3711-b909-4150-9991-5be79acfc025.jpg?v=1749180913" alt="Sahi Gold Enameled Pearl Bear Chain Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Pearl Bear Chain Bracelet</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWVSSBC101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/JWVSSBC201_fix.jpg" alt="Camellia Bear Brooch" loading="lazy"></div>
+      <div class="tile-name">Camellia Bear Brooch</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWVSSBC201</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_d8e06f95-f025-430f-abef-4267cecc2cfe.jpg?v=1749180918" alt="Sahi Gold Enameled Camellia Bear Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Camellia Bear Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWVSSBC301C / JWVSSBC301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_eb558b6e-92da-41b7-aa60-c5ff1ee07762.jpg?v=1749180887" alt="Sahi Gold Enameled Camellia Bear Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Camellia Bear Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $33.00</div>
+      <div class="tile-sku">JWVSSBC302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_f403bf3e-fcab-4132-9ea1-5264ab4cb89a.jpg?v=1749180916" alt="Sahi Gold Enameled Camellia Bear Dangling Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Camellia Bear Dangling Earrings</div>
+      <div class="tile-price">Wholesale CAD $55.00</div>
+      <div class="tile-sku">JWVSSBC303C / JWVSSBC303T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_eb3d8c6e-a7a3-4ee8-befc-729e63f7ae5f.jpg?v=1749180915" alt="Sahi Camellia Bear Pendant Charm Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Camellia Bear Pendant Charm Necklace</div>
+      <div class="tile-price">Wholesale CAD $39.67</div>
+      <div class="tile-sku">JWVSSBC402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_41b8dbfb-76cc-4db8-9171-da5e1b68f30a.jpg?v=1749180883" alt="Sahi Stacked Chain Bear Pendant Charm Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Stacked Chain Bear Pendant Charm Necklace</div>
+      <div class="tile-price">Wholesale CAD $43.00</div>
+      <div class="tile-sku">JWVSSBC403</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_4414a374-c963-42eb-9637-1ec6c3869b3b.jpg?v=1749180908" alt="Sahi Gold Enameled Chain Cute Bear Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Chain Cute Bear Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWVSSBC404</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2_88447312-cfac-4466-8a7d-ced1bb26a46a.jpg?v=1749180912" alt="Sahi Gold Enameled Square Camellia Bear Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Square Camellia Bear Ring</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWVSSBC501</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_a65da922-2755-44aa-abf0-407108fd8bf8.jpg?v=1749180910" alt="Sahi Gold Enameled Round Camellia Bear Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Round Camellia Bear Ring</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWVSSBC502</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_7f972694-f15a-45a7-8653-2025f1209b2f.jpg?v=1749180880" alt="Sahi Gold Enameled Camellia Bear Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Camellia Bear Ring</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWVSSBC503-L / JWVSSBC503-M / JWVSSBC503-S</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_4eb9f795-da9e-42d8-8563-99c6a8a2d714.jpg?v=1749180897" alt="Sahi Forget Me Not Flower Charm Chain Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi Forget Me Not Flower Charm Chain Bracelet</div>
+      <div class="tile-price">Wholesale CAD $33.00</div>
+      <div class="tile-sku">JWVSSFN101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_87ee4675-6333-433e-8ad6-89f42b805aec.jpg?v=1749180896" alt="Sahi Gold Enameled Flower Blue-Violet Tassels Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Flower Blue-Violet Tassels Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $31.66</div>
+      <div class="tile-sku">JWVSSFN301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_133afdd7-ed57-415c-b5c2-3f995d8e789f.jpg?v=1749180895" alt="Sahi Forget Me Not Flower Dangle Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi Forget Me Not Flower Dangle Earring</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWVSSFN302C / JWVSSFN302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_8b46d995-7eec-4106-8255-fae74e5db007.jpg?v=1749180893" alt="Sahi Gold Enameled Flower Small Beetle Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Flower Small Beetle Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWVSSFN303T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_5cfa08f5-6ff6-4473-9614-8bd54c880a25.jpg?v=1749180890" alt="Sahi Gold Enameled Pearl Blue Charm Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Pearl Blue Charm Necklace</div>
+      <div class="tile-price">Wholesale CAD $35.00</div>
+      <div class="tile-sku">JWVSSFN402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_97622635-0ca9-4f8b-8039-563d650d82ab.jpg?v=1749180902" alt="Sahi Pearl & Lily Flower Charm Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi Pearl & Lily Flower Charm Bracelet</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWVSSIB101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_8ea1f75e-c6f5-4c78-a310-8b8d17dc07db.jpg?v=1749180923" alt="Sahi Gold Enameled Bee Pearl Brooch" loading="lazy"></div>
+      <div class="tile-name">Sahi Gold Enameled Bee Pearl Brooch</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWVSSIB201</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_87ec9987-bce5-4977-a19b-3292b877d391.jpg?v=1749180921" alt="Sahi Lilys Flower Pearl Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Lilys Flower Pearl Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $28.33</div>
+      <div class="tile-sku">JWVSSIB301C / JWVSSIB301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_bc54ef3e-ac0f-4c54-8bc7-fb17948a9115.jpg?v=1749180903" alt="Sahi Lilys Flower Pearl Drop Dangle Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Lilys Flower Pearl Drop Dangle Earrings</div>
+      <div class="tile-price">Wholesale CAD $28.33</div>
+      <div class="tile-sku">JWVSSIB302C / JWVSSIB302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JW22SS5PB303TC_9b2ec954-cbf3-4bb2-a368-438d819f695f.png?v=1749180905" alt="Sahi Lilys Flower & Pearl Bee Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Lilys Flower & Pearl Bee Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWVSSIB303C / JWVSSIB303T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_975b6154-e504-42ea-8fd5-2464cb821db4.jpg?v=1749180919" alt="Sahi Peach Lilys Flower Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Peach Lilys Flower Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWVSSIB304C</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_33904421-6add-4f1f-ae50-e5030b10b126.jpg?v=1749180900" alt="Sahi Peach Lily Flower Pearl Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Peach Lily Flower Pearl Necklace</div>
+      <div class="tile-price">Wholesale CAD $26.66</div>
+      <div class="tile-sku">JWVSSIB402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_210fd140-cfcd-42ba-b596-118340b93f04.jpg?v=1749180899" alt="Sahi Pearl Bee & Flower Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Pearl Bee & Flower Ring</div>
+      <div class="tile-price">Wholesale CAD $28.33</div>
+      <div class="tile-sku">JWVSSIB502</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_edf27e45-db34-429a-8bc8-9a554cafceb3.jpg?v=1749180929" alt="Sahi London Love Collection Heart Shaped Brooch" loading="lazy"></div>
+      <div class="tile-name">Sahi London Love Collection Heart Shaped Brooch</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWVSSLV201</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/01_f28ccd53-8876-4ab6-8913-6d1d1380e9e2.jpg?v=1749180927" alt="Sahi London Love Heart & Headphone Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi London Love Heart & Headphone Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWVSSLV401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><div class="placeholder">SAHI</div></div>
+      <div class="tile-name">Tiger Necklace</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWVSSTG201</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_ada443b0-eb14-4b84-be88-0306cae6e608.jpg?v=1749180831" alt="Monster Sky Blue Enamel Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Monster Sky Blue Enamel Stud Earring</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWWSSMS301C-1</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2_2cb205d2-baad-43bc-872f-5a64400d3f03.jpg?v=1749180833" alt="Monster White Enamel Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Monster White Enamel Stud Earring</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWWSSMS301C-2 / JWWSSMS301T-2</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_ada443b0-eb14-4b84-be88-0306cae6e608.jpg?v=1749180831" alt="Monster Sky Blue Enamel Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Monster Sky Blue Enamel Stud Earring</div>
+      <div class="tile-sku">JWWSSMS301T-1</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="images/JWWSSMS303T_fix.jpg" alt="Monster Enamel Stud Earring" loading="lazy"></div>
+      <div class="tile-name">Monster Enamel Stud Earring</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWWSSMS303T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_2_9673319d-d144-4ee7-ae1c-e70a61c8cf5e.jpg?v=1749180836" alt="Monster Yellow Pearl & Enamel Necklace" loading="lazy"></div>
+      <div class="tile-name">Monster Yellow Pearl & Enamel Necklace</div>
+      <div class="tile-price">Wholesale CAD $25.00</div>
+      <div class="tile-sku">JWWSSMS401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JW23SSRB301TC-001_63be3a5b-cd83-4011-bbb5-51033a391df4.jpg?v=1749180848" alt="SAHI Rabbit Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">SAHI Rabbit Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWWSSRB301C</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_ac02c9d9-912c-4777-a3d3-f0c28253dc8f.jpg?v=1749180812" alt="Sahi London Age of Innocence Red & White Dangle Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi London Age of Innocence Red & White Dangle Earrings</div>
+      <div class="tile-price">Wholesale CAD $13.33</div>
+      <div class="tile-sku">JWXSSAI301</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2-04_b0412bfa-4f1d-45e2-aaf0-1e9c942dab76.jpg?v=1749180810" alt="Sahi London Age of Innocence Blue Eye Dangle Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi London Age of Innocence Blue Eye Dangle Earrings</div>
+      <div class="tile-price">Wholesale CAD $16.66</div>
+      <div class="tile-sku">JWXSSAI302</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2-03_e67111be-e062-415e-b2ec-d9054eb9bff3.jpg?v=1749180806" alt="Sahi London Age of Innocence Blue Eye Adjustable Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi London Age of Innocence Blue Eye Adjustable Necklace</div>
+      <div class="tile-price">Wholesale CAD $13.33</div>
+      <div class="tile-sku">JWXSSAI401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2-02_ae56e490-67e3-46b6-ba67-6b0a2546d5b5.jpg?v=1749180807" alt="Sahi London Age of Innocence Red & White Adjustable Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi London Age of Innocence Red & White Adjustable Necklace</div>
+      <div class="tile-price">Wholesale CAD $13.33</div>
+      <div class="tile-sku">JWXSSAI402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/2-01_c05be742-ff11-4b2e-9379-7778d3a46785.jpg?v=1749180809" alt="Sahi London Age of Innocence Adjustable Multi Color Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi London Age of Innocence Adjustable Multi Color Necklace</div>
+      <div class="tile-price">Wholesale CAD $13.33</div>
+      <div class="tile-sku">JWXSSAI406</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JWXSSBC301T-1-1080X1080_2c11830a-dd64-424e-9ed7-ba0331a5448a.png?v=1749180828" alt="Sahi Polyresin Bear Maroon Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Polyresin Bear Maroon Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $21.66</div>
+      <div class="tile-sku">JWXSSBC301T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JWXSSBC302T_5b14a67f-4572-4cdf-bfdf-d1759d5ee78f.png?v=1749180760" alt="Sahi Pearl Chain White Transparent Bear Drop Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi Pearl Chain White Transparent Bear Drop Earring</div>
+      <div class="tile-price">Wholesale CAD $25.00</div>
+      <div class="tile-sku">JWXSSBC302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JWXSSBC401-1-1080X1080_bb66eca6-d2fa-4211-9b31-8eb6bc996fae.png?v=1749180827" alt="Sahi Polyresin Bear Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Polyresin Bear Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWXSSBC401-1 / JWXSSBC401-3 / JWXSSBC401-4 / JWXSSBC401-8</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JWXSSBC402_2_1080x1080_4cc46f3c-6f48-48bb-9239-f73d680c13b7.png?v=1749180826" alt="Sahi Pearl Chain White Transparent Bear Necklace" loading="lazy"></div>
+      <div class="tile-name">Sahi Pearl Chain White Transparent Bear Necklace</div>
+      <div class="tile-price">Wholesale CAD $25.00</div>
+      <div class="tile-sku">JWXSSBC402</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JWXSSCM301_c98c1254-0c0b-4a64-954e-bd778c7560af.png?v=1749180761" alt="Sahi Chessboard Rectangle Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Chessboard Rectangle Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWXSSCM301</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/JWXSSCM302_a23fa9af-0673-4ff9-b07f-ed20c38f7c96.png?v=1749180761" alt="SAHI Chessboard Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">SAHI Chessboard Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $18.33</div>
+      <div class="tile-sku">JWXSSCM302</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_359a6806-8ea0-4824-9978-8881a3b317e3.jpg?v=1749180820" alt="Sahi Love Affair Chain & Link Bracelet" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Affair Chain & Link Bracelet</div>
+      <div class="tile-price">Wholesale CAD $30.00</div>
+      <div class="tile-sku">JWXSSLA101</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_92747c74-ba8d-4a90-b8b7-157296de1424.jpg?v=1749180818" alt="Love Affair Enamel Teardrop Chain & Link Bracelet" loading="lazy"></div>
+      <div class="tile-name">Love Affair Enamel Teardrop Chain & Link Bracelet</div>
+      <div class="tile-price">Wholesale CAD $31.66</div>
+      <div class="tile-sku">JWXSSLA102</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_1_5f1f0e1c-b5e5-4ed2-b98b-eca260676512.jpg?v=1749180824" alt="Sahi Love Affair Stud Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Affair Stud Earrings</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWXSSLA301</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_3d8ec4ed-bec5-4eb6-970c-d8508f79ab04.jpg?v=1749180822" alt="Sahi Love Affair Teardrop Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Affair Teardrop Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $30.00</div>
+      <div class="tile-sku">JWXSSLA302</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_fbd75373-0ffa-461e-a749-b435bab0a2e3.jpg?v=1749180821" alt="Sahi Love Affair Hoop Drop Earrings" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Affair Hoop Drop Earrings</div>
+      <div class="tile-price">Wholesale CAD $31.66</div>
+      <div class="tile-sku">JWXSSLA303</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/WEB-3.png?v=1749180817" alt="Love Affair Enamel Pendant Necklace" loading="lazy"></div>
+      <div class="tile-name">Love Affair Enamel Pendant Necklace</div>
+      <div class="tile-price">Wholesale CAD $30.00</div>
+      <div class="tile-sku">JWXSSLA401</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_21c864fe-29f1-4dde-91d3-b7be614ef673.jpg?v=1749180815" alt="Sahi Love Affair Adjustable Free Size Ring" loading="lazy"></div>
+      <div class="tile-name">Sahi Love Affair Adjustable Free Size Ring</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWXSSLA501</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/1_2a91aa60-3351-4968-8aea-6cee1ffb4351.jpg?v=1749180814" alt="Love Affair Teardrop Open Ring" loading="lazy"></div>
+      <div class="tile-name">Love Affair Teardrop Open Ring</div>
+      <div class="tile-price">Wholesale CAD $23.33</div>
+      <div class="tile-sku">JWXSSLA503</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01728copy_1_1.jpg?v=1749180804" alt="Sahi London Golden Drop Statement Earring with Pearl" loading="lazy"></div>
+      <div class="tile-name">Sahi London Golden Drop Statement Earring with Pearl</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-sku">JWZSM302T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01773copy_1b5cd356-817a-4a68-8946-57b057f0be88.jpg?v=1749180803" alt="Sahi London Maroon Dangle Statement Earring with Pearl" loading="lazy"></div>
+      <div class="tile-name">Sahi London Maroon Dangle Statement Earring with Pearl</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-sku">JWZSM303T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01822_copy_1_2e9e3132-53b5-4365-ba25-fca61f445992.jpg?v=1749180802" alt="Sahi London Drop Statement Earring Beautiful Heart" loading="lazy"></div>
+      <div class="tile-name">Sahi London Drop Statement Earring Beautiful Heart</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-sku">JWZSM304T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01786copy.jpg?v=1749180799" alt="Sahi London Maroon Dangle Statement Earring with Pearl" loading="lazy"></div>
+      <div class="tile-name">Sahi London Maroon Dangle Statement Earring with Pearl</div>
+      <div class="tile-sku">JWZSM305T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01772copy_e94de97f-75ef-4830-8f16-4072ece1803e.jpg?v=1749180797" alt="Sahi London Multicolor Hoop Statement Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi London Multicolor Hoop Statement Earring</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-sku">JWZSM306T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01812copy_f803168f-97e0-473e-990e-a9d1feac4ecd.jpg?v=1749180795" alt="Sahi London Golden Hoop Statement Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi London Golden Hoop Statement Earring</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-sku">JWZSM308T</div>
+    </div>
+    <div class="tile">
+      <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01743_copy_1_7adcf1f1-e198-4a52-b75e-7f3c1051dc04.jpg?v=1749180793" alt="Sahi London Golden Stud Statement Earring" loading="lazy"></div>
+      <div class="tile-name">Sahi London Golden Stud Statement Earring</div>
+      <div class="tile-price">Wholesale CAD $10.00</div>
+      <div class="tile-sku">JWZSM309T</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Cart FAB -->
+<button class="cart-fab" id="cartFab" onclick="toggleCart()" title="Cart">
+  &#128722;
+  <span class="badge-count" id="cartCount" style="display:none">0</span>
+</button>
+
+<!-- Cart Overlay -->
+<div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+
+<!-- Cart Drawer -->
+<div class="cart-drawer" id="cartDrawer">
+  <div class="cart-drawer-header">
+    <h3>Your Order</h3>
+    <button onclick="toggleCart()">&times;</button>
+  </div>
+  <div class="cart-items" id="cartItems">
+    <div class="cart-empty">Your cart is empty.<br>Browse the catalogue and add items.</div>
+  </div>
+  <div class="cart-footer">
+    <textarea class="notes-input" id="orderNotes" placeholder="Order notes (optional)"></textarea>
+    <div class="total-line">
+      <span>Total</span>
+      <span id="cartTotal">CAD $0.00</span>
+    </div>
+    <div id="cartActionArea">
+      <button class="checkout-btn" id="checkoutBtn" onclick="handleCheckout()" disabled>Place Order</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  SAHI LONDON &middot; Photography &copy; Sahi London / sahilondon.com<br>
+  Contact: <a href="mailto:info@sahilondon.com">info@sahilondon.com</a> &middot; WhatsApp: +44 7518 130380
+</footer>
+
+<script>
+// ── Sales mode ──
+const isSales = location.search.includes('sales');
+if (isSales) {
+  document.body.classList.add('sales');
+}
+
+// ── Cart state (localStorage) ──
+let cart = [];
+try { cart = JSON.parse(localStorage.getItem('sahi_b2b_cart') || '[]'); } catch(e) { cart = []; }
+function saveCart() { localStorage.setItem('sahi_b2b_cart', JSON.stringify(cart)); updateCartUI(); }
+
+function getSkuKey(sku) {
+  // Normalize SKU: remove leading variants like "-1", "-2", "-OWT-1", "-MEG-1" etc.
+  // But keep the full sku as key for multi-variant products
+  return sku.trim();
+}
+
+// ── Build add-to-cart buttons on tiles ──
+function buildCartButtons() {
+  document.querySelectorAll('.tile').forEach(tile => {
+    // Get first SKU as primary
+    const skuEl = tile.querySelector('.tile-sku');
+    const variantEls = tile.querySelectorAll('.variant-sku');
+    const nameEl = tile.querySelector('.tile-name');
+    const priceEl = tile.querySelector('.tile-price');
+
+    const productName = nameEl ? nameEl.textContent.trim() : 'Product';
+    const priceText = priceEl ? priceEl.textContent.replace('Wholesale CAD $', '').trim() : '';
+    const unitPrice = parseFloat(priceText) || 0;
+
+    // For multi-variant tiles, add button per variant
+    if (variantEls.length > 1) {
+      variantEls.forEach(vEl => {
+        const sku = vEl.textContent.trim();
+        const btn = document.createElement('button');
+        btn.className = 'add-cart-btn';
+        btn.textContent = isInCart(sku) ? 'In Cart' : '+ Add';
+        if (isInCart(sku)) btn.classList.add('in-cart');
+        btn.onclick = (e) => { e.stopPropagation(); addToCart(sku, productName, unitPrice); };
+        vEl.insertAdjacentElement('afterend', btn);
+      });
+    } else if (skuEl) {
+      // Single SKU tile
+      const sku = skuEl.textContent.trim();
+      const btn = document.createElement('button');
+      btn.className = 'add-cart-btn';
+      btn.textContent = isInCart(sku) ? 'In Cart' : '+ Add';
+      if (isInCart(sku)) btn.classList.add('in-cart');
+      btn.onclick = (e) => { e.stopPropagation(); addToCart(sku, productName, unitPrice); };
+      skuEl.insertAdjacentElement('afterend', btn);
+    }
+  });
+}
+
+function isInCart(sku) { return cart.some(i => i.sku === sku); }
+
+function addToCart(sku, productName, unitPrice) {
+  const existing = cart.find(i => i.sku === sku);
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    cart.push({ sku, product_name: productName, unit_price: unitPrice || 0, quantity: 1 });
+  }
+  saveCart();
+  buildCartButtons(); // refresh button states
+}
+
+function removeFromCart(sku) {
+  cart = cart.filter(i => i.sku !== sku);
+  saveCart();
+  buildCartButtons();
+}
+
+function updateQty(sku, delta) {
+  const item = cart.find(i => i.sku === sku);
+  if (!item) return;
+  item.quantity += delta;
+  if (item.quantity <= 0) {
+    cart = cart.filter(i => i.sku !== sku);
+  }
+  saveCart();
+  buildCartButtons();
+}
+
+// ── Cart UI ──
+function updateCartUI() {
+  const count = cart.reduce((s, i) => s + i.quantity, 0);
+  const total = cart.reduce((s, i) => s + (i.unit_price * i.quantity), 0);
+
+  const badge = document.getElementById('cartCount');
+  const itemsEl = document.getElementById('cartItems');
+  const totalEl = document.getElementById('cartTotal');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  const cartActionArea = document.getElementById('cartActionArea');
+
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  totalEl.textContent = 'CAD $' + total.toFixed(2);
+
+  if (cart.length === 0) {
+    itemsEl.innerHTML = '<div class="cart-empty">Your cart is empty.<br>Browse the catalogue and add items.</div>';
+    checkoutBtn.disabled = true;
+  } else {
+    itemsEl.innerHTML = cart.map((item, idx) => {
+      const lineTotal = (item.unit_price * item.quantity).toFixed(2);
+      const priceDisplay = item.unit_price > 0 ? '$' + item.unit_price.toFixed(2) : '';
+      return `<div class="cart-item">
+        <div class="cart-item-info">
+          <div class="ci-name">${escHtml(item.product_name)}</div>
+          <div class="ci-sku">${escHtml(item.sku)}</div>
+          <div class="cart-item-qty">
+            <button onclick="updateQty('${escAttr(item.sku)}', -1)">-</button>
+            <span>${item.quantity}</span>
+            <button onclick="updateQty('${escAttr(item.sku)}', 1)">+</button>
+          </div>
+        </div>
+        <div class="cart-item-price">
+          ${priceDisplay ? '<div class="ci-unit">' + priceDisplay + ' ea</div>' : ''}
+          <div class="ci-total">$${lineTotal}</div>
+          <div class="ci-remove" onclick="removeFromCart('${escAttr(item.sku)}')">Remove</div>
+        </div>
+      </div>`;
+    }).join('');
+    checkoutBtn.disabled = false;
+  }
+
+  // Check auth state for checkout
+  checkAuthState().then(loggedIn => {
+    const cartActionArea = document.getElementById('cartActionArea');
+    if (!loggedIn) {
+      cartActionArea.innerHTML = `
+        <div class="login-prompt">
+          <p style="margin:0 0 12px">Please log in to place your order.</p>
+          <a href="/b2b-login.html?redirect=/catalogue.html?sales&cart" style="display:inline-block;padding:12px 28px;background:var(--near-black);color:#fff;text-decoration:none;font-family:'Lora',serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;border-radius:2px">Log In to Order</a>
+        </div>
+      `;
+    } else if (cart.length > 0) {
+      cartActionArea.innerHTML = `
+        <button class="checkout-btn" id="checkoutBtn" onclick="handleCheckout()">Place Order</button>
+      `;
+    }
+  });
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+function toggleCart() {
+  const drawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('cartOverlay');
+  const isOpen = drawer.style.display === 'flex';
+  drawer.style.display = isOpen ? 'none' : 'flex';
+  overlay.style.display = isOpen ? 'none' : 'block';
+  document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+
+// ── Auth check ──
+async function checkAuthState() {
+  try {
+    const r = await fetch('/api/b2b/me');
+    return r.ok;
+  } catch(e) { return false; }
+}
+
+// ── Checkout ──
+async function handleCheckout() {
+  if (cart.length === 0) return;
+  const loggedIn = await checkAuthState();
+  if (!loggedIn) {
+    window.location.href = '/b2b-login.html?redirect=/catalogue.html?sales&cart';
+    return;
+  }
+
+  const notes = document.getElementById('orderNotes').value.trim();
+  const btn = document.getElementById('checkoutBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+  }
+
+  try {
+    const r = await fetch('/api/b2b/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart, notes })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      cart = [];
+      saveCart();
+      buildCartButtons();
+      document.getElementById('orderNotes').value = '';
+      document.getElementById('cartItems').innerHTML = `
+        <div class="cart-empty" style="color:#2A7D2A;">
+          Order #${data.orderId} placed!<br>
+          Total: CAD $${data.total.toFixed(2)}<br>
+          <small>We'll confirm shortly at your registered email.</small>
+        </div>
+      `;
+      document.getElementById('cartActionArea').innerHTML = '';
+      document.getElementById('cartTotal').textContent = 'CAD $0.00';
+      document.getElementById('cartCount').style.display = 'none';
+    } else {
+      alert(data.error || 'Failed to place order.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Place Order'; }
+    }
+  } catch (err) {
+    alert('Network error. Please try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Place Order'; }
+  }
+}
+
+// ── Init ──
+if (isSales) {
+  buildCartButtons();
+}
+updateCartUI();
+</script>
+</body>
+</html>

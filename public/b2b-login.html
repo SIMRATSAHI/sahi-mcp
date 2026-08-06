@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAHI London — B2B Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky-blue: #87CFEB;
+    --blush-pink: #FFB8C4;
+    --near-black: #1A1A1A;
+    --grey-text: #8A8A8A;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Lora', Georgia, serif;
+    color: var(--near-black);
+    background: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+  .card {
+    width: 100%;
+    max-width: 400px;
+    padding: 48px 40px;
+  }
+  .card h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .card .subtitle {
+    text-align: center;
+    font-style: italic;
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: var(--near-black);
+  }
+  .card .rule {
+    width: 80px;
+    height: 1px;
+    background: var(--blush-pink);
+    margin: 0 auto 28px;
+  }
+  .card label {
+    display: block;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--grey-text);
+    margin-bottom: 6px;
+    margin-top: 18px;
+  }
+  .card input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #E0E0E0;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    border-radius: 2px;
+    transition: border-color 0.2s;
+  }
+  .card input:focus { outline: none; border-color: var(--sky-blue); }
+  .card button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 28px;
+    background: var(--near-black);
+    color: #fff;
+    border: none;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.2s;
+  }
+  .card button:hover { background: #333; }
+  .card button:disabled { background: #ccc; cursor: not-allowed; }
+  .card .footer-link {
+    text-align: center;
+    margin-top: 20px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: var(--grey-text);
+  }
+  .card .footer-link a { color: var(--near-black); text-decoration: underline; }
+  .msg { text-align: center; font-size: 13px; margin-top: 12px; font-family: Helvetica, Arial, sans-serif; }
+  .msg.error { color: #D00; }
+  .msg.success { color: #2A7D2A; }
+
+  .back-link {
+    display: block;
+    text-align: center;
+    margin-top: 24px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--grey-text);
+  }
+  .back-link a { color: var(--grey-text); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>SAHI LONDON</h1>
+  <div class="subtitle">B2B Wholesale Portal</div>
+  <div class="rule"></div>
+
+  <form id="loginForm">
+    <label>Email Address</label>
+    <input type="email" id="email" required placeholder="you@company.com">
+
+    <label>Password</label>
+    <input type="password" id="password" required placeholder="Your password">
+
+    <button type="submit" id="submitBtn">Log In</button>
+  </form>
+
+  <div class="msg" id="msg"></div>
+  <div class="footer-link">
+    Don't have an account? <a href="/b2b-register.html">Register here</a>
+  </div>
+  <div class="back-link">
+    <a href="/wholesale.html">&larr; Back to catalogue</a>
+  </div>
+</div>
+
+<script>
+// If already logged in, redirect to catalogue
+(async () => {
+  try {
+    const r = await fetch('/api/b2b/me');
+    if (r.ok) window.location.href = '/catalogue.html?sales&cart';
+  } catch (e) {}
+})();
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+  btn.disabled = true; btn.textContent = 'Logging in...'; msg.className = 'msg'; msg.textContent = '';
+
+  try {
+    const r = await fetch('/api/b2b/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      msg.className = 'msg success';
+      msg.textContent = 'Welcome, ' + data.name + '! Redirecting...';
+      // Get the redirect URL from query param (where they came from)
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect') || '/catalogue.html?sales&cart';
+      setTimeout(() => { window.location.href = redirect; }, 800);
+    } else {
+      msg.className = 'msg error';
+      msg.textContent = data.error || 'Login failed.';
+      btn.disabled = false; btn.textContent = 'Log In';
+    }
+  } catch (err) {
+    msg.className = 'msg error';
+    msg.textContent = 'Network error. Please try again.';
+    btn.disabled = false; btn.textContent = 'Log In';
+  }
+});
+</script>
+</body>
+</html>

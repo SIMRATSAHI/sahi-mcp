@@ -7,6 +7,144 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const xlsx = require('xlsx');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
+
+// ── Email config (for B2B order notifications) ──
+const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
+const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '587');
+const EMAIL_USER = process.env.EMAIL_USER || 'B2B-order@sahilondon.com';
+const EMAIL_PASS = process.env.EMAIL_PASS || '';
+const ORDER_EMAIL = process.env.ORDER_EMAIL || 'B2B-order@sahilondon.com';
+
+console.log(`[EMAIL CONFIG] user=${EMAIL_USER}, host=${EMAIL_HOST}:${EMAIL_PORT}, pass=${EMAIL_PASS ? 'SET(' + EMAIL_PASS.length + 'chars)' : 'MISSING'}, order_to=${ORDER_EMAIL}`);
+
+const mailer = nodemailer.createTransport({
+  host: EMAIL_HOST,
+  port: EMAIL_PORT,
+  secure: EMAIL_PORT === 465,
+  auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+});
+
+// ── PDF Generator for B2B Order Confirmations ──
+function generateOrderPDF(order) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks = [];
+      doc.on('data', c => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      // Colors — SAHI palette
+      const SKY_BLUE = '#87CEEB';
+      const PASTEL_PINK = '#FFB7C5';
+      const LIGHT_GREY = '#D3D3D3';
+      const WHITE = '#ffffff';
+      const BLACK = '#111111';
+
+      // Header bar — Sky Blue with black text
+      doc.rect(0, 0, 595, 95).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(26).font('Helvetica-Bold')
+        .text('SAHI LONDON', 50, 28);
+      doc.fontSize(11).font('Helvetica')
+        .text('Wholesale B2B Order Confirmation', 50, 58);
+      doc.fontSize(9).fillColor('#555555')
+        .text(`Generated: ${new Date().toISOString().split('T')[0]}`, 350, 58, { width: 195, align: 'right' });
+
+      // Order info section
+      const topY = 115;
+      doc.fillColor(BLACK).fontSize(18).font('Helvetica-Bold')
+        .text(`Order #${order.id}`, 50, topY);
+      doc.fontSize(10).font('Helvetica').fillColor(PASTEL_PINK)
+        .text(`Status: ${order.status}`, 50, topY + 25);
+
+      // Company details box — Light Grey
+      const boxY = topY + 50;
+      doc.roundedRect(50, boxY, 230, 100, 4).fill(LIGHT_GREY).stroke('#bbbbbb');
+      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold')
+        .text('SOLD TO', 65, boxY + 12);
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+        .text(`${order.company_name || ''}`, 65, boxY + 30)
+        .text(`Contact: ${order.contact_name || ''}`, 65, boxY + 45)
+        .text(`Email: ${order.email || ''}`, 65, boxY + 60);
+      if (order.phone) doc.text(`Phone: ${order.phone}`, 65, boxY + 75);
+
+      // Order details box — Light Grey
+      doc.roundedRect(315, boxY, 230, 100, 4).fill(LIGHT_GREY).stroke('#bbbbbb');
+      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold')
+        .text('ORDER DETAILS', 330, boxY + 12);
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+        .text(`Date: ${order.created_at ? new Date(order.created_at).toLocaleDateString('en-CA') : 'N/A'}`, 330, boxY + 30)
+        .text(`HST/GST: ${order.hst_gst_number || 'N/A'}`, 330, boxY + 45)
+        .text(`Items: ${order.item_count || 0}`, 330, boxY + 60);
+      if (order.shipping_address) {
+        doc.text(`Ship To: ${order.shipping_address.substring(0, 50)}`, 330, boxY + 75);
+      }
+
+      // Items table
+      const tableY = boxY + 120;
+      const colX = [50, 130, 280, 370, 440, 500];
+      const colW = [80, 150, 50, 70, 60];
+
+      // Table header — Sky Blue with black text
+      doc.roundedRect(50, tableY, 495, 22, 4).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(9).font('Helvetica-Bold');
+      doc.text('SKU', colX[0] + 5, tableY + 6, { width: colW[0] });
+      doc.text('Product', colX[1] + 5, tableY + 6, { width: colW[1] });
+      doc.text('Qty', colX[2] + 5, tableY + 6, { width: colW[2], align: 'center' });
+      doc.text('Unit Price', colX[3] + 5, tableY + 6, { width: colW[3], align: 'right' });
+      doc.text('Total', colX[4] + 5, tableY + 6, { width: colW[4], align: 'right' });
+
+      // Table rows — alternating White / Light Grey
+      let rowY = tableY + 24;
+      const items = order.items || [];
+      doc.font('Helvetica').fontSize(9);
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const bg = i % 2 === 0 ? WHITE : LIGHT_GREY;
+        doc.roundedRect(50, rowY, 495, 20, 0).fill(bg);
+
+        doc.fillColor(BLACK);
+        doc.text(it.sku || '', colX[0] + 5, rowY + 5, { width: colW[0] });
+        doc.text(it.product_name || '', colX[1] + 5, rowY + 5, { width: colW[1] });
+        doc.text(String(it.quantity || 0), colX[2] + 5, rowY + 5, { width: colW[2], align: 'center' });
+        doc.text(`$${Number(it.unit_price || 0).toFixed(2)}`, colX[3] + 5, rowY + 5, { width: colW[3], align: 'right' });
+        doc.text(`$${Number(it.total || 0).toFixed(2)}`, colX[4] + 5, rowY + 5, { width: colW[4], align: 'right' });
+
+        rowY += 20;
+        if (rowY > 720) {
+          doc.addPage();
+          rowY = 50;
+        }
+      }
+
+      // Total bar — Pastel Pink with black text
+      const totalBarY = rowY + 10;
+      doc.roundedRect(300, totalBarY, 245, 20, 4).fill(PASTEL_PINK);
+      doc.fillColor(BLACK).fontSize(12).font('Helvetica-Bold')
+        .text(`TOTAL: CAD $${Number(order.total_amount || 0).toFixed(2)}`, 310, totalBarY + 4, { width: 225, align: 'right' });
+
+      // Notes
+      if (order.notes) {
+        const notesY = totalBarY + 40;
+        doc.fillColor('#777777').fontSize(9).font('Helvetica')
+          .text('NOTES:', 50, notesY);
+        doc.fillColor(BLACK)
+          .text(order.notes, 50, notesY + 14, { width: 495 });
+      }
+
+      // Footer
+      const footerY = 790;
+      doc.fillColor('#999999').fontSize(8).font('Helvetica')
+        .text(`SAHI London B2B ● Order #${order.id} ● ${new Date().toISOString().split('T')[0]}`, 50, footerY, { width: 495, align: 'center' });
+
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
 
 // Ensure public/images directory exists (needed for image uploads on fresh deployments)
 fs.mkdirSync(path.join(__dirname, 'public', 'images'), { recursive: true });
@@ -216,7 +354,6 @@ async function ensureSchema() {
 
   // Vendors table — used by PO creation, invoice upload, and item master.
   // Must exist before any vendor-related endpoint is called.
-  // default_currency: RMB (China), BDT (Bangladesh), INR (India), USD (international)
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS vendors (
@@ -226,27 +363,23 @@ async function ensureSchema() {
         city TEXT,
         contact TEXT,
         email TEXT,
-        default_currency TEXT NOT NULL DEFAULT 'RMB',
         is_active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
-    // Add default_currency column if the table already existed without it.
-    await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS default_currency TEXT NOT NULL DEFAULT 'RMB'`);
-
     // Seed a few known vendors if the table is empty.
     const vCount = await pool.query('SELECT COUNT(*) as cnt FROM vendors');
     if (parseInt(vCount.rows[0].cnt) === 0) {
       const seedVendors = [
-        ['VS001', 'Vendor Sample 1', 'HD', 'Shanghai', 'RMB'],
-        ['VS002', 'Vendor Sample 2', 'JW', 'Yiwu', 'RMB'],
-        ['VS003', 'Vendor Sample 3', 'AP', 'Guangzhou', 'RMB']
+        ['VS001', 'Vendor Sample 1', 'HD', 'Shanghai', '', ''],
+        ['VS002', 'Vendor Sample 2', 'JW', 'Yiwu', '', ''],
+        ['VS003', 'Vendor Sample 3', 'AP', 'Guangzhou', '', '']
       ];
-      for (const [code, name, cat, city, currency] of seedVendors) {
+      for (const [code, name, cat, city, contact, email] of seedVendors) {
         await pool.query(
-          `INSERT INTO vendors (vendor_code, vendor_name, category, city, default_currency, is_active)
-           VALUES ($1, $2, $3, $4, $5, true) ON CONFLICT (vendor_code) DO NOTHING`,
-          [code, name, cat, city, currency]
+          `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, true) ON CONFLICT (vendor_code) DO NOTHING`,
+          [code, name, cat, city, contact, email]
         );
       }
       console.log('Seeded vendors table with sample data');
@@ -255,37 +388,88 @@ async function ensureSchema() {
     console.error('vendors table migration warning:', err.message);
   }
 
-  // Vendor-Item pricing junction table — links a vendor to an item at a specific
-  // price. Prices can change over time; is_current flags the active price.
-  // Same item can be supplied by multiple vendors at different prices/currencies.
+  // Catalogue visitor tracking — WhatsApp + Company for B2B wholesale catalogue access
   try {
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS vendor_item_prices (
+      CREATE TABLE IF NOT EXISTS catalogue_visitors (
         id SERIAL PRIMARY KEY,
-        vendor_code TEXT NOT NULL REFERENCES vendors(vendor_code) ON DELETE CASCADE,
-        sku TEXT NOT NULL REFERENCES item_master(sku) ON DELETE CASCADE,
-        unit_price NUMERIC NOT NULL DEFAULT 0,
-        currency TEXT NOT NULL DEFAULT 'RMB',
-        effective_date DATE NOT NULL DEFAULT CURRENT_DATE,
-        is_current BOOLEAN NOT NULL DEFAULT true,
-        created_by TEXT,
+        whatsapp TEXT NOT NULL,
+        company TEXT NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        UNIQUE (vendor_code, sku, effective_date)
+        visit_count INTEGER NOT NULL DEFAULT 1
       )
     `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vip_vendor_sku ON vendor_item_prices (vendor_code, sku) WHERE is_current = true`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vip_sku ON vendor_item_prices (sku) WHERE is_current = true`);
   } catch (err) {
-    console.error('vendor_item_prices table migration warning:', err.message);
+    console.error('catalogue_visitors migration warning:', err.message);
   }
 
-  // Ensure item_master supports PENDING_IMAGE status for items created without images.
-  // Items uploaded via CSV start as PENDING_IMAGE and flip to ACTIVE once an image is uploaded.
-  // Only ACTIVE items can be added to POs.
+  // B2B customer accounts — self-registration with company details (HST/GST etc.)
   try {
-    await pool.query(`ALTER TABLE item_master DROP CONSTRAINT IF EXISTS item_master_status_check`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_customers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        company_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        address TEXT,
+        city TEXT,
+        province TEXT,
+        postal_code TEXT,
+        hst_gst_number TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
   } catch (err) {
-    // Constraint may not exist — ignore
+    console.error('b2b_customers migration warning:', err.message);
+  }
+
+  // B2B orders
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_orders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        company_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        hst_gst_number TEXT,
+        shipping_address TEXT,
+        notes TEXT,
+        total_amount NUMERIC NOT NULL DEFAULT 0,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_orders migration warning:', err.message);
+  }
+
+  // B2B order line items
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_order_items (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES b2b_orders(id) ON DELETE CASCADE,
+        sku TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_price NUMERIC NOT NULL DEFAULT 0,
+        total NUMERIC NOT NULL DEFAULT 0
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_order_items migration warning:', err.message);
+  }
+
+  // Widen role constraint to include B2B_CUSTOMER
+  try {
+    await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
+    await pool.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS', 'B2B_CUSTOMER'))`);
+  } catch (err) {
+    console.error('B2B role migration warning:', err.message);
   }
 }
 ensureSchema();
@@ -637,6 +821,8 @@ app.get(['/transfer.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFi
 app.get(['/accounts.html'], requireAuthPage(['ADMIN', 'ACCOUNTS']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'accounts.html')));
 app.get(['/invoices.html'], requireAuthPage(['ADMIN', 'BUYER']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices.html')));
 app.get(['/admin-users.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
+app.get(['/b2b-orders.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-orders.html')));
+app.get('/lookbook.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lookbook.html')));
 
 app.use(express.static('public'));
 
@@ -670,12 +856,6 @@ app.post('/api/setup', async (req, res) => {
   }
 });
 
-// Build the session cookie string. Adds Secure when served over HTTPS (e.g. on Render).
-function sessionCookie(sid, maxAge) {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  return `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax${secure}; Max-Age=${maxAge}`;
-}
-
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -688,7 +868,7 @@ app.post('/api/login', async (req, res) => {
     }
     const sid = crypto.randomBytes(32).toString('hex');
     sessions.set(sid, { userId: u.id, email: u.email, role: u.role, name: u.name });
-    res.setHeader('Set-Cookie', sessionCookie(sid, 60 * 60 * 24 * 7));
+    res.setHeader('Set-Cookie', `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
     logActivity({ email: u.email, role: u.role }, 'LOGIN', null, null);
     res.json({ success: true, role: u.role, name: u.name, landing: defaultLandingFor(u.role) });
   } catch (err) {
@@ -700,7 +880,7 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', (req, res) => {
   const sid = parseCookies(req)['sahi_session'];
   if (sid) sessions.delete(sid);
-  res.setHeader('Set-Cookie', sessionCookie('', 0));
+  res.setHeader('Set-Cookie', `sahi_session=; HttpOnly; Path=/; Max-Age=0`);
   res.json({ success: true });
 });
 
@@ -786,6 +966,25 @@ app.patch('/api/admin/users/:id/password', requireAuthApi(['ADMIN']), async (req
   }
 });
 
+app.patch('/api/admin/users/:id/role', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!role || !['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS', 'B2B_CUSTOMER'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role.' });
+    }
+    const r = await pool.query(
+      'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, role',
+      [role, req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    logActivity(req.user, 'ROLE_CHANGED', r.rows[0].email, { new_role: role });
+    res.json({ success: true, user: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
 app.get('/api/buyers', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
   const result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd FROM buyers");
   res.json(result.rows);
@@ -803,17 +1002,16 @@ app.get('/api/vendors', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS
 
 app.post('/api/vendors', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
-    const { vendor_code, vendor_name, category, city, default_currency } = req.body;
+    const { vendor_code, vendor_name, category, city, contact, email } = req.body;
     if (!vendor_code || !vendor_name || !category) {
       return res.status(400).json({ error: "vendor_code, vendor_name, and category are required" });
     }
-    const currency = default_currency || 'RMB';
     const result = await pool.query(
-      `INSERT INTO vendors (vendor_code, vendor_name, category, city, default_currency, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)
+      `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
        ON CONFLICT (vendor_code) DO NOTHING
        RETURNING *`,
-      [vendor_code, vendor_name, category, city || null, currency]
+      [vendor_code, vendor_name, category, city || null, contact || null, email || null]
     );
     if (result.rows.length === 0) return res.status(409).json({ error: "Vendor code already exists" });
     logActivity(req.user, 'VENDOR_CREATED', vendor_code, { vendor_name });
@@ -824,206 +1022,15 @@ app.post('/api/vendors', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) =>
   }
 });
 
-// --- Vendor-Item Pricing ---
-
-// Get current prices for all items from a specific vendor.
-// Returns item details joined with the current price row.
-app.get('/api/vendors/:vendor_code/prices', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT vip.sku, vip.unit_price, vip.currency, vip.effective_date, vip.is_current,
-             m.friendly_name, m.vendor_item_number, m.barcode, m.status,
-             m.color_code, m.material, m.cbm
-      FROM vendor_item_prices vip
-      JOIN item_master m ON vip.sku = m.sku
-      WHERE vip.vendor_code = $1 AND vip.is_current = true
-      ORDER BY m.friendly_name
-    `, [req.params.vendor_code]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch vendor prices" });
-  }
-});
-
-// Bulk set/update prices for a vendor. Each entry: { sku, unit_price, currency }.
-// Marks previous prices as non-current and inserts new current price rows.
-app.post('/api/vendors/:vendor_code/prices', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
-  const { prices } = req.body;
-  if (!prices || !Array.isArray(prices) || prices.length === 0) {
-    return res.status(400).json({ error: "prices array is required (each: { sku, unit_price, currency })" });
-  }
-  const vendorCode = req.params.vendor_code;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Verify vendor exists
-    const vendorRes = await client.query('SELECT vendor_code, default_currency FROM vendors WHERE vendor_code = $1', [vendorCode]);
-    if (vendorRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: "Vendor not found" });
-    }
-    const defaultCurrency = vendorRes.rows[0].default_currency || 'RMB';
-    const today = new Date().toISOString().split('T')[0];
-    let inserted = 0, skipped = 0;
-    const errors = [];
-
-    for (const p of prices) {
-      if (!p.sku || !p.unit_price || p.unit_price <= 0) {
-        skipped++;
-        continue;
-      }
-      // Verify item exists
-      const itemRes = await client.query('SELECT sku FROM item_master WHERE sku = $1', [p.sku]);
-      if (itemRes.rows.length === 0) {
-        errors.push({ sku: p.sku, error: 'Item not found' });
-        skipped++;
-        continue;
-      }
-
-      // Mark previous current prices as non-current for this vendor+sku
-      await client.query(
-        `UPDATE vendor_item_prices SET is_current = false WHERE vendor_code = $1 AND sku = $2 AND is_current = true`,
-        [vendorCode, p.sku]
-      );
-
-      // Insert new current price
-      await client.query(
-        `INSERT INTO vendor_item_prices (vendor_code, sku, unit_price, currency, effective_date, is_current, created_by)
-         VALUES ($1, $2, $3, $4, $5, true, $6)
-         ON CONFLICT (vendor_code, sku, effective_date) DO UPDATE SET unit_price = $3, is_current = true, currency = $4`,
-        [vendorCode, p.sku, parseFloat(p.unit_price), p.currency || defaultCurrency, today, req.user.email]
-      );
-      inserted++;
-    }
-
-    await client.query('COMMIT');
-    logActivity(req.user, 'VENDOR_PRICES_SET', vendorCode, { inserted, skipped, total: prices.length });
-    res.json({ success: true, inserted, skipped, errors });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ error: "Failed to set vendor prices" });
-  } finally {
-    client.release();
-  }
-});
-
-// Upload vendor prices from an Excel/CSV file. Expected columns:
-// "SKU" (or "sku"), "Unit Price" (or "Price"), optional "Currency".
-// Items are matched by SKU. Items not found in the database are reported as errors.
-const priceUpload = multer({ storage: multer.memoryStorage() });
-app.post('/api/vendors/:vendor_code/prices/upload', requireAuthApi(['ADMIN', 'BUYER']), priceUpload.single('priceFile'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-    const vendorCode = req.params.vendor_code;
-    const vendorRes = await pool.query('SELECT default_currency FROM vendors WHERE vendor_code = $1', [vendorCode]);
-    if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found" });
-    const defaultCurrency = vendorRes.rows[0].default_currency || 'RMB';
-
-    // Strip BOM
-    let fileBuffer = req.file.buffer;
-    if (fileBuffer.length >= 3 && fileBuffer[0] === 0xEF && fileBuffer[1] === 0xBB && fileBuffer[2] === 0xBF) {
-      fileBuffer = fileBuffer.subarray(3);
-    }
-
-    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-
-    // Find header columns
-    let colSku = -1, colPrice = -1, colCurrency = -1, headerIdx = -1;
-    for (let i = 0; i < Math.min(5, rows.length); i++) {
-      const row = rows[i];
-      colSku = row.findIndex(c => String(c).trim().match(/^sku$/i));
-      colPrice = row.findIndex(c => String(c).trim().match(/unit.?price|price/i));
-      colCurrency = row.findIndex(c => String(c).trim().match(/^currency$/i));
-      if (colSku !== -1 && colPrice !== -1) { headerIdx = i; break; }
-    }
-
-    if (headerIdx === -1) {
-      const foundHeaders = rows.length > 0 ? (rows[0] || []).map(c => String(c).trim()).filter(Boolean).join(', ') : '(empty)';
-      return res.status(400).json({ error: `Could not find "SKU" and "Unit Price" columns. Found: ${foundHeaders}` });
-    }
-
-    const prices = [];
-    for (let i = headerIdx + 1; i < rows.length; i++) {
-      const row = rows[i];
-      const sku = colSku !== -1 ? String(row[colSku] || '').trim() : '';
-      let priceStr = colPrice !== -1 ? String(row[colPrice] || '') : '';
-      priceStr = priceStr.replace(/[^0-9.]/g, '');
-      const price = parseFloat(priceStr) || 0;
-      const currency = colCurrency !== -1 ? String(row[colCurrency] || '').trim() : defaultCurrency;
-
-      if (sku && price > 0) {
-        prices.push({ sku, unit_price: price, currency });
-      }
-    }
-
-    if (prices.length === 0) {
-      return res.status(400).json({ error: "No valid price rows found. Each row must have a SKU and a unit price > 0." });
-    }
-
-    // Use the bulk set endpoint logic
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const today = new Date().toISOString().split('T')[0];
-      let inserted = 0, skipped = 0;
-      const errors = [];
-
-      for (const p of prices) {
-        const itemRes = await client.query('SELECT sku FROM item_master WHERE sku = $1', [p.sku]);
-        if (itemRes.rows.length === 0) {
-          errors.push({ sku: p.sku, error: 'Item not found in Item Master' });
-          skipped++;
-          continue;
-        }
-        await client.query(
-          `UPDATE vendor_item_prices SET is_current = false WHERE vendor_code = $1 AND sku = $2 AND is_current = true`,
-          [vendorCode, p.sku]
-        );
-        await client.query(
-          `INSERT INTO vendor_item_prices (vendor_code, sku, unit_price, currency, effective_date, is_current, created_by)
-           VALUES ($1, $2, $3, $4, $5, true, $6)
-           ON CONFLICT (vendor_code, sku, effective_date) DO UPDATE SET unit_price = $3, is_current = true, currency = $4`,
-          [vendorCode, p.sku, p.unit_price, p.currency, today, req.user.email]
-        );
-        inserted++;
-      }
-      await client.query('COMMIT');
-      logActivity(req.user, 'VENDOR_PRICES_UPLOADED', vendorCode, { inserted, skipped, total: prices.length });
-      res.json({ success: true, inserted, skipped, errors, total_parsed: prices.length });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to upload prices: " + err.message });
-  }
-});
-
 app.get('/api/items', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
-  const { category, status } = req.query;
-  // By default return ACTIVE + PENDING_IMAGE items (everything except DISCONTINUED).
-  // If status param is provided, filter to that specific status.
-  let statusFilter = "status IN ('ACTIVE', 'PENDING_IMAGE')";
+  const { category } = req.query;
+  let query = "SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, material, std_cost_rmb, std_cost_rmb/7.0 as std_cost_usd, status, barcode, vendor_item_number, hs_code, cbm FROM item_master WHERE status='ACTIVE'";
   let params = [];
-  if (status) {
-    statusFilter = "status = $1";
-    params.push(status);
-  }
-  let query = `SELECT sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, material, std_cost_rmb, std_cost_rmb/7.0 as std_cost_usd, status, barcode, vendor_item_number, hs_code, cbm FROM item_master WHERE ${statusFilter}`;
+
   if (category) {
-    query += ` AND category_code = $${params.length + 1}`;
+    query += " AND category_code = $1";
     params.push(category);
   }
-  query += " ORDER BY status, sku";
 
   try {
     const result = await pool.query(query, params);
@@ -1092,23 +1099,13 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
   const po_id = `PO-${Date.now().toString().slice(-6)}`;
   
   try {
-    // --- Validation Gate 1: Vendor must exist ---
-    const vendorRes = await pool.query("SELECT vendor_code, category, default_currency FROM vendors WHERE vendor_code = $1 AND is_active = true", [vendor_code]);
-    if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found or inactive" });
-    const vendor = vendorRes.rows[0];
-    const vendorCategory = vendor.category;
-
-    // Use vendor's default currency if not explicitly provided
-    const resolvedCurrency = po_currency || vendor.default_currency || 'RMB';
-
-    // --- Validation Gate 2: Invoice reference is required ---
-    if (!invoice_reference || !invoice_reference.trim()) {
-      return res.status(400).json({ error: "Invoice reference is required to create a PO" });
-    }
+    const vendorRes = await pool.query("SELECT vendor_code, category FROM vendors WHERE vendor_code = $1", [vendor_code]);
+    if (vendorRes.rows.length === 0) return res.status(400).json({ error: "Vendor not found" });
+    const vendorCategory = vendorRes.rows[0].category;
 
     // Validate linked invoice if provided
     let resolvedInvoiceId = invoice_id || null;
-    let resolvedInvoiceRef = invoice_reference.trim();
+    let resolvedInvoiceRef = invoice_reference || null;
     if (resolvedInvoiceId) {
       const invRes = await pool.query('SELECT id, invoice_number, vendor_code, status FROM vendor_invoices WHERE id = $1', [resolvedInvoiceId]);
       if (invRes.rows.length === 0) return res.status(400).json({ error: "Invoice not found" });
@@ -1122,45 +1119,30 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       }
     }
 
-    // --- Validation Gate 3: Every item must exist and be ACTIVE (has image) ---
-    const validationErrors = [];
-    for (const item of items) {
-      const itemRes = await pool.query("SELECT sku, friendly_name, status, hs_code, cbm FROM item_master WHERE sku = $1", [item.sku]);
-      if (itemRes.rows.length === 0) {
-        validationErrors.push({ sku: item.sku, error: "Item not found in Item Master" });
-      } else if (itemRes.rows[0].status !== 'ACTIVE') {
-        validationErrors.push({ sku: item.sku, error: `Item status is ${itemRes.rows[0].status}. Only ACTIVE items (with images) can be added to POs.` });
-      }
-    }
-    if (validationErrors.length > 0) {
-      return res.status(400).json({ error: "PO validation failed", validation_errors: validationErrors });
-    }
+    let yearCode = 'A', collectionCode = 'PS', departmentCode = '1', colorCode = 'SLV', material = 'Glass';
+    if (vendorCategory === 'JW') { material = 'Sterling Silver'; colorCode = 'SLV'; }
+    if (vendorCategory === 'AP') { material = 'Cotton'; colorCode = 'BLK'; }
+    if (vendorCategory === 'HB') { material = 'Leather'; colorCode = 'BLK'; }
 
-    // --- Validation Gate 4: Each item must have a current price from this vendor (or a manually entered price) ---
-    // If unit_price is provided in the request, use it (manual override). Otherwise look up from vendor_item_prices.
     for (const item of items) {
-      if (!item.unit_price || item.unit_price <= 0) {
-        // Try to get current price from vendor_item_prices
-        const priceRes = await pool.query(
-          `SELECT unit_price, currency FROM vendor_item_prices WHERE vendor_code = $1 AND sku = $2 AND is_current = true`,
-          [vendor_code, item.sku]
+      const exists = await pool.query("SELECT sku FROM item_master WHERE sku = $1", [item.sku]);
+      if (exists.rows.length === 0) {
+        const newSku = `${vendorCategory}${yearCode}${collectionCode}-${departmentCode}${Date.now().toString().slice(-3)}-${colorCode}`;
+        await pool.query(
+          `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, color_code, hs_code, std_cost_rmb, description, material, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, '9505100090', $8, $9, $10, $11)`,
+          [newSku, `Auto-created ${newSku}`, vendorCategory, yearCode, collectionCode, departmentCode, colorCode, item.unit_price * 7.0, 'New Item', material, req.user.email]
         );
-        if (priceRes.rows.length === 0) {
-          validationErrors.push({ sku: item.sku, error: "No current price from this vendor. Set a price first or enter one manually." });
-        } else {
-          item.unit_price = parseFloat(priceRes.rows[0].unit_price);
-        }
+        await pool.query("INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0)", [newSku]);
+        item.sku = newSku;
       }
-    }
-    if (validationErrors.length > 0) {
-      return res.status(400).json({ error: "PO validation failed — missing prices", validation_errors: validationErrors });
     }
 
     let total_usd = 0, total_rmb = 0;
     const exchange_rate_to_rmb = parseFloat(exchange_rate) || 7.0;
 
     for (const item of items) {
-      if (resolvedCurrency === 'RMB') {
+      if (po_currency === 'RMB') {
         const line_total_rmb = item.qty * item.unit_price;
         const line_total_usd = line_total_rmb / exchange_rate_to_rmb;
         total_rmb += line_total_rmb;
@@ -1179,18 +1161,15 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     await pool.query(
       `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by, invoice_reference, invoice_id)
        VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10, $11, $12)`,
-      [po_id, vendor_code, po_date, resolvedCurrency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId]
+      [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId]
     );
 
     for (const item of items) {
-      const costRmb = resolvedCurrency === 'RMB' ? item.unit_price : item.unit_price * exchange_rate_to_rmb;
-      // Get HS code from item master
-      const itemDetail = await pool.query("SELECT hs_code FROM item_master WHERE sku = $1", [item.sku]);
-      const hsCode = itemDetail.rows[0]?.hs_code || '9505100090';
+      const costRmb = po_currency === 'RMB' ? item.unit_price : item.unit_price * exchange_rate_to_rmb;
       await pool.query(
         `INSERT INTO po_line_items (po_id, sku, quantity, unit_price_foreign, unit_cost_rmb, hs_code)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [po_id, item.sku, item.qty, item.unit_price, costRmb, hsCode]
+        [po_id, item.sku, item.qty, item.unit_price, costRmb, '9505100090']
       );
     }
 
@@ -1213,7 +1192,7 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       po_id,
       vendor_code,
       po_date,
-      po_currency: resolvedCurrency,
+      po_currency,
       exchange_rate_to_rmb,
       status: 'DRAFT',
       total_usd: total_usd.toFixed(2),
@@ -1702,13 +1681,6 @@ app.post('/api/items/:sku/upload-image', requireAuthApi(['ADMIN', 'BUYER']), ima
     try { fs.unlinkSync(newPath); } catch (e) {}
     fs.renameSync(req.file.path, newPath);
 
-    // Flip status from PENDING_IMAGE to ACTIVE — the item is now complete and
-    // can be added to POs or pushed to external platforms (Shopify, etc.).
-    await pool.query(
-      `UPDATE item_master SET status = 'ACTIVE' WHERE sku = $1 AND status = 'PENDING_IMAGE'`,
-      [req.params.sku]
-    );
-
     logActivity(req.user, 'ITEM_IMAGE_UPLOADED', req.params.sku, { filename: `${baseName}.jpg` });
 
     res.json({ success: true, image_url: `/images/${baseName}.jpg` });
@@ -1944,11 +1916,9 @@ app.post('/api/save-mappings', requireAuthApi(['ADMIN', 'BUYER']), async (req, r
           }
 
           // CORRECTED: Saving 'price' as is (RMB). Removed 'price * 7.0'.
-          // Items start as PENDING_IMAGE — they must have an image uploaded before
-          // they can be added to POs or pushed to Shopify/other platforms.
           await client.query(
-            `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, hs_code, std_cost_rmb, description, material, barcode, vendor_item_number, created_by, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '9505100090', $9, $10, $11, $12, $13, $14, 'PENDING_IMAGE')
+            `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, department_name, color_code, hs_code, std_cost_rmb, description, material, barcode, vendor_item_number, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '9505100090', $9, $10, $11, $12, $13, $14)
              ON CONFLICT (sku) DO NOTHING`,
             [newSku, friendlyName || `Imported ${vendorItem}`, catCode, yearCode, colCode, deptCode, deptName, colorCode, price, `Imported from vendor ${vendorItem}`, material, currentBarcode, vendorItem, req.user.email]
           );
@@ -2458,6 +2428,397 @@ app.get('/api/health', async (req, res) => {
     checks.database = 'error: ' + e.message;
   }
   res.json(checks);
+});
+
+// ── Catalogue visitor tracking (WhatsApp-gated B2B catalogue access) ──
+app.post('/api/register', async (req, res) => {
+  try {
+    const { whatsapp, company } = req.body;
+    if (!whatsapp || whatsapp.trim().length < 5) {
+      return res.status(400).json({ error: 'Please enter a valid WhatsApp number.' });
+    }
+    if (!company || company.trim().length < 1) {
+      return res.status(400).json({ error: 'Please enter your company name.' });
+    }
+    const wa = whatsapp.trim();
+    const co = company.trim();
+    const existing = await pool.query('SELECT id, visit_count FROM catalogue_visitors WHERE whatsapp = $1', [wa]);
+    if (existing.rows.length > 0) {
+      await pool.query(
+        'UPDATE catalogue_visitors SET company = $1, visit_count = visit_count + 1, created_at = NOW() WHERE id = $2',
+        [co, existing.rows[0].id]
+      );
+    } else {
+      await pool.query('INSERT INTO catalogue_visitors (whatsapp, company) VALUES ($1, $2)', [wa, co]);
+    }
+    console.log(`[CATALOGUE VISIT] ${co} — WhatsApp: ${wa}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Register error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/customers', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, whatsapp, company, created_at, visit_count FROM catalogue_visitors ORDER BY created_at DESC'
+    );
+    res.json({ count: result.rows.length, customers: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/stats', async (req, res) => {
+  try {
+    const total = await pool.query('SELECT COUNT(*) as count FROM catalogue_visitors');
+    const unique = await pool.query('SELECT COUNT(DISTINCT whatsapp) as count FROM catalogue_visitors');
+    const totalVisits = await pool.query('SELECT SUM(visit_count) as count FROM catalogue_visitors');
+    res.json({
+      total: parseInt(total.rows[0].count),
+      unique: parseInt(unique.rows[0].count),
+      totalVisits: parseInt(totalVisits.rows[0].count) || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── B2B Customer Auth ──
+app.post('/api/b2b/register', async (req, res) => {
+  try {
+    const { email, password, company_name, contact_name, phone, address, city, province, postal_code, hst_gst_number } = req.body;
+    const missing = [];
+    if (!email) missing.push('email');
+    if (!password || password.length < 6) missing.push('password (min 6 chars)');
+    if (!company_name) missing.push('company_name');
+    if (!contact_name) missing.push('contact_name');
+    if (!phone) missing.push('phone');
+    if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(', ')}` });
+
+    // Check duplicate email
+    const dup = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (dup.rows.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
+
+    const { salt, hash } = hashPassword(password);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const u = await client.query(
+        'INSERT INTO users (email, password_hash, password_salt, role, name, is_active) VALUES ($1, $2, $3, $4, $5, true) RETURNING id',
+        [email, hash, salt, 'B2B_CUSTOMER', contact_name]
+      );
+      await client.query(
+        `INSERT INTO b2b_customers (user_id, company_name, contact_name, phone, address, city, province, postal_code, hst_gst_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [u.rows[0].id, company_name, contact_name, phone, address || null, city || null, province || null, postal_code || null, hst_gst_number || null]
+      );
+      await client.query('COMMIT');
+      logActivity({ email, role: 'B2B_CUSTOMER' }, 'B2B_REGISTER', null, { company_name, contact_name });
+      console.log(`[B2B REGISTER] ${company_name} — ${email} (${contact_name})`);
+      res.json({ success: true, message: 'Account created. You can now log in.' });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('B2B register error:', err.message);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/b2b/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+    const r = await pool.query("SELECT * FROM users WHERE email = $1 AND role = 'B2B_CUSTOMER' AND is_active = true", [email]);
+    if (r.rows.length === 0) return res.status(401).json({ error: 'Invalid email or password.' });
+    const u = r.rows[0];
+    if (!verifyPassword(password, u.password_salt, u.password_hash)) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+    // Load company info
+    const co = await pool.query('SELECT * FROM b2b_customers WHERE user_id = $1', [u.id]);
+    const sid = crypto.randomBytes(32).toString('hex');
+    sessions.set(sid, {
+      userId: u.id,
+      email: u.email,
+      role: u.role,
+      name: u.name,
+      company: co.rows.length ? co.rows[0].company_name : '',
+      hst_gst: co.rows.length ? co.rows[0].hst_gst_number || '' : ''
+    });
+    res.setHeader('Set-Cookie', `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
+    logActivity({ email: u.email, role: u.role }, 'B2B_LOGIN', null, null);
+    res.json({ success: true, name: u.name, company: co.rows[0]?.company_name || '' });
+  } catch (err) {
+    console.error('B2B login error:', err.message);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.get('/api/b2b/me', (req, res) => {
+  const user = getSessionUser(req);
+  if (!user || user.role !== 'B2B_CUSTOMER') return res.status(401).json({ error: 'Not authenticated' });
+  res.json({ email: user.email, name: user.name, company: user.company || '', hst_gst: user.hst_gst || '' });
+});
+
+// ── B2B Ordering ──
+app.post('/api/b2b/order', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Please log in to place an order.' });
+
+  try {
+    const { items, notes } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Cart is empty.' });
+    }
+
+    // Load full company details
+    const co = await pool.query('SELECT * FROM b2b_customers WHERE user_id = $1', [user.userId]);
+    const company = co.rows.length ? co.rows[0] : null;
+    const companyName = company ? company.company_name : (user.company || user.name);
+    const contactName = company ? company.contact_name : user.name;
+    const phone = company ? company.phone : '';
+    const hstGst = company ? company.hst_gst_number || '' : (user.hst_gst || '');
+    const shipping = company
+      ? [company.address, company.city, company.province, company.postal_code].filter(Boolean).join(', ')
+      : '';
+
+    let totalAmount = 0;
+    let itemCount = 0;
+    for (const item of items) {
+      totalAmount += (item.unit_price || 0) * (item.quantity || 0);
+      itemCount += item.quantity || 0;
+    }
+
+    const client = await pool.connect();
+    let orderId;
+    try {
+      await client.query('BEGIN');
+      const ord = await client.query(
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, itemCount]
+      );
+      orderId = ord.rows[0].id;
+      for (const item of items) {
+        const lineTotal = (item.unit_price || 0) * (item.quantity || 0);
+        await client.query(
+          'INSERT INTO b2b_order_items (order_id, sku, product_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)',
+          [orderId, item.sku, item.product_name, item.quantity, item.unit_price || 0, lineTotal]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    // Build order summary for email
+    let itemsTable = items.map(i =>
+      `${i.sku}\t${i.product_name}\t${i.quantity}\t$${Number(i.unit_price || 0).toFixed(2)}\t$${(Number(i.unit_price || 0) * i.quantity).toFixed(2)}`
+    ).join('\n');
+
+    const emailBody = `NEW B2B ORDER #${orderId}
+
+Company: ${companyName}
+Contact: ${contactName}
+Email: ${user.email}
+Phone: ${phone}
+HST/GST: ${hstGst || 'N/A'}
+Shipping: ${shipping || 'N/A'}
+Notes: ${notes || 'None'}
+Items: ${itemCount} | Total: CAD $${totalAmount.toFixed(2)}
+
+--- ORDER LINES ---
+SKU\tProduct\tQty\tUnit Price\tLine Total
+${itemsTable}
+
+View in admin: https://sahi-mcp.onrender.com/index.html
+`;
+
+    // Generate PDF
+    const orderForPdf = {
+      id: orderId,
+      company_name: companyName,
+      contact_name: contactName,
+      email: user.email,
+      phone: phone,
+      hst_gst_number: hstGst || '',
+      shipping_address: shipping || '',
+      notes: notes || '',
+      total_amount: totalAmount,
+      item_count: itemCount,
+      status: 'NEW',
+      created_at: new Date().toISOString(),
+      items: items.map(i => ({
+        sku: i.sku,
+        product_name: i.product_name,
+        quantity: i.quantity,
+        unit_price: Number(i.unit_price || 0),
+        total: (Number(i.unit_price || 0) * i.quantity)
+      }))
+    };
+    const pdfBuffer = await generateOrderPDF(orderForPdf);
+
+    // Build CSV content
+    const csvHeader = 'SKU,Product Name,Quantity,Unit Price (CAD),Line Total (CAD)';
+    const csvRows = items.map(i => {
+      const name = `"${(i.product_name || '').replace(/"/g, '""')}"`;
+      return `${i.sku},${name},${i.quantity},${Number(i.unit_price||0).toFixed(2)},${(Number(i.unit_price||0)*i.quantity).toFixed(2)}`;
+    });
+    const csvContent = '\uFEFF' + [csvHeader, ...csvRows].join('\n'); // BOM for Excel
+
+    // Send email to B2B-order@sahilondon.com
+    try {
+      if (EMAIL_PASS) {
+        await mailer.sendMail({
+          from: EMAIL_USER,
+          to: ORDER_EMAIL,
+          subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${totalAmount.toFixed(2)})`,
+          text: emailBody,
+          attachments: [
+            {
+              filename: `SAHI_B2B_Order_${orderId}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf'
+            },
+            {
+              filename: `SAHI_B2B_Order_${orderId}.csv`,
+              content: csvContent,
+              contentType: 'text/csv; charset=utf-8'
+            }
+          ]
+        });
+        console.log(`[B2B ORDER] #${orderId} emailed to ${ORDER_EMAIL} (with PDF)`);
+      } else {
+        console.log(`[B2B ORDER] #${orderId} — EMAIL SKIPPED (no EMAIL_PASS set)`);
+        console.log(emailBody);
+      }
+    } catch (mailErr) {
+      console.error(`[B2B ORDER] #${orderId} EMAIL FAILED — user: ${EMAIL_USER}, host: ${EMAIL_HOST}:${EMAIL_PORT}`);
+      console.error('Error details:', mailErr.message, mailErr.code, mailErr.command || '');
+      if (mailErr.response) console.error('Gmail response:', mailErr.response);
+      console.error('Full error:', JSON.stringify(mailErr, Object.getOwnPropertyNames(mailErr)));
+      console.log(emailBody);
+    }
+
+    logActivity({ email: user.email, role: 'B2B_CUSTOMER' }, 'B2B_ORDER', String(orderId), { total: totalAmount, items: itemCount });
+    res.json({ success: true, orderId, total: totalAmount, message: `Order #${orderId} placed successfully!` });
+  } catch (err) {
+    console.error('B2B order error:', err.message);
+    res.status(500).json({ error: 'Failed to place order.' });
+  }
+});
+
+// View own orders
+app.get('/api/b2b/orders', async (req, res) => {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const ord = await pool.query(
+      'SELECT id, company_name, total_amount, item_count, status, notes, created_at FROM b2b_orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [user.userId]
+    );
+    res.json(ord.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Admin: view all B2B orders
+app.get('/api/b2b/admin/orders', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const ord = await pool.query(
+      'SELECT o.*, array_agg(json_build_object(\'sku\', i.sku, \'product_name\', i.product_name, \'quantity\', i.quantity, \'unit_price\', i.unit_price, \'total\', i.total)) as items FROM b2b_orders o LEFT JOIN b2b_order_items i ON i.order_id = o.id GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100'
+    );
+    res.json(ord.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Admin: export B2B order as Shopify-compatible CSV
+app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ord = await pool.query(
+      'SELECT * FROM b2b_orders WHERE id = $1',
+      [id]
+    );
+    if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const order = ord.rows[0];
+
+    const items = await pool.query(
+      'SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id',
+      [id]
+    );
+
+    // Shopify-compatible CSV columns
+    const header = [
+      'SKU', 'Product Name', 'Quantity', 'Unit Price (CAD)', 'Line Total (CAD)',
+      'Order ID', 'Company', 'Contact', 'Email', 'Phone',
+      'HST/GST', 'Shipping Address', 'Notes', 'Order Date', 'Status'
+    ];
+
+    const rows = items.rows.map(it => [
+      it.sku,
+      `"${(it.product_name || '').replace(/"/g, '""')}"`,
+      it.quantity,
+      Number(it.unit_price).toFixed(2),
+      Number(it.total).toFixed(2),
+      order.id,
+      `"${(order.company_name || '').replace(/"/g, '""')}"`,
+      `"${(order.contact_name || '').replace(/"/g, '""')}"`,
+      order.email,
+      order.phone || '',
+      order.hst_gst_number || '',
+      `"${(order.shipping_address || '').replace(/"/g, '""')}"`,
+      `"${(order.notes || '').replace(/"/g, '""')}"`,
+      order.created_at ? new Date(order.created_at).toISOString().split('T')[0] : '',
+      order.status
+    ]);
+
+    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="B2B_Order_${id}_Shopify.csv"`);
+    res.send('\uFEFF' + csv); // BOM for Excel UTF-8 compatibility
+  } catch (err) {
+    console.error('CSV export error:', err.message);
+    res.status(500).json({ error: 'Failed to export CSV' });
+  }
+});
+
+// Admin: download B2B order as PDF
+app.get('/api/b2b/admin/orders/:id/pdf', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ord = await pool.query('SELECT * FROM b2b_orders WHERE id = $1', [id]);
+    if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    const order = ord.rows[0];
+
+    const items = await pool.query('SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id', [id]);
+
+    const pdfBuffer = await generateOrderPDF({
+      ...order,
+      items: items.rows
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="SAHI_B2B_Order_${id}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('PDF export error:', err.message);
+    res.status(500).json({ error: 'Failed to export PDF' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
