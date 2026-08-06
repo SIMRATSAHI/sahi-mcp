@@ -247,6 +247,22 @@
     font-size: 11px; color: var(--text-light);
     letter-spacing: 1px;
   }
+  .lb-footer .qr-section {
+    margin-top: 28px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+  }
+  .lb-footer .qr-code {
+    display: block;
+    border-radius: 8px;
+    padding: 8px;
+    background: var(--white);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .lb-footer .qr-label {
+    font-size: 11px; color: var(--text-light);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
 
   /* ── RESPONSIVE ── */
   @media (max-width: 900px) {
@@ -1372,6 +1388,10 @@
 <footer class="lb-footer">
   <div class="footer-brand">SAHI LONDON</div>
   <div class="footer-sub">SAHI SHANGHAI COMPANY LTD. &mdash; Autumn/Winter 2026</div>
+  <div class="qr-section">
+    <img src="images/qr-lookbook.svg" alt="Scan to view Lookbook" class="qr-code" width="140" height="140">
+    <div class="qr-label">Scan to view on mobile</div>
+  </div>
 </footer>
 
 <!-- ═══════════ LIGHTBOX ═══════════ -->
@@ -1396,8 +1416,6 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeLightbox();
 });
 </script>
-
-</body>
 
 </body>
 </html>
