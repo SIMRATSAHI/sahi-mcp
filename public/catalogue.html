@@ -1384,7 +1384,10 @@ function updateQty(sku, delta) {
 // ── Cart UI ──
 function updateCartUI() {
   const count = cart.reduce((s, i) => s + i.quantity, 0);
-  const total = cart.reduce((s, i) => s + (i.unit_price * i.quantity), 0);
+  const subtotal = cart.reduce((s, i) => s + (i.unit_price * i.quantity), 0);
+  const HST_RATE = 0.13; // Ontario HST — mirrors server-side rate in server.js
+  const hst = subtotal * HST_RATE;
+  const grandTotal = subtotal + hst;
 
   const badge = document.getElementById('cartCount');
   const itemsEl = document.getElementById('cartItems');
@@ -1399,7 +1402,13 @@ function updateCartUI() {
     badge.style.display = 'none';
   }
 
-  totalEl.textContent = 'CAD $' + total.toFixed(2);
+  totalEl.innerHTML = cart.length === 0
+    ? 'CAD $0.00'
+    : `
+      <div style="font-size:12px;font-weight:normal;display:flex;justify-content:space-between;"><span>Subtotal</span><span>CAD $${subtotal.toFixed(2)}</span></div>
+      <div style="font-size:12px;font-weight:normal;display:flex;justify-content:space-between;color:#666;"><span>HST (13%, Ontario)</span><span>CAD $${hst.toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;"><span>Grand Total</span><span>CAD $${grandTotal.toFixed(2)}</span></div>
+    `;
 
   if (cart.length === 0) {
     itemsEl.innerHTML = '<div class="cart-empty">Your cart is empty.<br>Browse the catalogue and add items.</div>';
@@ -1497,7 +1506,9 @@ async function handleCheckout() {
       document.getElementById('cartItems').innerHTML = `
         <div class="cart-empty" style="color:#2A7D2A;">
           Order #${data.orderId} placed!<br>
-          Total: CAD $${data.total.toFixed(2)}<br>
+          Subtotal: CAD $${data.subtotal.toFixed(2)}<br>
+          HST (13%, Ontario): CAD $${data.hst.toFixed(2)}<br>
+          <strong>Grand Total: CAD $${data.total.toFixed(2)}</strong><br>
           <small>We'll confirm shortly at your registered email.</small>
         </div>
       `;

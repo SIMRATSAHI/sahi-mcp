@@ -80,7 +80,7 @@
 
                 let html = '<table><thead><tr>';
                 html += '<th>Order #</th><th>Date</th><th>Company</th><th>Contact</th><th>Email</th>';
-                html += '<th style="text-align:right">Items</th><th style="text-align:right">Total (CAD)</th><th>Status</th>';
+                html += '<th style="text-align:right">Items</th><th style="text-align:right">Subtotal (CAD)</th><th style="text-align:right">HST 13% (CAD)</th><th style="text-align:right">Grand Total (CAD)</th><th>Status</th>';
                 html += '<th style="text-align:center">Download</th></tr></thead><tbody>';
 
                 for (const o of orders) {
@@ -92,7 +92,9 @@
                     html += `<td>${esc(o.contact_name)}</td>`;
                     html += `<td style="font-size:12px">${esc(o.email)}</td>`;
                     html += `<td style="text-align:right">${o.item_count || 0}</td>`;
-                    html += `<td style="text-align:right; font-weight:bold;">$${Number(o.total_amount).toFixed(2)}</td>`;
+                    html += `<td style="text-align:right">$${Number(o.total_amount || 0).toFixed(2)}</td>`;
+                    html += `<td style="text-align:right">$${Number(o.hst_amount || 0).toFixed(2)}</td>`;
+                    html += `<td style="text-align:right; font-weight:bold;">$${Number(o.grand_total || 0).toFixed(2)}</td>`;
                     html += `<td><span class="status-new">${esc(o.status)}</span></td>`;
                     html += `<td style="text-align:center"><div class="actions">`;
                     html += `<a class="btn btn-pdf" href="/api/b2b/admin/orders/${o.id}/pdf" download>PDF</a>`;

@@ -19,6 +19,10 @@ const ORDER_EMAIL = process.env.ORDER_EMAIL || 'B2B-order@sahilondon.com';
 
 console.log(`[EMAIL CONFIG] user=${EMAIL_USER}, host=${EMAIL_HOST}:${EMAIL_PORT}, pass=${EMAIL_PASS ? 'SET(' + EMAIL_PASS.length + 'chars)' : 'MISSING'}, order_to=${ORDER_EMAIL}`);
 
+// ── Tax config — SAHI London operates from Niagara-on-the-Lake, Ontario ──
+// HST (Harmonized Sales Tax) applies to B2B wholesale orders at Ontario's rate.
+const HST_RATE = 0.13; // 13% Ontario HST
+
 const mailer = nodemailer.createTransport({
   host: EMAIL_HOST,
   port: EMAIL_PORT,
@@ -119,11 +123,35 @@ function generateOrderPDF(order) {
         }
       }
 
-      // Total bar — Pastel Pink with black text
-      const totalBarY = rowY + 10;
-      doc.roundedRect(300, totalBarY, 245, 20, 4).fill(PASTEL_PINK);
+      // Totals block — Subtotal / HST (13%, Ontario) / Grand Total
+      const subtotal = Number(order.total_amount || 0);
+      const hstAmt = order.hst_amount !== undefined && order.hst_amount !== null
+        ? Number(order.hst_amount)
+        : subtotal * 0.13; // fallback for any legacy order rows created before HST was tracked
+      const grandTot = order.grand_total !== undefined && order.grand_total !== null
+        ? Number(order.grand_total)
+        : subtotal + hstAmt;
+
+      let totalsY = rowY + 10;
+      const totalsBoxX = 300, totalsBoxW = 245;
+
+      doc.roundedRect(totalsBoxX, totalsY, totalsBoxW, 20, 4).fill(LIGHT_GREY);
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
+        .text('Subtotal:', totalsBoxX + 10, totalsY + 5, { width: 120 })
+        .text(`CAD $${subtotal.toFixed(2)}`, totalsBoxX + 10, totalsY + 5, { width: totalsBoxW - 20, align: 'right' });
+      totalsY += 22;
+
+      doc.roundedRect(totalsBoxX, totalsY, totalsBoxW, 20, 4).fill(LIGHT_GREY);
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
+        .text('HST (13%, Ontario):', totalsBoxX + 10, totalsY + 5, { width: 150 })
+        .text(`CAD $${hstAmt.toFixed(2)}`, totalsBoxX + 10, totalsY + 5, { width: totalsBoxW - 20, align: 'right' });
+      totalsY += 22;
+
+      doc.roundedRect(totalsBoxX, totalsY, totalsBoxW, 24, 4).fill(PASTEL_PINK);
       doc.fillColor(BLACK).fontSize(12).font('Helvetica-Bold')
-        .text(`TOTAL: CAD $${Number(order.total_amount || 0).toFixed(2)}`, 310, totalBarY + 4, { width: 225, align: 'right' });
+        .text(`GRAND TOTAL: CAD $${grandTot.toFixed(2)}`, totalsBoxX + 10, totalsY + 5, { width: totalsBoxW - 20, align: 'right' });
+
+      const totalBarY = totalsY;
 
       // Notes
       if (order.notes) {
@@ -443,6 +471,10 @@ async function ensureSchema() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    // Additive migration for existing deployments — total_amount stays the pre-tax SUBTOTAL.
+    // hst_amount = 13% Ontario HST on the subtotal. grand_total = subtotal + hst_amount (what's actually owed).
+    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS hst_amount NUMERIC NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS grand_total NUMERIC NOT NULL DEFAULT 0`);
   } catch (err) {
     console.error('b2b_orders migration warning:', err.message);
   }
@@ -2594,15 +2626,17 @@ app.post('/api/b2b/order', async (req, res) => {
       totalAmount += (item.unit_price || 0) * (item.quantity || 0);
       itemCount += item.quantity || 0;
     }
+    const hstAmount = totalAmount * HST_RATE;
+    const grandTotal = totalAmount + hstAmount;
 
     const client = await pool.connect();
     let orderId;
     try {
       await client.query('BEGIN');
       const ord = await client.query(
-        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, itemCount]
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, hst_amount, grand_total, item_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, hstAmount, grandTotal, itemCount]
       );
       orderId = ord.rows[0].id;
       for (const item of items) {
@@ -2634,7 +2668,10 @@ Phone: ${phone}
 HST/GST: ${hstGst || 'N/A'}
 Shipping: ${shipping || 'N/A'}
 Notes: ${notes || 'None'}
-Items: ${itemCount} | Total: CAD $${totalAmount.toFixed(2)}
+Items: ${itemCount}
+Subtotal: CAD $${totalAmount.toFixed(2)}
+HST (13%, Ontario): CAD $${hstAmount.toFixed(2)}
+GRAND TOTAL: CAD $${grandTotal.toFixed(2)}
 
 --- ORDER LINES ---
 SKU\tProduct\tQty\tUnit Price\tLine Total
@@ -2654,6 +2691,8 @@ View in admin: https://sahi-mcp.onrender.com/index.html
       shipping_address: shipping || '',
       notes: notes || '',
       total_amount: totalAmount,
+      hst_amount: hstAmount,
+      grand_total: grandTotal,
       item_count: itemCount,
       status: 'NEW',
       created_at: new Date().toISOString(),
@@ -2668,10 +2707,14 @@ View in admin: https://sahi-mcp.onrender.com/index.html
     const pdfBuffer = await generateOrderPDF(orderForPdf);
 
     // Build CSV content
-    const csvHeader = 'SKU,Product Name,Quantity,Unit Price (CAD),Line Total (CAD)';
-    const csvRows = items.map(i => {
+    const csvHeader = 'SKU,Product Name,Quantity,Unit Price (CAD),Line Total (CAD),Subtotal (CAD),HST 13% (CAD),Grand Total (CAD)';
+    const csvRows = items.map((i, idx) => {
       const name = `"${(i.product_name || '').replace(/"/g, '""')}"`;
-      return `${i.sku},${name},${i.quantity},${Number(i.unit_price||0).toFixed(2)},${(Number(i.unit_price||0)*i.quantity).toFixed(2)}`;
+      // Subtotal/HST/Grand Total only shown once, on the first row, to avoid repeating the order-level total on every line
+      const summaryCols = idx === 0
+        ? [totalAmount.toFixed(2), hstAmount.toFixed(2), grandTotal.toFixed(2)]
+        : ['', '', ''];
+      return [i.sku, name, i.quantity, Number(i.unit_price||0).toFixed(2), (Number(i.unit_price||0)*i.quantity).toFixed(2), ...summaryCols].join(',');
     });
     const csvContent = '\uFEFF' + [csvHeader, ...csvRows].join('\n'); // BOM for Excel
 
@@ -2681,7 +2724,7 @@ View in admin: https://sahi-mcp.onrender.com/index.html
         await mailer.sendMail({
           from: EMAIL_USER,
           to: ORDER_EMAIL,
-          subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${totalAmount.toFixed(2)})`,
+          subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${grandTotal.toFixed(2)} incl. HST)`,
           text: emailBody,
           attachments: [
             {
@@ -2709,8 +2752,15 @@ View in admin: https://sahi-mcp.onrender.com/index.html
       console.log(emailBody);
     }
 
-    logActivity({ email: user.email, role: 'B2B_CUSTOMER' }, 'B2B_ORDER', String(orderId), { total: totalAmount, items: itemCount });
-    res.json({ success: true, orderId, total: totalAmount, message: `Order #${orderId} placed successfully!` });
+    logActivity({ email: user.email, role: 'B2B_CUSTOMER' }, 'B2B_ORDER', String(orderId), { total: grandTotal, items: itemCount });
+    res.json({
+      success: true,
+      orderId,
+      subtotal: totalAmount,
+      hst: hstAmount,
+      total: grandTotal,
+      message: `Order #${orderId} placed successfully!`
+    });
   } catch (err) {
     console.error('B2B order error:', err.message);
     res.status(500).json({ error: 'Failed to place order.' });
@@ -2765,10 +2815,11 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
     const header = [
       'SKU', 'Product Name', 'Quantity', 'Unit Price (CAD)', 'Line Total (CAD)',
       'Order ID', 'Company', 'Contact', 'Email', 'Phone',
-      'HST/GST', 'Shipping Address', 'Notes', 'Order Date', 'Status'
+      'HST/GST', 'Shipping Address', 'Notes', 'Order Date', 'Status',
+      'Subtotal (CAD)', 'HST 13% (CAD)', 'Grand Total (CAD)'
     ];
 
-    const rows = items.rows.map(it => [
+    const rows = items.rows.map((it, idx) => [
       it.sku,
       `"${(it.product_name || '').replace(/"/g, '""')}"`,
       it.quantity,
@@ -2783,7 +2834,10 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
       `"${(order.shipping_address || '').replace(/"/g, '""')}"`,
       `"${(order.notes || '').replace(/"/g, '""')}"`,
       order.created_at ? new Date(order.created_at).toISOString().split('T')[0] : '',
-      order.status
+      order.status,
+      idx === 0 ? Number(order.total_amount || 0).toFixed(2) : '',
+      idx === 0 ? Number(order.hst_amount || 0).toFixed(2) : '',
+      idx === 0 ? Number(order.grand_total || 0).toFixed(2) : ''
     ]);
 
     const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
