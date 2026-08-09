@@ -96,6 +96,59 @@
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 32px 20px;
   }
+  .size-chart-link {
+    display: block;
+    text-align: center;
+    margin: -10px auto 28px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--near-black);
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+  .size-chart-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 999;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .size-chart-modal-overlay.open {
+    display: flex;
+  }
+  .size-chart-modal-content {
+    position: relative;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 4px;
+    padding: 10px;
+  }
+  .size-chart-modal-content img {
+    width: 100%;
+    display: block;
+  }
+  .size-chart-modal-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid #ddd;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 1;
+  }
   .tile {
     text-align: center;
   }
@@ -506,6 +559,7 @@
   <h2>T-Shirts &amp; Apparel</h2>
   <div class="section-rule"></div>
   <div class="section-meta">22 designs &middot; 4 sweatshirt variants</div>
+  <button class="size-chart-link" onclick="openSizeChart()">📏 View Size Chart (CM / IN)</button>
   <div class="grid">
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS401_model.jpg" alt="Cotton Flamingo Printed & Embroidered T-Shirt" loading="lazy"></div>
@@ -1532,6 +1586,21 @@ if (isSales) {
   buildCartButtons();
 }
 updateCartUI();
+
+function openSizeChart() {
+  document.getElementById('sizeChartOverlay').classList.add('open');
+}
+function closeSizeChart() {
+  document.getElementById('sizeChartOverlay').classList.remove('open');
+}
 </script>
+
+<!-- Size Chart Modal -->
+<div class="size-chart-modal-overlay" id="sizeChartOverlay" onclick="if(event.target===this) closeSizeChart()">
+  <div class="size-chart-modal-content">
+    <button class="size-chart-modal-close" onclick="closeSizeChart()">&times;</button>
+    <img src="images/tshirt-size-chart.png" alt="T-Shirt Size Chart (CM/IN)">
+  </div>
+</div>
 </body>
 </html>
