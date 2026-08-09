@@ -125,7 +125,7 @@
   }
   .size-chart-modal-content {
     position: relative;
-    max-width: 500px;
+    max-width: 900px;
     max-height: 90vh;
     overflow-y: auto;
     background: #fff;
@@ -559,7 +559,8 @@
   <h2>T-Shirts &amp; Apparel</h2>
   <div class="section-rule"></div>
   <div class="section-meta">22 designs &middot; 4 sweatshirt variants</div>
-  <button class="size-chart-link" onclick="openSizeChart()">📏 View Size Chart (CM / IN)</button>
+  <button class="size-chart-link" onclick="openSizeChart()">📏 View T-Shirt Size Chart (CM / IN)</button>
+  <button class="size-chart-link" onclick="openSweatshirtSizeChart()">📏 View Sweatshirt Size Chart (CM / IN)</button>
   <div class="grid">
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS401_model.jpg" alt="Cotton Flamingo Printed & Embroidered T-Shirt" loading="lazy"></div>
@@ -1593,13 +1594,27 @@ function openSizeChart() {
 function closeSizeChart() {
   document.getElementById('sizeChartOverlay').classList.remove('open');
 }
+function openSweatshirtSizeChart() {
+  document.getElementById('sweatshirtSizeChartOverlay').classList.add('open');
+}
+function closeSweatshirtSizeChart() {
+  document.getElementById('sweatshirtSizeChartOverlay').classList.remove('open');
+}
 </script>
 
-<!-- Size Chart Modal -->
+<!-- Size Chart Modal (T-Shirts) -->
 <div class="size-chart-modal-overlay" id="sizeChartOverlay" onclick="if(event.target===this) closeSizeChart()">
   <div class="size-chart-modal-content">
     <button class="size-chart-modal-close" onclick="closeSizeChart()">&times;</button>
     <img src="images/tshirt-size-chart.png" alt="T-Shirt Size Chart (CM/IN)">
+  </div>
+</div>
+
+<!-- Size Chart Modal (Sweatshirts) -->
+<div class="size-chart-modal-overlay" id="sweatshirtSizeChartOverlay" onclick="if(event.target===this) closeSweatshirtSizeChart()">
+  <div class="size-chart-modal-content">
+    <button class="size-chart-modal-close" onclick="closeSweatshirtSizeChart()">&times;</button>
+    <img src="images/sweatshirt-size-chart.png" alt="Sweatshirt Size Chart (CM/IN)">
   </div>
 </div>
 </body>
