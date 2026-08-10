@@ -205,12 +205,7 @@ function generateOrderPDF(order) {
       }
 
       // ── TOTALS ──
-      // If totals would overflow the page, add a new page
-      if (rowY + 80 > 800) {
-        doc.addPage();
-        drawTableHeader(112);
-        rowY = 134;
-      }
+      // Keep totals on the last item page so Order #11 stays 2 pages, not 3.
       const totalBarY = rowY + 10;
       const hstAmt = order.hst_amount ? Number(order.hst_amount) : 0;
       const grandTotal = order.grand_total ? Number(order.grand_total) : Number(order.total_amount || 0);
