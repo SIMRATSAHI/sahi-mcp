@@ -19,10 +19,6 @@ const ORDER_EMAIL = process.env.ORDER_EMAIL || 'B2B-order@sahilondon.com';
 
 console.log(`[EMAIL CONFIG] user=${EMAIL_USER}, host=${EMAIL_HOST}:${EMAIL_PORT}, pass=${EMAIL_PASS ? 'SET(' + EMAIL_PASS.length + 'chars)' : 'MISSING'}, order_to=${ORDER_EMAIL}`);
 
-// ── Tax config — SAHI London operates from Niagara-on-the-Lake, Ontario ──
-// HST (Harmonized Sales Tax) applies to B2B wholesale orders at Ontario's rate.
-const HST_RATE = 0.13; // 13% Ontario HST
-
 const mailer = nodemailer.createTransport({
   host: EMAIL_HOST,
   port: EMAIL_PORT,
@@ -34,7 +30,7 @@ const mailer = nodemailer.createTransport({
 function generateOrderPDF(order) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const doc = new PDFDocument({ margin: 40, size: 'A4' });
       const chunks = [];
       doc.on('data', c => chunks.push(c));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -43,129 +39,170 @@ function generateOrderPDF(order) {
       // Colors — SAHI palette
       const SKY_BLUE = '#87CEEB';
       const PASTEL_PINK = '#FFB7C5';
-      const LIGHT_GREY = '#D3D3D3';
+      const LIGHT_GREY = '#F2F2F2';
       const WHITE = '#ffffff';
       const BLACK = '#111111';
+      const GREY = '#666666';
 
-      // Header bar — Sky Blue with black text
-      doc.rect(0, 0, 595, 95).fill(SKY_BLUE);
-      doc.fillColor(BLACK).fontSize(26).font('Helvetica-Bold')
-        .text('SAHI LONDON', 50, 28);
-      doc.fontSize(11).font('Helvetica')
-        .text('Wholesale B2B Order Confirmation', 50, 58);
-      doc.fontSize(9).fillColor('#555555')
-        .text(`Generated: ${new Date().toISOString().split('T')[0]}`, 350, 58, { width: 195, align: 'right' });
+      const imgDir = path.join(__dirname, 'public', 'images', 'b2b');
+      const publicImgDir = path.join(__dirname, 'public', 'images');
 
-      // Order info section
-      const topY = 115;
-      doc.fillColor(BLACK).fontSize(18).font('Helvetica-Bold')
-        .text(`Order #${order.id}`, 50, topY);
-      doc.fontSize(10).font('Helvetica').fillColor(PASTEL_PINK)
-        .text(`Status: ${order.status}`, 50, topY + 25);
-
-      // Company details box — Light Grey
-      const boxY = topY + 50;
-      doc.roundedRect(50, boxY, 230, 100, 4).fill(LIGHT_GREY).stroke('#bbbbbb');
-      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold')
-        .text('SOLD TO', 65, boxY + 12);
-      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
-        .text(`${order.company_name || ''}`, 65, boxY + 30)
-        .text(`Contact: ${order.contact_name || ''}`, 65, boxY + 45)
-        .text(`Email: ${order.email || ''}`, 65, boxY + 60);
-      if (order.phone) doc.text(`Phone: ${order.phone}`, 65, boxY + 75);
-
-      // Order details box — Light Grey
-      doc.roundedRect(315, boxY, 230, 100, 4).fill(LIGHT_GREY).stroke('#bbbbbb');
-      doc.fillColor(BLACK).fontSize(11).font('Helvetica-Bold')
-        .text('ORDER DETAILS', 330, boxY + 12);
-      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
-        .text(`Date: ${order.created_at ? new Date(order.created_at).toLocaleDateString('en-CA') : 'N/A'}`, 330, boxY + 30)
-        .text(`HST/GST: ${order.hst_gst_number || 'N/A'}`, 330, boxY + 45)
-        .text(`Items: ${order.item_count || 0}`, 330, boxY + 60);
-      if (order.shipping_address) {
-        doc.text(`Ship To: ${order.shipping_address.substring(0, 50)}`, 330, boxY + 75);
+      // Extract base SKU (strip variant suffix like -OWT-1 or -BLU)
+      function baseSku(sku) {
+        if (!sku) return '';
+        const m = sku.match(/^([A-Z]+[0-9]+)/);
+        return m ? m[1] : sku;
       }
 
-      // Items table
-      const tableY = boxY + 120;
-      const colX = [50, 130, 280, 370, 440, 500];
-      const colW = [80, 150, 50, 70, 60];
+      // Find local image file for a SKU
+      function findImage(sku) {
+        const b = baseSku(sku);
+        const candidates = [
+          path.join(imgDir, `${b}.jpg`),
+          path.join(imgDir, `${b}.png`),
+          path.join(publicImgDir, `${b}_model.jpg`),
+        ];
+        for (const c of candidates) {
+          if (fs.existsSync(c)) return c;
+        }
+        return null;
+      }
 
-      // Table header — Sky Blue with black text
-      doc.roundedRect(50, tableY, 495, 22, 4).fill(SKY_BLUE);
-      doc.fillColor(BLACK).fontSize(9).font('Helvetica-Bold');
-      doc.text('SKU', colX[0] + 5, tableY + 6, { width: colW[0] });
-      doc.text('Product', colX[1] + 5, tableY + 6, { width: colW[1] });
-      doc.text('Qty', colX[2] + 5, tableY + 6, { width: colW[2], align: 'center' });
-      doc.text('Unit Price', colX[3] + 5, tableY + 6, { width: colW[3], align: 'right' });
-      doc.text('Total', colX[4] + 5, tableY + 6, { width: colW[4], align: 'right' });
+      // ── HEADER BAR ──
+      doc.rect(0, 0, 595, 90).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(28).font('Helvetica-Bold')
+        .text('SAHI LONDON', 40, 18);
+      doc.fontSize(20)
+        .text(`Order #${order.id}`, 40, 50);
+      const orderDate = order.created_at
+        ? new Date(order.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
+        : new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+      doc.fontSize(10).font('Helvetica').fillColor('#444444')
+        .text(orderDate, 40, 74);
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(PASTEL_PINK)
+        .text((order.status || 'CONFIRMED').toUpperCase(), 350, 50, { width: 205, align: 'right' });
 
-      // Table rows — alternating White / Light Grey
-      let rowY = tableY + 24;
+      // ── ADDRESS SECTION ──
+      const addrY = 102;
+      const addrW = 255;
+      const addrH = 86;
+
+      // FROM — SAHI London (using Larkin Greenhouses Inc address)
+      doc.roundedRect(40, addrY, addrW, addrH, 5).fill(LIGHT_GREY).stroke('#cccccc');
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
+        .text('FROM', 52, addrY + 8);
+      doc.fontSize(9).font('Helvetica')
+        .text('SAHI LONDON', 52, addrY + 24)
+        .text('1231, Niagara On The Lake', 52, addrY + 38)
+        .text('Ontario L0S 1J0, Canada', 52, addrY + 52)
+        .text('HST #732146907', 52, addrY + 66);
+
+      // SOLD TO — Customer (Creations florales ate adele)
+      doc.roundedRect(315, addrY, addrW, addrH, 5).fill(LIGHT_GREY).stroke('#cccccc');
+      const buyerName = order.company_name || 'LARKIN GREENHOUSES INC';
+      const buyerContact = order.contact_name || 'Manon st Pierre';
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
+        .text('SOLD TO', 327, addrY + 8);
+      doc.fontSize(9).font('Helvetica')
+        .text(buyerName, 327, addrY + 24)
+        .text(`Contact: ${buyerContact}`, 327, addrY + 38)
+        .text(order.email || '', 327, addrY + 52)
+        .text(order.phone || '', 327, addrY + 66);
+
+      // Shipping address line below boxes
+      const shipTo = order.shipping_address || '';
+      if (shipTo) {
+        doc.fontSize(8).fillColor(GREY)
+          .text(`Ship To: ${shipTo}`, 315, addrY + addrH + 10, { width: addrW + 10, align: 'left' });
+      }
+
+      // ── ITEMS TABLE ──
+      const tableY = addrY + 116;
+      const cols = [40, 80, 155, 360, 415, 485];   // x positions
+      //                                Img   SKU   Product         Qty  UnitPr  Total
+      const colHeaders = ['', 'SKU', 'PRODUCT', 'QTY', 'UNIT PRICE', 'TOTAL'];
+      const colAligns  = ['center', 'left', 'left', 'center', 'right', 'right'];
+
+      // Table header
+      doc.roundedRect(40, tableY, 515, 20, 4).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(8).font('Helvetica-Bold');
+      colHeaders.forEach((h, i) => {
+        const x = cols[i];
+        const w = i < 4 ? (cols[i + 1] - cols[i]) : (cols[i + 1] ? cols[i + 1] - cols[i] : 70);
+        doc.text(h, x, tableY + 5, { width: w, align: colAligns[i] });
+      });
+
+      // Table rows
+      let rowY = tableY + 22;
       const items = order.items || [];
-      doc.font('Helvetica').fontSize(9);
+      const rowH = 28;
+      doc.font('Helvetica').fontSize(7.5);
+
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const bg = i % 2 === 0 ? WHITE : LIGHT_GREY;
-        doc.roundedRect(50, rowY, 495, 20, 0).fill(bg);
+        const bg = i % 2 === 0 ? WHITE : '#F7F9FB';
+        doc.roundedRect(40, rowY, 515, rowH, 0).fill(bg);
 
-        doc.fillColor(BLACK);
-        doc.text(it.sku || '', colX[0] + 5, rowY + 5, { width: colW[0] });
-        doc.text(it.product_name || '', colX[1] + 5, rowY + 5, { width: colW[1] });
-        doc.text(String(it.quantity || 0), colX[2] + 5, rowY + 5, { width: colW[2], align: 'center' });
-        doc.text(`$${Number(it.unit_price || 0).toFixed(2)}`, colX[3] + 5, rowY + 5, { width: colW[3], align: 'right' });
-        doc.text(`$${Number(it.total || 0).toFixed(2)}`, colX[4] + 5, rowY + 5, { width: colW[4], align: 'right' });
-
-        rowY += 20;
-        if (rowY > 720) {
-          doc.addPage();
-          rowY = 50;
+        // Product image thumbnail (leftmost column)
+        const imgPath = findImage(it.sku);
+        if (imgPath) {
+          try {
+            doc.image(imgPath, cols[0] + 4, rowY + 3, { width: 22, height: 22 });
+          } catch (_) { /* ignore broken images */ }
         }
+
+        // SKU, Product, Qty, Unit Price, Total
+        doc.fillColor(BLACK);
+        const texts = [
+          { v: it.sku || '', x: cols[1], w: 75, a: 'left' },
+          { v: it.product_name || '', x: cols[2], w: 200, a: 'left' },
+          { v: String(it.quantity || 0), x: cols[3], w: 45, a: 'center' },
+          { v: `$${Number(it.unit_price || 0).toFixed(2)}`, x: cols[4], w: 65, a: 'right' },
+          { v: `$${Number(it.total || 0).toFixed(2)}`, x: cols[5], w: 70, a: 'right' },
+        ];
+        texts.forEach(t => {
+          doc.text(t.v, t.x, rowY + 6, { width: t.w, align: t.a });
+        });
+
+        rowY += rowH;
       }
 
-      // Totals block — Subtotal / HST (13%, Ontario) / Grand Total
-      const subtotal = Number(order.total_amount || 0);
-      const hstAmt = order.hst_amount !== undefined && order.hst_amount !== null
-        ? Number(order.hst_amount)
-        : subtotal * 0.13; // fallback for any legacy order rows created before HST was tracked
-      const grandTot = order.grand_total !== undefined && order.grand_total !== null
-        ? Number(order.grand_total)
-        : subtotal + hstAmt;
+      // ── TOTALS ──
+      const totalBarY = rowY + 10;
+      const hstAmt = order.hst_amount ? Number(order.hst_amount) : 0;
+      const grandTotal = order.grand_total ? Number(order.grand_total) : Number(order.total_amount || 0);
 
-      let totalsY = rowY + 10;
-      const totalsBoxX = 300, totalsBoxW = 245;
-
-      doc.roundedRect(totalsBoxX, totalsY, totalsBoxW, 20, 4).fill(LIGHT_GREY);
+      // Subtotal
+      doc.fillColor(GREY).fontSize(10).font('Helvetica')
+        .text(`Subtotal:`, 300, totalBarY, { width: 120, align: 'right' });
       doc.fillColor(BLACK).fontSize(10).font('Helvetica')
-        .text('Subtotal:', totalsBoxX + 10, totalsY + 5, { width: 120 })
-        .text(`CAD $${subtotal.toFixed(2)}`, totalsBoxX + 10, totalsY + 5, { width: totalsBoxW - 20, align: 'right' });
-      totalsY += 22;
+        .text(`CAD $${Number(order.total_amount || 0).toFixed(2)}`, 425, totalBarY, { width: 130, align: 'right' });
 
-      doc.roundedRect(totalsBoxX, totalsY, totalsBoxW, 20, 4).fill(LIGHT_GREY);
-      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
-        .text('HST (13%, Ontario):', totalsBoxX + 10, totalsY + 5, { width: 150 })
-        .text(`CAD $${hstAmt.toFixed(2)}`, totalsBoxX + 10, totalsY + 5, { width: totalsBoxW - 20, align: 'right' });
-      totalsY += 22;
+      // HST
+      if (hstAmt > 0) {
+        doc.fillColor(GREY).fontSize(10).font('Helvetica')
+          .text(`HST (13%, Ontario):`, 300, totalBarY + 16, { width: 120, align: 'right' });
+        doc.fillColor(BLACK).fontSize(10).font('Helvetica')
+          .text(`CAD $${hstAmt.toFixed(2)}`, 425, totalBarY + 16, { width: 130, align: 'right' });
+      }
 
-      doc.roundedRect(totalsBoxX, totalsY, totalsBoxW, 24, 4).fill(PASTEL_PINK);
-      doc.fillColor(BLACK).fontSize(12).font('Helvetica-Bold')
-        .text(`GRAND TOTAL: CAD $${grandTot.toFixed(2)}`, totalsBoxX + 10, totalsY + 5, { width: totalsBoxW - 20, align: 'right' });
+      // Grand Total
+      doc.roundedRect(300, totalBarY + (hstAmt > 0 ? 36 : 20), 255, 24, 6).fill(PASTEL_PINK);
+      doc.fillColor(BLACK).fontSize(15).font('Helvetica-Bold')
+        .text(`GRAND TOTAL: CAD $${grandTotal.toFixed(2)}`, 310, totalBarY + (hstAmt > 0 ? 40 : 24), { width: 235, align: 'right' });
 
-      const totalBarY = totalsY;
-
-      // Notes
+      // ── NOTES ──
       if (order.notes) {
-        const notesY = totalBarY + 40;
-        doc.fillColor('#777777').fontSize(9).font('Helvetica')
-          .text('NOTES:', 50, notesY);
+        const notesY = totalBarY + (hstAmt > 0 ? 76 : 54);
+        doc.fillColor(GREY).fontSize(8).font('Helvetica')
+          .text('NOTES:', 40, notesY);
         doc.fillColor(BLACK)
-          .text(order.notes, 50, notesY + 14, { width: 495 });
+          .text(order.notes, 40, notesY + 12, { width: 515 });
       }
 
-      // Footer
-      const footerY = 790;
-      doc.fillColor('#999999').fontSize(8).font('Helvetica')
-        .text(`SAHI London B2B ● Order #${order.id} ● ${new Date().toISOString().split('T')[0]}`, 50, footerY, { width: 495, align: 'center' });
+      // ── FOOTER ──
+      doc.fillColor('#AAAAAA').fontSize(7.5).font('Helvetica')
+        .text(`SAHI London  •  B2B Order #${order.id}  •  ${new Date().toISOString().split('T')[0]}`, 40, 800, { width: 515, align: 'center' });
 
       doc.end();
     } catch (e) {
@@ -471,10 +508,6 @@ async function ensureSchema() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
-    // Additive migration for existing deployments — total_amount stays the pre-tax SUBTOTAL.
-    // hst_amount = 13% Ontario HST on the subtotal. grand_total = subtotal + hst_amount (what's actually owed).
-    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS hst_amount NUMERIC NOT NULL DEFAULT 0`);
-    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS grand_total NUMERIC NOT NULL DEFAULT 0`);
   } catch (err) {
     console.error('b2b_orders migration warning:', err.message);
   }
@@ -2626,17 +2659,15 @@ app.post('/api/b2b/order', async (req, res) => {
       totalAmount += (item.unit_price || 0) * (item.quantity || 0);
       itemCount += item.quantity || 0;
     }
-    const hstAmount = totalAmount * HST_RATE;
-    const grandTotal = totalAmount + hstAmount;
 
     const client = await pool.connect();
     let orderId;
     try {
       await client.query('BEGIN');
       const ord = await client.query(
-        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, hst_amount, grand_total, item_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, hstAmount, grandTotal, itemCount]
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, itemCount]
       );
       orderId = ord.rows[0].id;
       for (const item of items) {
@@ -2668,10 +2699,7 @@ Phone: ${phone}
 HST/GST: ${hstGst || 'N/A'}
 Shipping: ${shipping || 'N/A'}
 Notes: ${notes || 'None'}
-Items: ${itemCount}
-Subtotal: CAD $${totalAmount.toFixed(2)}
-HST (13%, Ontario): CAD $${hstAmount.toFixed(2)}
-GRAND TOTAL: CAD $${grandTotal.toFixed(2)}
+Items: ${itemCount} | Total: CAD $${totalAmount.toFixed(2)}
 
 --- ORDER LINES ---
 SKU\tProduct\tQty\tUnit Price\tLine Total
@@ -2691,8 +2719,6 @@ View in admin: https://sahi-mcp.onrender.com/index.html
       shipping_address: shipping || '',
       notes: notes || '',
       total_amount: totalAmount,
-      hst_amount: hstAmount,
-      grand_total: grandTotal,
       item_count: itemCount,
       status: 'NEW',
       created_at: new Date().toISOString(),
@@ -2707,14 +2733,10 @@ View in admin: https://sahi-mcp.onrender.com/index.html
     const pdfBuffer = await generateOrderPDF(orderForPdf);
 
     // Build CSV content
-    const csvHeader = 'SKU,Product Name,Quantity,Unit Price (CAD),Line Total (CAD),Subtotal (CAD),HST 13% (CAD),Grand Total (CAD)';
-    const csvRows = items.map((i, idx) => {
+    const csvHeader = 'SKU,Product Name,Quantity,Unit Price (CAD),Line Total (CAD)';
+    const csvRows = items.map(i => {
       const name = `"${(i.product_name || '').replace(/"/g, '""')}"`;
-      // Subtotal/HST/Grand Total only shown once, on the first row, to avoid repeating the order-level total on every line
-      const summaryCols = idx === 0
-        ? [totalAmount.toFixed(2), hstAmount.toFixed(2), grandTotal.toFixed(2)]
-        : ['', '', ''];
-      return [i.sku, name, i.quantity, Number(i.unit_price||0).toFixed(2), (Number(i.unit_price||0)*i.quantity).toFixed(2), ...summaryCols].join(',');
+      return `${i.sku},${name},${i.quantity},${Number(i.unit_price||0).toFixed(2)},${(Number(i.unit_price||0)*i.quantity).toFixed(2)}`;
     });
     const csvContent = '\uFEFF' + [csvHeader, ...csvRows].join('\n'); // BOM for Excel
 
@@ -2724,7 +2746,7 @@ View in admin: https://sahi-mcp.onrender.com/index.html
         await mailer.sendMail({
           from: EMAIL_USER,
           to: ORDER_EMAIL,
-          subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${grandTotal.toFixed(2)} incl. HST)`,
+          subject: `NEW B2B Order #${orderId} — ${companyName} (CAD $${totalAmount.toFixed(2)})`,
           text: emailBody,
           attachments: [
             {
@@ -2752,15 +2774,8 @@ View in admin: https://sahi-mcp.onrender.com/index.html
       console.log(emailBody);
     }
 
-    logActivity({ email: user.email, role: 'B2B_CUSTOMER' }, 'B2B_ORDER', String(orderId), { total: grandTotal, items: itemCount });
-    res.json({
-      success: true,
-      orderId,
-      subtotal: totalAmount,
-      hst: hstAmount,
-      total: grandTotal,
-      message: `Order #${orderId} placed successfully!`
-    });
+    logActivity({ email: user.email, role: 'B2B_CUSTOMER' }, 'B2B_ORDER', String(orderId), { total: totalAmount, items: itemCount });
+    res.json({ success: true, orderId, total: totalAmount, message: `Order #${orderId} placed successfully!` });
   } catch (err) {
     console.error('B2B order error:', err.message);
     res.status(500).json({ error: 'Failed to place order.' });
@@ -2815,11 +2830,10 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
     const header = [
       'SKU', 'Product Name', 'Quantity', 'Unit Price (CAD)', 'Line Total (CAD)',
       'Order ID', 'Company', 'Contact', 'Email', 'Phone',
-      'HST/GST', 'Shipping Address', 'Notes', 'Order Date', 'Status',
-      'Subtotal (CAD)', 'HST 13% (CAD)', 'Grand Total (CAD)'
+      'HST/GST', 'Shipping Address', 'Notes', 'Order Date', 'Status'
     ];
 
-    const rows = items.rows.map((it, idx) => [
+    const rows = items.rows.map(it => [
       it.sku,
       `"${(it.product_name || '').replace(/"/g, '""')}"`,
       it.quantity,
@@ -2834,10 +2848,7 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
       `"${(order.shipping_address || '').replace(/"/g, '""')}"`,
       `"${(order.notes || '').replace(/"/g, '""')}"`,
       order.created_at ? new Date(order.created_at).toISOString().split('T')[0] : '',
-      order.status,
-      idx === 0 ? Number(order.total_amount || 0).toFixed(2) : '',
-      idx === 0 ? Number(order.hst_amount || 0).toFixed(2) : '',
-      idx === 0 ? Number(order.grand_total || 0).toFixed(2) : ''
+      order.status
     ]);
 
     const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
