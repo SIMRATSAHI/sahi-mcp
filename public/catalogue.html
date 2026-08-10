@@ -1384,8 +1384,8 @@ function buildCartButtons() {
     const priceText = priceEl ? priceEl.textContent.replace('Wholesale CAD $', '').trim() : '';
     const unitPrice = parseFloat(priceText) || 0;
 
-    // For multi-variant tiles, add button per variant
-    if (variantEls.length > 1) {
+    // For tiles with variant-sku elements, add button per variant
+    if (variantEls.length >= 1) {
       variantEls.forEach(vEl => {
         const sku = vEl.textContent.trim();
         const btn = document.createElement('button');
@@ -1396,7 +1396,7 @@ function buildCartButtons() {
         vEl.insertAdjacentElement('afterend', btn);
       });
     } else if (skuEl) {
-      // Single SKU tile
+      // Single SKU tile (uses .tile-sku instead of .variant-sku)
       const sku = skuEl.textContent.trim();
       const btn = document.createElement('button');
       btn.className = 'add-cart-btn';
