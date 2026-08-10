@@ -76,15 +76,17 @@ function generateOrderPDF(order) {
         .text('1231, Niagara On The Lake', 40, 48)
         .text('Ontario L0S 1J0, Canada', 40, 61)
         .text('HST #732146907', 40, 74);
-      doc.fontSize(20).font('Helvetica-Bold')
-        .text(`Order #${order.id}`, 350, 22, { width: 205, align: 'right' });
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        .text('ORDER', 350, 22, { width: 205, align: 'right' });
+      doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
+        .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
       const orderDate = order.created_at
         ? new Date(order.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
         : new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-      doc.fontSize(10).font('Helvetica').fillColor('#444444')
-        .text(orderDate, 350, 50, { width: 205, align: 'right' });
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(PASTEL_PINK)
-        .text((order.status || 'CONFIRMED').toUpperCase(), 350, 72, { width: 205, align: 'right' });
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        .text('DATE', 350, 64, { width: 205, align: 'right' });
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+        .text(orderDate, 350, 78, { width: 205, align: 'right' });
 
       // ── ADDRESS SECTION ──
       const addrY = 112;
@@ -144,12 +146,14 @@ function generateOrderPDF(order) {
           .text('1231, Niagara On The Lake', 40, 48)
           .text('Ontario L0S 1J0, Canada', 40, 61)
           .text('HST #732146907', 40, 74);
-        doc.fontSize(20).font('Helvetica-Bold')
-          .text(`Order #${order.id}`, 350, 22, { width: 205, align: 'right' });
-        doc.fontSize(10).font('Helvetica').fillColor('#444444')
-          .text(orderDate, 350, 50, { width: 205, align: 'right' });
-        doc.fontSize(12).font('Helvetica-Bold').fillColor(PASTEL_PINK)
-          .text((order.status || 'CONFIRMED').toUpperCase(), 350, 72, { width: 205, align: 'right' });
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+          .text('ORDER', 350, 22, { width: 205, align: 'right' });
+        doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
+          .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+          .text('DATE', 350, 64, { width: 205, align: 'right' });
+        doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+          .text(orderDate, 350, 78, { width: 205, align: 'right' });
 
         // Table header
         doc.roundedRect(40, pageTopY, 515, 20, 4).fill(SKY_BLUE);
