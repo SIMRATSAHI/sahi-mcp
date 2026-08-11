@@ -594,11 +594,17 @@ async function ensureSchema() {
         hst_gst_number TEXT DEFAULT '',
         shipping_address TEXT DEFAULT '',
         notes TEXT,
+        card_image TEXT DEFAULT '',
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
   } catch (err) {
     console.error('b2b_customers migration warning:', err.message);
+  }
+  try {
+    await pool.query(`ALTER TABLE b2b_customers ADD COLUMN IF NOT EXISTS card_image TEXT DEFAULT ''`);
+  } catch (err) {
+    console.error('b2b_customers card_image migration warning:', err.message);
   }
 
   // Widen role constraint to include B2B_CUSTOMER
@@ -3003,17 +3009,47 @@ app.get('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, r
   }
 });
 
+// Upload business card photo
+const cardUpload = multer({
+  storage: multer.diskStorage({
+    destination: path.join(__dirname, 'public', 'images', 'cards'),
+    filename: (req, file, cb) => {
+      cb(null, `card_${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /jpeg|jpg|png|webp/.test(file.mimetype);
+    cb(ok ? null : new Error('Only JPEG, PNG, or WebP images allowed'), ok);
+  }
+});
+
+// Ensure cards directory exists
+const cardsDir = path.join(__dirname, 'public', 'images', 'cards');
+try { fs.mkdirSync(cardsDir, { recursive: true }); } catch (e) {}
+
+app.post('/api/b2b/admin/customers/upload-card', requireAuthApi(['ADMIN']), cardUpload.single('card'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+    const imageUrl = `/images/cards/${req.file.filename}`;
+    res.json({ success: true, card_image: imageUrl });
+  } catch (err) {
+    console.error('Card upload error:', err.message);
+    res.status(500).json({ error: 'Failed to upload card: ' + err.message });
+  }
+});
+
 // Create customer
 app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
-    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes } = req.body;
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image } = req.body;
     if (!company_name || !contact_name) {
       return res.status(400).json({ error: 'Company name and contact name are required.' });
     }
     const result = await pool.query(
-      `INSERT INTO b2b_customers (company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null]
+      `INSERT INTO b2b_customers (company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image || '']
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -3025,14 +3061,14 @@ app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res)
 // Update customer
 app.put('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
-    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes } = req.body;
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image } = req.body;
     if (!company_name || !contact_name) {
       return res.status(400).json({ error: 'Company name and contact name are required.' });
     }
     const result = await pool.query(
-      `UPDATE b2b_customers SET company_name=$1, contact_name=$2, email=$3, phone=$4, hst_gst_number=$5, shipping_address=$6, notes=$7
-       WHERE id=$8 RETURNING *`,
-      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, req.params.id]
+      `UPDATE b2b_customers SET company_name=$1, contact_name=$2, email=$3, phone=$4, hst_gst_number=$5, shipping_address=$6, notes=$7, card_image=$8
+       WHERE id=$9 RETURNING *`,
+      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image !== undefined ? card_image : '', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
     res.json(result.rows[0]);
