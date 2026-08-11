@@ -582,6 +582,25 @@ async function ensureSchema() {
     console.error('b2b_order_items migration warning:', err.message);
   }
 
+  // B2B customers table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_customers (
+        id SERIAL PRIMARY KEY,
+        company_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        hst_gst_number TEXT DEFAULT '',
+        shipping_address TEXT DEFAULT '',
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_customers migration warning:', err.message);
+  }
+
   // Widen role constraint to include B2B_CUSTOMER
   try {
     await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
@@ -943,6 +962,7 @@ app.get(['/accounts.html'], requireAuthPage(['ADMIN', 'ACCOUNTS']), (req, res) =
 app.get(['/invoices.html'], requireAuthPage(['ADMIN', 'BUYER']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices.html')));
 app.get(['/admin-users.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 app.get(['/b2b-orders.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-orders.html')));
+app.get(['/b2b-customers.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-customers.html')));
 app.get(['/create-b2b-order.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'create-b2b-order.html')));
 app.get('/lookbook.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lookbook.html')));
 
@@ -2955,6 +2975,82 @@ app.post('/api/b2b/admin/orders/:id/restore', requireAuthApi(['ADMIN']), async (
   } catch (err) {
     console.error('B2B order restore error:', err.message);
     res.status(500).json({ error: 'Failed to restore order' });
+  }
+});
+
+// ===== B2B Customer Management =====
+
+// List all customers
+app.get('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM b2b_customers ORDER BY company_name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('B2B customers list error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch customers' });
+  }
+});
+
+// Get single customer
+app.get('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM b2b_customers WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('B2B customer get error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch customer' });
+  }
+});
+
+// Create customer
+app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes } = req.body;
+    if (!company_name || !contact_name) {
+      return res.status(400).json({ error: 'Company name and contact name are required.' });
+    }
+    const result = await pool.query(
+      `INSERT INTO b2b_customers (company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('B2B customer create error:', err.message);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
+// Update customer
+app.put('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes } = req.body;
+    if (!company_name || !contact_name) {
+      return res.status(400).json({ error: 'Company name and contact name are required.' });
+    }
+    const result = await pool.query(
+      `UPDATE b2b_customers SET company_name=$1, contact_name=$2, email=$3, phone=$4, hst_gst_number=$5, shipping_address=$6, notes=$7
+       WHERE id=$8 RETURNING *`,
+      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('B2B customer update error:', err.message);
+    res.status(500).json({ error: 'Failed to update customer' });
+  }
+});
+
+// Delete customer
+app.delete('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM b2b_customers WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json({ success: true, message: 'Customer deleted' });
+  } catch (err) {
+    console.error('B2B customer delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete customer' });
   }
 });
 

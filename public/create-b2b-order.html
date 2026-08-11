@@ -127,6 +127,7 @@
             <a href="/accounts.html">Accounts</a>
             <a href="/admin-users.html">Manage Users</a>
             <a href="/b2b-orders.html">B2B Orders</a>
+            <a href="/b2b-customers.html">Customers</a>
             <a href="/create-b2b-order.html">Create B2B Order</a>
         </div>
 
@@ -147,6 +148,12 @@
 
             <div class="section">
                 <h3>Customer Details</h3>
+                <div class="form-field full" style="margin-bottom: 15px;">
+                    <label>Select Saved Customer</label>
+                    <select id="customer_select" onchange="loadSavedCustomer()" style="padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: Arial, sans-serif; color: #000; width: 100%; box-sizing: border-box;">
+                        <option value="">-- Or type manually below --</option>
+                    </select>
+                </div>
                 <div class="form-grid">
                     <div class="form-field">
                         <label>Company Name <span class="req">*</span></label>
@@ -495,6 +502,7 @@
             '/accounts.html': ['ADMIN', 'ACCOUNTS'],
             '/admin-users.html': ['ADMIN'],
             '/b2b-orders.html': ['ADMIN'],
+            '/b2b-customers.html': ['ADMIN'],
             '/create-b2b-order.html': ['ADMIN']
         };
 
@@ -581,12 +589,54 @@
             }
         }
 
+        // ===== Load saved customers into dropdown =====
+        let savedCustomers = [];
+        async function loadCustomerDropdown() {
+            try {
+                const res = await fetch('/api/b2b/admin/customers');
+                if (!res.ok) return;
+                savedCustomers = await res.json();
+                const select = document.getElementById('customer_select');
+                for (const c of savedCustomers) {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `${c.company_name} - ${c.contact_name}`;
+                    select.appendChild(opt);
+                }
+                // Check if URL has customer_id param
+                const params = new URLSearchParams(window.location.search);
+                const customerId = params.get('customer_id');
+                if (customerId) {
+                    select.value = customerId;
+                    loadSavedCustomer();
+                }
+            } catch (e) {
+                // Silently fail - manual entry still works
+            }
+        }
+
+        function loadSavedCustomer() {
+            const select = document.getElementById('customer_select');
+            const id = select.value;
+            if (!id) return;
+            const c = savedCustomers.find(x => String(x.id) === String(id));
+            if (!c) return;
+            document.getElementById('company_name').value = c.company_name || '';
+            document.getElementById('contact_name').value = c.contact_name || '';
+            document.getElementById('email').value = c.email || '';
+            document.getElementById('phone').value = c.phone || '';
+            document.getElementById('hst_gst_number').value = c.hst_gst_number || '';
+            document.getElementById('shipping_address').value = c.shipping_address || '';
+            document.getElementById('notes').value = c.notes || '';
+        }
+
         // ===== Init =====
         renderProducts();
         setupSearch();
         updateSummary();
         applyUrlParams();
         initAuthNav();
+        loadCustomerDropdown();
     </script>
 </body>
 </html>
