@@ -76,14 +76,14 @@ function generateOrderPDF(order) {
         .text('1231, Niagara On The Lake', 40, 48)
         .text('Ontario L0S 1J0, Canada', 40, 61)
         .text('HST #732146907', 40, 74);
-      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
         .text('ORDER', 350, 22, { width: 205, align: 'right' });
       doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
         .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
       const orderDate = order.created_at
         ? new Date(order.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
         : new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
         .text('DATE', 350, 64, { width: 205, align: 'right' });
       doc.fontSize(10).font('Helvetica').fillColor(BLACK)
         .text(orderDate, 350, 78, { width: 205, align: 'right' });
@@ -146,11 +146,11 @@ function generateOrderPDF(order) {
           .text('1231, Niagara On The Lake', 40, 48)
           .text('Ontario L0S 1J0, Canada', 40, 61)
           .text('HST #732146907', 40, 74);
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
           .text('ORDER', 350, 22, { width: 205, align: 'right' });
         doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
           .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
           .text('DATE', 350, 64, { width: 205, align: 'right' });
         doc.fontSize(10).font('Helvetica').fillColor(BLACK)
           .text(orderDate, 350, 78, { width: 205, align: 'right' });
@@ -211,35 +211,35 @@ function generateOrderPDF(order) {
       const grandTotal = order.grand_total ? Number(order.grand_total) : Number(order.total_amount || 0);
 
       // Subtotal
-      doc.fillColor(GREY).fontSize(10).font('Helvetica')
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
         .text(`Subtotal:`, 300, totalBarY, { width: 120, align: 'right' });
       doc.fillColor(BLACK).fontSize(10).font('Helvetica')
         .text(`CAD $${Number(order.total_amount || 0).toFixed(2)}`, 425, totalBarY, { width: 130, align: 'right' });
 
       // HST
       if (hstAmt > 0) {
-        doc.fillColor(GREY).fontSize(10).font('Helvetica')
+        doc.fillColor(BLACK).fontSize(10).font('Helvetica')
           .text(`HST (13%, Ontario):`, 300, totalBarY + 16, { width: 120, align: 'right' });
         doc.fillColor(BLACK).fontSize(10).font('Helvetica')
           .text(`CAD $${hstAmt.toFixed(2)}`, 425, totalBarY + 16, { width: 130, align: 'right' });
       }
 
       // Grand Total
-      doc.roundedRect(300, totalBarY + (hstAmt > 0 ? 36 : 20), 255, 24, 6).fill(PASTEL_PINK);
+      doc.roundedRect(300, totalBarY + (hstAmt > 0 ? 36 : 20), 255, 24, 6).fill(LIGHT_GREY).stroke('#cccccc');
       doc.fillColor(BLACK).fontSize(15).font('Helvetica-Bold')
         .text(`GRAND TOTAL: CAD $${grandTotal.toFixed(2)}`, 310, totalBarY + (hstAmt > 0 ? 40 : 24), { width: 235, align: 'right' });
 
       // ── NOTES ──
       if (order.notes) {
         const notesY = totalBarY + (hstAmt > 0 ? 76 : 54);
-        doc.fillColor(GREY).fontSize(8).font('Helvetica')
+        doc.fillColor(BLACK).fontSize(8).font('Helvetica')
           .text('NOTES:', 40, notesY);
         doc.fillColor(BLACK)
           .text(order.notes, 40, notesY + 12, { width: 515 });
       }
 
       // ── FOOTER ──
-      doc.fillColor('#AAAAAA').fontSize(7.5).font('Helvetica')
+      doc.fillColor(BLACK).fontSize(7.5).font('Helvetica')
         .text(`SAHI London  •  B2B Order #${order.id}  •  ${new Date().toISOString().split('T')[0]}`, 40, 800, { width: 515, align: 'center' });
 
       doc.end();
