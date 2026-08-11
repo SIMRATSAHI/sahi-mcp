@@ -558,6 +558,13 @@ async function ensureSchema() {
     console.error('b2b_orders hst/grand_total migration warning:', err.message);
   }
 
+  // Soft-delete column for B2B orders
+  try {
+    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE`);
+  } catch (err) {
+    console.error('b2b_orders deleted column migration warning:', err.message);
+  }
+
   // B2B order line items
   try {
     await pool.query(`
@@ -2862,6 +2869,38 @@ app.get('/api/b2b/admin/orders', requireAuthApi(['ADMIN']), async (req, res) => 
   }
 });
 
+// Admin: soft-delete a B2B order
+app.delete('/api/b2b/admin/orders/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE b2b_orders SET deleted = TRUE WHERE id = $1 AND deleted = FALSE RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found or already deleted' });
+    res.json({ success: true, message: 'Order marked as deleted' });
+  } catch (err) {
+    console.error('B2B order delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
+// Admin: restore a soft-deleted B2B order
+app.post('/api/b2b/admin/orders/:id/restore', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE b2b_orders SET deleted = FALSE WHERE id = $1 AND deleted = TRUE RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found or not deleted' });
+    res.json({ success: true, message: 'Order restored' });
+  } catch (err) {
+    console.error('B2B order restore error:', err.message);
+    res.status(500).json({ error: 'Failed to restore order' });
+  }
+});
+
 // Admin: export B2B order as Shopify-compatible CSV
 app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
@@ -2872,6 +2911,7 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
     );
     if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     const order = ord.rows[0];
+    if (order.deleted) return res.status(403).json({ error: 'Cannot export CSV for a deleted order' });
 
     const items = await pool.query(
       'SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id',
@@ -2921,6 +2961,7 @@ app.get('/api/b2b/admin/orders/:id/pdf', requireAuthApi(['ADMIN']), async (req, 
     const ord = await pool.query('SELECT * FROM b2b_orders WHERE id = $1', [id]);
     if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     const order = ord.rows[0];
+    if (order.deleted) return res.status(403).json({ error: 'Cannot download PDF for a deleted order' });
 
     const items = await pool.query('SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id', [id]);
 

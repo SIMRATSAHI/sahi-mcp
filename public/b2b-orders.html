@@ -23,8 +23,16 @@
         .btn-pdf:hover { background: #ff9aad; }
         .btn-csv { background: #D3D3D3; }
         .btn-csv:hover { background: #c0c0c0; }
+        .btn-delete { background: #ff5252; color: #fff; }
+        .btn-delete:hover { background: #d32f2f; }
+        .btn-restore { background: #81c784; color: #fff; }
+        .btn-restore:hover { background: #4caf50; }
+        .btn-disabled { background: #e0e0e0; color: #bbb; cursor: not-allowed; pointer-events: none; text-decoration: none; }
         .actions { display: flex; gap: 6px; flex-wrap: nowrap; }
         .status-new { background: #e6fffa; color: #00897b; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
+        .status-deleted { background: #ffe0e0; color: #c62828; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
+        tr.deleted-row td { opacity: 0.55; }
+        tr.deleted-row td:first-child strong { text-decoration: line-through; }
         .empty-state { text-align: center; padding: 60px 20px; color: #999; }
         .loading { text-align: center; padding: 40px; color: #999; font-size: 14px; }
     </style>
@@ -85,7 +93,9 @@
 
                 for (const o of orders) {
                     const items = o.items || [];
-                    html += '<tr>';
+                    const isDeleted = o.deleted === true;
+                    const rowClass = isDeleted ? 'deleted-row' : '';
+                    html += `<tr class="${rowClass}">`;
                     html += `<td><strong>#${o.id}</strong></td>`;
                     html += `<td>${o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : ''}</td>`;
                     html += `<td>${esc(o.company_name)}</td>`;
@@ -95,10 +105,21 @@
                     html += `<td style="text-align:right">$${Number(o.total_amount || 0).toFixed(2)}</td>`;
                     html += `<td style="text-align:right">$${Number(o.hst_amount || 0).toFixed(2)}</td>`;
                     html += `<td style="text-align:right; font-weight:bold;">$${Number(o.grand_total || 0).toFixed(2)}</td>`;
-                    html += `<td><span class="status-new">${esc(o.status)}</span></td>`;
+                    if (isDeleted) {
+                        html += `<td><span class="status-deleted">DELETED</span></td>`;
+                    } else {
+                        html += `<td><span class="status-new">${esc(o.status)}</span></td>`;
+                    }
                     html += `<td style="text-align:center"><div class="actions">`;
-                    html += `<a class="btn btn-pdf" href="/api/b2b/admin/orders/${o.id}/pdf" download>PDF</a>`;
-                    html += `<a class="btn btn-csv" href="/api/b2b/admin/orders/${o.id}/csv" download>CSV</a>`;
+                    if (isDeleted) {
+                        html += `<span class="btn btn-disabled">PDF</span>`;
+                        html += `<span class="btn btn-disabled">CSV</span>`;
+                        html += `<button class="btn btn-restore" onclick="restoreOrder(${o.id})">Restore</button>`;
+                    } else {
+                        html += `<a class="btn btn-pdf" href="/api/b2b/admin/orders/${o.id}/pdf" download>PDF</a>`;
+                        html += `<a class="btn btn-csv" href="/api/b2b/admin/orders/${o.id}/csv" download>CSV</a>`;
+                        html += `<button class="btn btn-delete" onclick="deleteOrder(${o.id})">Delete</button>`;
+                    }
                     html += `</div></td></tr>`;
                 }
 
@@ -106,6 +127,34 @@
                 content.innerHTML = html;
             } catch (err) {
                 content.innerHTML = `<div class="empty-state">Error loading orders: ${esc(err.message)}</div>`;
+            }
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm(`Delete order #${id}? The order will be marked as deleted but stays visible. PDF/CSV downloads will be disabled.`)) return;
+            try {
+                const res = await fetch(`/api/b2b/admin/orders/${id}`, { method: 'DELETE' });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Failed to delete order');
+                }
+                loadOrders();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function restoreOrder(id) {
+            if (!confirm(`Restore order #${id}?`)) return;
+            try {
+                const res = await fetch(`/api/b2b/admin/orders/${id}/restore`, { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Failed to restore order');
+                }
+                loadOrders();
+            } catch (err) {
+                alert('Error: ' + err.message);
             }
         }
 
