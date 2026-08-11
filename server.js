@@ -69,52 +69,49 @@ function generateOrderPDF(order) {
       }
 
       // ── HEADER BAR ──
-      doc.rect(0, 0, 595, 90).fill(SKY_BLUE);
+      doc.rect(0, 0, 595, 100).fill(SKY_BLUE);
       doc.fillColor(BLACK).fontSize(28).font('Helvetica-Bold')
         .text('SAHI LONDON', 40, 18);
-      doc.fontSize(20)
-        .text(`Order #${order.id}`, 40, 50);
+      doc.fontSize(8.5).font('Helvetica')
+        .text('1231, Niagara On The Lake', 40, 48)
+        .text('Ontario L0S 1J0, Canada', 40, 61)
+        .text('HST #732146907', 40, 74);
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        .text('ORDER', 350, 22, { width: 205, align: 'right' });
+      doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
+        .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
       const orderDate = order.created_at
         ? new Date(order.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
         : new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-      doc.fontSize(10).font('Helvetica').fillColor('#444444')
-        .text(orderDate, 40, 74);
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(PASTEL_PINK)
-        .text((order.status || 'CONFIRMED').toUpperCase(), 350, 50, { width: 205, align: 'right' });
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        .text('DATE', 350, 64, { width: 205, align: 'right' });
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+        .text(orderDate, 350, 78, { width: 205, align: 'right' });
 
       // ── ADDRESS SECTION ──
-      const addrY = 102;
+      const addrY = 112;
       const addrW = 255;
       const addrH = 86;
 
-      // FROM — SAHI London (using Larkin Greenhouses Inc address)
+      // BILL TO — Customer billing details
       doc.roundedRect(40, addrY, addrW, addrH, 5).fill(LIGHT_GREY).stroke('#cccccc');
-      doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
-        .text('FROM', 52, addrY + 8);
-      doc.fontSize(9).font('Helvetica')
-        .text('SAHI LONDON', 52, addrY + 24)
-        .text('1231, Niagara On The Lake', 52, addrY + 38)
-        .text('Ontario L0S 1J0, Canada', 52, addrY + 52)
-        .text('HST #732146907', 52, addrY + 66);
-
-      // SOLD TO — Customer (Creations florales ate adele)
-      doc.roundedRect(315, addrY, addrW, addrH, 5).fill(LIGHT_GREY).stroke('#cccccc');
       const buyerName = order.company_name || 'LARKIN GREENHOUSES INC';
       const buyerContact = order.contact_name || 'Manon st Pierre';
       doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
-        .text('SOLD TO', 327, addrY + 8);
+        .text('BILL TO', 52, addrY + 8);
       doc.fontSize(9).font('Helvetica')
-        .text(buyerName, 327, addrY + 24)
-        .text(`Contact: ${buyerContact}`, 327, addrY + 38)
-        .text(order.email || '', 327, addrY + 52)
-        .text(order.phone || '', 327, addrY + 66);
+        .text(buyerName, 52, addrY + 24)
+        .text(`Contact: ${buyerContact}`, 52, addrY + 38)
+        .text(order.email || '', 52, addrY + 52)
+        .text(order.phone || '', 52, addrY + 66);
 
-      // Shipping address line below boxes
+      // SHIP TO — Delivery address
+      doc.roundedRect(315, addrY, addrW, addrH, 5).fill(LIGHT_GREY).stroke('#cccccc');
       const shipTo = order.shipping_address || '';
-      if (shipTo) {
-        doc.fontSize(8).fillColor(GREY)
-          .text(`Ship To: ${shipTo}`, 315, addrY + addrH + 10, { width: addrW + 10, align: 'left' });
-      }
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
+        .text('SHIP TO', 327, addrY + 8);
+      doc.fontSize(9).font('Helvetica')
+        .text(shipTo || 'Shipping address not provided', 327, addrY + 24, { width: addrW - 24, lineGap: 2 });
 
       // ── ITEMS TABLE ──
       const tableY = addrY + 116;
@@ -132,13 +129,53 @@ function generateOrderPDF(order) {
         doc.text(h, x, tableY + 5, { width: w, align: colAligns[i] });
       });
 
-      // Table rows
+      // Table rows — 10 items per page, header repeats on each page
       let rowY = tableY + 22;
       const items = order.items || [];
       const rowH = 28;
+      const ITEMS_PER_PAGE = 10;
       doc.font('Helvetica').fontSize(7.5);
 
+      // Helper: draw header bar + table header on a page
+      function drawTableHeader(pageTopY) {
+        // Header bar
+        doc.rect(0, 0, 595, 100).fill(SKY_BLUE);
+        doc.fillColor(BLACK).fontSize(28).font('Helvetica-Bold')
+          .text('SAHI LONDON', 40, 18);
+        doc.fontSize(8.5).font('Helvetica')
+          .text('1231, Niagara On The Lake', 40, 48)
+          .text('Ontario L0S 1J0, Canada', 40, 61)
+          .text('HST #732146907', 40, 74);
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+          .text('ORDER', 350, 22, { width: 205, align: 'right' });
+        doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
+          .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+          .text('DATE', 350, 64, { width: 205, align: 'right' });
+        doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+          .text(orderDate, 350, 78, { width: 205, align: 'right' });
+
+        // Table header
+        doc.roundedRect(40, pageTopY, 515, 20, 4).fill(SKY_BLUE);
+        doc.fillColor(BLACK).fontSize(8).font('Helvetica-Bold');
+        colHeaders.forEach((h, i) => {
+          const x = cols[i];
+          const w = i < 4 ? (cols[i + 1] - cols[i]) : (cols[i + 1] ? cols[i + 1] - cols[i] : 70);
+          doc.text(h, x, pageTopY + 5, { width: w, align: colAligns[i] });
+        });
+      }
+
       for (let i = 0; i < items.length; i++) {
+        // Page break after every ITEMS_PER_PAGE rows
+        if (i > 0 && i % ITEMS_PER_PAGE === 0) {
+          doc.addPage();
+          // Redraw header on new page
+          const newTableY = 112;
+          drawTableHeader(newTableY);
+          rowY = newTableY + 22;
+          doc.font('Helvetica').fontSize(7.5);
+        }
+
         const it = items[i];
         const bg = i % 2 === 0 ? WHITE : '#F7F9FB';
         doc.roundedRect(40, rowY, 515, rowH, 0).fill(bg);
@@ -168,6 +205,7 @@ function generateOrderPDF(order) {
       }
 
       // ── TOTALS ──
+      // Keep totals on the last item page so Order #11 stays 2 pages, not 3.
       const totalBarY = rowY + 10;
       const hstAmt = order.hst_amount ? Number(order.hst_amount) : 0;
       const grandTotal = order.grand_total ? Number(order.grand_total) : Number(order.total_amount || 0);
