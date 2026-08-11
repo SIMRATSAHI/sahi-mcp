@@ -28,6 +28,9 @@
         .btn-restore { background: #81c784; color: #fff; }
         .btn-restore:hover { background: #4caf50; }
         .btn-disabled { background: #e0e0e0; color: #bbb; cursor: not-allowed; pointer-events: none; text-decoration: none; }
+        .filter-btn { padding: 5px 14px; border: 1px solid #87CEEB; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; background: #fff; color: #87CEEB; }
+        .filter-btn.active { background: #87CEEB; color: #000; }
+        .filter-btn:hover { background: #d4f0f9; }
         .actions { display: flex; gap: 6px; flex-wrap: nowrap; }
         .status-new { background: #e6fffa; color: #00897b; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
         .status-deleted { background: #ffe0e0; color: #c62828; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
@@ -66,25 +69,53 @@
         <h2 style="margin-bottom: 5px;">B2B Wholesale Orders</h2>
         <p style="color: #888; font-size: 13px; margin-top: 0;">All customer wholesale orders with download options for Shopify</p>
 
+        <div id="filter-bar" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+            <button class="filter-btn active" onclick="setFilter('all')">All Orders</button>
+            <button class="filter-btn" onclick="setFilter('active')">Active</button>
+            <button class="filter-btn" onclick="setFilter('deleted')">Deleted</button>
+            <span id="filter-count" style="color: #888; font-size: 12px; margin-left: auto;"></span>
+        </div>
+
         <div id="content"></div>
     </div>
 
     <script>
         const ADMIN_URL = 'https://sahi-mcp.onrender.com';
+        let allOrders = [];
+        let currentFilter = 'all';
 
-        async function loadOrders() {
+        function setFilter(f) {
+            currentFilter = f;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            const labels = { all: 'All Orders', active: 'Active', deleted: 'Deleted' };
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                if (b.textContent.trim() === labels[f]) b.classList.add('active');
+            });
+            renderOrders();
+        }
+
+        function renderOrders() {
             const content = document.getElementById('content');
-            content.innerHTML = '<div class="loading">Loading orders...</div>';
+            let orders = allOrders;
+            if (currentFilter === 'active') orders = allOrders.filter(o => !o.deleted);
+            if (currentFilter === 'deleted') orders = allOrders.filter(o => o.deleted);
 
-            try {
-                const res = await fetch('/api/b2b/admin/orders');
-                if (!res.ok) throw new Error('Failed to fetch');
-                const orders = await res.json();
+            const deletedCount = allOrders.filter(o => o.deleted).length;
+            const activeCount = allOrders.length - deletedCount;
+            const countLabel = document.getElementById('filter-count');
+            if (currentFilter === 'deleted') {
+                countLabel.textContent = `${orders.length} deleted order(s)`;
+            } else if (currentFilter === 'active') {
+                countLabel.textContent = `${orders.length} active order(s)`;
+            } else {
+                countLabel.textContent = `${activeCount} active, ${deletedCount} deleted`;
+            }
 
-                if (!orders.length) {
-                    content.innerHTML = '<div class="empty-state">No B2B orders yet. Orders placed by wholesale customers will appear here.</div>';
-                    return;
-                }
+            if (!orders.length) {
+                const msg = currentFilter === 'deleted' ? 'No deleted orders.' : 'No orders found.';
+                content.innerHTML = `<div class="empty-state">${msg}</div>`;
+                return;
+            }
 
                 let html = '<table><thead><tr>';
                 html += '<th>Order #</th><th>Date</th><th>Company</th><th>Contact</th><th>Email</th>';
@@ -125,6 +156,20 @@
 
                 html += '</tbody></table>';
                 content.innerHTML = html;
+        }
+
+        async function loadOrders() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Loading orders...</div>';
+            try {
+                const res = await fetch('/api/b2b/admin/orders');
+                if (!res.ok) throw new Error('Failed to fetch');
+                allOrders = await res.json();
+                if (!allOrders.length) {
+                    content.innerHTML = '<div class="empty-state">No B2B orders yet. Orders placed by wholesale customers will appear here.</div>';
+                    return;
+                }
+                renderOrders();
             } catch (err) {
                 content.innerHTML = `<div class="empty-state">Error loading orders: ${esc(err.message)}</div>`;
             }
