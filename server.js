@@ -653,7 +653,10 @@ function defaultLandingFor(role) {
 function requireAuthPage(rolesAllowed) {
   return (req, res, next) => {
     const user = getSessionUser(req);
-    if (!user) return res.redirect('/login.html');
+    if (!user) {
+      const originalUrl = req.originalUrl || req.url;
+      return res.redirect('/login.html?redirect=' + encodeURIComponent(originalUrl));
+    }
     if (rolesAllowed && !rolesAllowed.includes(user.role)) {
       return res.redirect(defaultLandingFor(user.role));
     }

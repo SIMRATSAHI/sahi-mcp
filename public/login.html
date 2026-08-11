@@ -62,7 +62,14 @@
                     errorBox.style.display = 'block';
                     return;
                 }
-                window.location.href = data.landing || '/';
+                // If a redirect target was requested (e.g. create-b2b-order with pre-filled items), go there instead
+                const params = new URLSearchParams(window.location.search);
+                const redirect = params.get('redirect');
+                if (redirect && redirect.startsWith('/')) {
+                    window.location.href = redirect;
+                } else {
+                    window.location.href = data.landing || '/';
+                }
             } catch (e) {
                 errorBox.textContent = 'Connection error.';
                 errorBox.style.display = 'block';
