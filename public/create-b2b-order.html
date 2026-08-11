@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAHI Portal - Create B2B Order</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; color: #000; }
+        .container { max-width: 1200px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .logo .l2 { font-size: 9px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: #000; font-weight: bold; }
+        h2 { margin-bottom: 5px; }
+        h3 { margin: 20px 0 10px; color: #000; }
+        p.sub { color: #000; font-size: 13px; margin-top: 0; }
+
+        .section { background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+        .section h3 { margin-top: 0; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-field { display: flex; flex-direction: column; }
+        .form-field.full { grid-column: 1 / -1; }
+        .form-field label { font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #000; }
+        .form-field label .req { color: #d32f2f; }
+        .form-field input, .form-field textarea {
+            padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+            font-family: Arial, sans-serif; color: #000; background: #fff;
+        }
+        .form-field input:focus, .form-field textarea:focus { outline: none; border-color: #87CEEB; }
+        .form-field textarea { resize: vertical; min-height: 60px; }
+
+        .order-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .products-section { flex: 1; min-width: 0; }
+        .summary-section { width: 340px; flex-shrink: 0; position: sticky; top: 20px; }
+
+        .search-wrap { margin-bottom: 12px; }
+        .search-wrap input {
+            width: 100%; padding: 10px 12px; border: 1px solid #87CEEB; border-radius: 4px;
+            font-size: 14px; font-family: Arial, sans-serif; color: #000; box-sizing: border-box;
+        }
+        .search-wrap input:focus { outline: none; border-color: #6bc3de; box-shadow: 0 0 0 2px rgba(135,206,235,0.2); }
+
+        .category-header { background: #87CEEB; color: #000; font-weight: bold; font-size: 13px; padding: 8px 10px; margin: 15px 0 8px; border-radius: 4px; border: 1px solid #6bc3de; }
+
+        .product-card { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+        .product-card.highlight { border-color: #87CEEB; box-shadow: 0 0 0 1px #87CEEB; }
+        .product-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+        .product-info { min-width: 0; }
+        .product-sku { font-size: 11px; font-weight: bold; color: #000; background: #eaf6fb; padding: 1px 6px; border-radius: 3px; display: inline-block; }
+        .product-name { font-size: 13px; font-weight: bold; color: #000; margin-top: 3px; }
+        .product-price { font-size: 13px; color: #000; white-space: nowrap; }
+
+        .qty-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .qty-cell { display: flex; flex-direction: column; align-items: flex-start; }
+        .qty-cell label { font-size: 11px; color: #000; margin-bottom: 2px; font-weight: bold; }
+        .qty-cell input {
+            width: 64px; padding: 5px 6px; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 13px; text-align: center; font-family: Arial, sans-serif; color: #000;
+        }
+        .qty-cell input:focus { outline: none; border-color: #87CEEB; }
+        .qty-cell input.has-value { background: #eaf6fb; border-color: #87CEEB; font-weight: bold; }
+
+        .summary-box { background: #fff; border: 2px solid #87CEEB; border-radius: 6px; padding: 15px; }
+        .summary-box h3 { margin-top: 0; }
+        .cart-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
+        .cart-table th { background: #87CEEB; color: #000; font-weight: bold; padding: 6px 5px; text-align: left; border: 1px solid #6bc3de; }
+        .cart-table td { padding: 5px; border: 1px solid #ddd; color: #000; }
+        .cart-table td.num { text-align: right; }
+        .cart-empty { color: #000; font-size: 13px; text-align: center; padding: 20px; }
+
+        .totals-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #000; }
+        .totals-row.grand { font-weight: bold; font-size: 15px; border-top: 2px solid #87CEEB; margin-top: 6px; padding-top: 8px; }
+
+        .btn { display: inline-block; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; color: #000; }
+        .btn-place { background: #87CEEB; width: 100%; padding: 12px; font-size: 14px; margin-top: 12px; }
+        .btn-place:hover { background: #6bc3de; }
+        .btn-place:disabled { background: #e0e0e0; cursor: not-allowed; }
+        .btn-back { background: #D3D3D3; }
+        .btn-back:hover { background: #c0c0c0; }
+
+        .success-box { background: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
+        .success-box h3 { color: #000; margin-top: 0; }
+        .success-box p { color: #000; font-size: 14px; }
+
+        .error-box { background: #ffe0e0; border: 1px solid #ff9999; border-radius: 4px; padding: 10px 12px; color: #000; font-size: 13px; margin-bottom: 12px; display: none; }
+        .loading { text-align: center; padding: 40px; color: #000; font-size: 14px; }
+        .no-results { text-align: center; padding: 30px; color: #000; font-size: 13px; display: none; }
+
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            .company-header { margin: -15px -15px 15px -15px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .order-layout { flex-direction: column; }
+            .summary-section { width: 100%; position: static; }
+            .qty-cell input { width: 56px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="company-header">
+            <div class="info">
+                <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+                <div class="l2">飒鹤(上海)贸易有限公司</div>
+                <div class="l3">Credit Code: 913100000000000000</div>
+            </div>
+            <div class="logo">
+                <div class="l1">SAHI</div>
+                <div class="l2">PORTAL</div>
+            </div>
+        </div>
+
+        <div class="nav">
+            <a href="/">Sell (Invoice)</a>
+            <a href="/create-po.html">Create PO</a>
+            <a href="/invoices.html">Invoice to PO</a>
+            <a href="/receive-po.html">Receive Stock</a>
+            <a href="/items.html">Item Master</a>
+            <a href="/transfer.html">Transfer Stock</a>
+            <a href="/accounts.html">Accounts</a>
+            <a href="/admin-users.html">Manage Users</a>
+            <a href="/b2b-orders.html">B2B Orders</a>
+            <a href="/create-b2b-order.html">Create B2B Order</a>
+        </div>
+
+        <h2>Create B2B Order</h2>
+        <p class="sub">Create a wholesale order on behalf of a customer. Fill in the customer details and select quantities for each product.</p>
+
+        <div id="success-msg" class="success-box" style="display:none;">
+            <h3>Order Created Successfully!</h3>
+            <p>Order ID: <strong id="success-order-id"></strong></p>
+            <p id="success-totals"></p>
+            <p style="margin-top:15px;">
+                <a href="/b2b-orders.html" class="btn btn-back">Back to B2B Orders</a>
+            </p>
+        </div>
+
+        <div id="order-form">
+            <div class="error-box" id="error-box"></div>
+
+            <div class="section">
+                <h3>Customer Details</h3>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Company Name <span class="req">*</span></label>
+                        <input type="text" id="company_name" placeholder="Acme Retail Inc.">
+                    </div>
+                    <div class="form-field">
+                        <label>Contact Name <span class="req">*</span></label>
+                        <input type="text" id="contact_name" placeholder="Jane Doe">
+                    </div>
+                    <div class="form-field">
+                        <label>Email</label>
+                        <input type="email" id="email" placeholder="jane@acme.com">
+                    </div>
+                    <div class="form-field">
+                        <label>Phone</label>
+                        <input type="text" id="phone" placeholder="+1 416 555 0123">
+                    </div>
+                    <div class="form-field">
+                        <label>HST/GST Number</label>
+                        <input type="text" id="hst_gst_number" placeholder="123456789RT0001">
+                    </div>
+                    <div class="form-field">
+                        <label>&nbsp;</label>
+                        <input type="hidden">
+                    </div>
+                    <div class="form-field full">
+                        <label>Shipping Address</label>
+                        <textarea id="shipping_address" placeholder="123 Main St, Toronto, ON M1M 1M1, Canada"></textarea>
+                    </div>
+                    <div class="form-field full">
+                        <label>Notes</label>
+                        <textarea id="notes" placeholder="Internal notes or special instructions..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-layout">
+                <div class="products-section">
+                    <h3>Select Items</h3>
+                    <div class="search-wrap">
+                        <input type="text" id="search" placeholder="Search by SKU or product name...">
+                    </div>
+                    <div id="product-list"></div>
+                    <div class="no-results" id="no-results">No products match your search.</div>
+                </div>
+
+                <div class="summary-section">
+                    <div class="summary-box">
+                        <h3>Order Summary</h3>
+                        <div id="cart-content"></div>
+                        <div id="totals-content"></div>
+                        <button class="btn btn-place" id="place-order-btn" onclick="placeOrder()">Place Order</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== Product data embedded in page =====
+        const PRODUCTS = [
+            // T-SHIRTS & APPAREL (sizes 1, 2, 3)
+            { sku: 'APAPS401-BLU', name: 'Cotton Flamingo T-Shirt',       price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS402-OWT', name: 'Cotton Rabbit T-Shirt',          price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS403-OWT', name: 'Cotton Bear T-Shirt',            price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS404-OWT', name: 'Cotton Butterfly T-Shirt',       price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS406-PNK', name: 'Cotton Doggy T-Shirt',           price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS407-BLU', name: 'Cotton Cat T-Shirt',             price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS408-WHT', name: 'Cotton Eiffel Tower T-Shirt',    price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS409-PNK', name: 'Face Printed T-Shirt',          price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS410-WHT', name: 'Cotton Printer T-Shirt',        price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS411-OWT', name: 'Cotton Beads Cat T-Shirt',      price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS412-BLU', name: 'Cotton Beads Parrot T-Shirt',   price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS501-BLU', name: 'Cotton Sweatshirt',             price: 21.66, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APAPS503-OWT', name: 'Cotton Sweatshirt',             price: 21.66, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA401-MEG', name: 'Pop Art Bunny T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA401-PNK', name: 'Pop Art Bunny T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA402-MEG', name: 'Pop Art Rabbit T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA402-OWT', name: 'Pop Art Rabbit T-Shirt',        price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA402-PNK', name: 'Pop Art Rabbit T-Shirt',        price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA403-MEG', name: 'Pop Art Deer T-Shirt',          price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA403-OWT', name: 'Pop Art Deer T-Shirt',          price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA404-MEG', name: 'Pop Art Roger T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA404-OWT', name: 'Pop Art Roger T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA405-MEG', name: 'Pop Art Save the Dog T-Shirt',  price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA405-OWT', name: 'Pop Art Save the Dog T-Shirt',  price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA406-OWT', name: 'Pop Art Jumbo T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA406-PNK', name: 'Pop Art Jumbo T-Shirt',         price: 18.33, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA407-MEG', name: 'Pop Art 407 T-Shirt',           price: 16.66, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA408-OWT', name: 'Pop Art Alice T-Shirt',         price: 16.66, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA411-OWT', name: 'Pop Art 411 T-Shirt',           price: 16.66, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            { sku: 'APZPA417-OWT', name: 'Pop Art 417 T-Shirt',           price: 16.66, hasSizes: true,  category: 'T-Shirts & Apparel' },
+            // BROOCHES (single SKU, no sizes)
+            { sku: 'APZPA201', name: 'Pop Art Chameleon Brooch',             price: 16.66, hasSizes: false, category: 'Brooches' },
+            { sku: 'APZPA202', name: 'Pop Art Tear Heart Eye Brooch',        price: 10.00, hasSizes: false, category: 'Brooches' },
+            { sku: 'APZPA203', name: 'Pop Art Turquoise Heart Eye Brooch',   price: 12.00, hasSizes: false, category: 'Brooches' },
+            { sku: 'APZPA204', name: 'Pop Art Turquoise Eiffel Tower Brooch',price: 12.00, hasSizes: false, category: 'Brooches' },
+            { sku: 'APZPA205', name: 'Pop Art Black Silver Camera Brooch',  price: 12.00, hasSizes: false, category: 'Brooches' },
+            { sku: 'APZPA206', name: 'Pop Art Purple Flower Brooch',        price: 10.00, hasSizes: false, category: 'Brooches' },
+            { sku: 'APZPA207', name: 'Pop Art Coral Shrimp Brooch',         price: 12.00, hasSizes: false, category: 'Brooches' }
+        ];
+
+        const HST_RATE = 0.13;
+
+        // ===== Render product list =====
+        function renderProducts() {
+            const list = document.getElementById('product-list');
+            const categories = [];
+            const seen = {};
+            for (const p of PRODUCTS) {
+                if (!seen[p.category]) { seen[p.category] = true; categories.push(p.category); }
+            }
+
+            let html = '';
+            for (const cat of categories) {
+                html += `<div class="category-header">${esc(cat)}</div>`;
+                for (const p of PRODUCTS) {
+                    if (p.category !== cat) continue;
+                    html += renderProductCard(p);
+                }
+            }
+            list.innerHTML = html;
+
+            // Attach input listeners via delegation
+            list.addEventListener('input', onQtyInput);
+        }
+
+        function renderProductCard(p) {
+            let qtyHtml = '';
+            if (p.hasSizes) {
+                for (let s = 1; s <= 3; s++) {
+                    const sizeSku = `${p.sku}-${s}`;
+                    const sizeName = `${p.name} - Size ${s}`;
+                    qtyHtml += `<div class="qty-cell">
+                        <label>Size ${s}</label>
+                        <input type="number" min="0" step="1" value="0"
+                            data-sku="${esc(sizeSku)}" data-name="${esc(sizeName)}" data-price="${p.price}">
+                    </div>`;
+                }
+            } else {
+                qtyHtml += `<div class="qty-cell">
+                    <label>Qty</label>
+                    <input type="number" min="0" step="1" value="0"
+                        data-sku="${esc(p.sku)}" data-name="${esc(p.name)}" data-price="${p.price}">
+                </div>`;
+            }
+
+            return `<div class="product-card" data-sku="${esc(p.sku)}" data-name="${esc(p.name)}">
+                <div class="product-top">
+                    <div class="product-info">
+                        <span class="product-sku">${esc(p.sku)}</span>
+                        <div class="product-name">${esc(p.name)}</div>
+                    </div>
+                    <div class="product-price">$${p.price.toFixed(2)}${p.hasSizes ? ' / size' : ''}</div>
+                </div>
+                <div class="qty-row">${qtyHtml}</div>
+            </div>`;
+        }
+
+        // ===== Search / filter =====
+        function setupSearch() {
+            const search = document.getElementById('search');
+            search.addEventListener('input', () => {
+                const term = search.value.trim().toLowerCase();
+                let anyVisible = false;
+                document.querySelectorAll('.product-card').forEach(card => {
+                    const sku = card.dataset.sku.toLowerCase();
+                    const name = card.dataset.name.toLowerCase();
+                    const match = !term || sku.includes(term) || name.includes(term);
+                    card.style.display = match ? '' : 'none';
+                    if (match) anyVisible = true;
+                });
+                document.querySelectorAll('.category-header').forEach(ch => {
+                    // Show category header if any product under it is visible
+                    let next = ch.nextElementSibling;
+                    let hasVisible = false;
+                    while (next && !next.classList.contains('category-header')) {
+                        if (next.classList.contains('product-card') && next.style.display !== 'none') {
+                            hasVisible = true;
+                            break;
+                        }
+                        next = next.nextElementSibling;
+                    }
+                    ch.style.display = hasVisible ? '' : 'none';
+                });
+                document.getElementById('no-results').style.display = anyVisible ? 'none' : '';
+            });
+        }
+
+        // ===== Quantity input handler =====
+        function onQtyInput(e) {
+            if (e.target.matches('input[data-sku]')) {
+                // Highlight inputs with a value
+                const val = parseInt(e.target.value, 10);
+                if (val > 0) {
+                    e.target.classList.add('has-value');
+                    e.target.closest('.product-card').classList.add('highlight');
+                } else {
+                    e.target.classList.remove('has-value');
+                    // Remove highlight only if no sibling input has a value
+                    const card = e.target.closest('.product-card');
+                    const anyValue = Array.from(card.querySelectorAll('input[data-sku]')).some(i => parseInt(i.value, 10) > 0);
+                    if (!anyValue) card.classList.remove('highlight');
+                }
+                updateSummary();
+            }
+        }
+
+        // ===== Collect cart items =====
+        function getCartItems() {
+            const items = [];
+            document.querySelectorAll('#product-list input[data-sku]').forEach(input => {
+                const qty = parseInt(input.value, 10);
+                if (qty > 0) {
+                    items.push({
+                        sku: input.dataset.sku,
+                        product_name: input.dataset.name,
+                        quantity: qty,
+                        unit_price: parseFloat(input.dataset.price)
+                    });
+                }
+            });
+            return items;
+        }
+
+        // ===== Live order summary =====
+        function updateSummary() {
+            const items = getCartItems();
+            const cartContent = document.getElementById('cart-content');
+            const totalsContent = document.getElementById('totals-content');
+
+            if (items.length === 0) {
+                cartContent.innerHTML = '<div class="cart-empty">No items selected.<br>Enter quantities to build the order.</div>';
+                totalsContent.innerHTML = '';
+                return;
+            }
+
+            let subtotal = 0;
+            let rows = '<table class="cart-table"><thead><tr>';
+            rows += '<th>SKU</th><th>Product</th><th style="text-align:right">Qty</th>';
+            rows += '<th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead><tbody>';
+            for (const item of items) {
+                const lineTotal = item.quantity * item.unit_price;
+                subtotal += lineTotal;
+                rows += `<tr>
+                    <td>${esc(item.sku)}</td>
+                    <td>${esc(item.product_name)}</td>
+                    <td class="num">${item.quantity}</td>
+                    <td class="num">$${item.unit_price.toFixed(2)}</td>
+                    <td class="num">$${lineTotal.toFixed(2)}</td>
+                </tr>`;
+            }
+            rows += '</tbody></table>';
+            cartContent.innerHTML = rows;
+
+            const hst = subtotal * HST_RATE;
+            const grand = subtotal + hst;
+            totalsContent.innerHTML = `
+                <div class="totals-row"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
+                <div class="totals-row"><span>HST (13%)</span><span>$${hst.toFixed(2)}</span></div>
+                <div class="totals-row grand"><span>Grand Total</span><span>$${grand.toFixed(2)}</span></div>
+            `;
+        }
+
+        // ===== Place order =====
+        async function placeOrder() {
+            const errorBox = document.getElementById('error-box');
+            errorBox.style.display = 'none';
+
+            const company_name = document.getElementById('company_name').value.trim();
+            const contact_name = document.getElementById('contact_name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const hst_gst_number = document.getElementById('hst_gst_number').value.trim();
+            const shipping_address = document.getElementById('shipping_address').value.trim();
+            const notes = document.getElementById('notes').value.trim();
+
+            // Validation
+            const errors = [];
+            if (!company_name) errors.push('Company Name is required.');
+            if (!contact_name) errors.push('Contact Name is required.');
+
+            const items = getCartItems();
+            if (items.length === 0) errors.push('Please select at least one item with a quantity greater than 0.');
+
+            if (errors.length) {
+                errorBox.innerHTML = errors.join('<br>');
+                errorBox.style.display = 'block';
+                errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            const body = {
+                company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, items
+            };
+
+            const btn = document.getElementById('place-order-btn');
+            btn.disabled = true;
+            btn.textContent = 'Placing Order...';
+
+            try {
+                const res = await fetch('/api/b2b/admin/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data.error || data.message || `Server error (${res.status})`);
+                }
+                // Success
+                const orderId = data.order_id || data.id || data.orderId || '';
+                document.getElementById('success-order-id').textContent = orderId ? `#${orderId}` : '(created)';
+                const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+                const hst = subtotal * HST_RATE;
+                document.getElementById('success-totals').innerHTML =
+                    `Subtotal: $${subtotal.toFixed(2)} &nbsp;|&nbsp; HST: $${hst.toFixed(2)} &nbsp;|&nbsp; Grand Total: $${(subtotal + hst).toFixed(2)}<br>${items.length} item line(s)`;
+                document.getElementById('order-form').style.display = 'none';
+                document.getElementById('success-msg').style.display = 'block';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (err) {
+                errorBox.innerHTML = 'Failed to place order: ' + esc(err.message);
+                errorBox.style.display = 'block';
+                errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Place Order';
+            }
+        }
+
+        // ===== Helpers =====
+        function esc(s) {
+            if (s === null || s === undefined) return '';
+            const d = document.createElement('div');
+            d.textContent = String(s);
+            return d.innerHTML;
+        }
+
+        // ===== Auth (same pattern as b2b-orders.html) =====
+        const NAV_PERMISSIONS = {
+            '/': ['ADMIN'],
+            '/create-po.html': ['ADMIN', 'BUYER'],
+            '/items.html': ['ADMIN', 'BUYER'],
+            '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
+            '/transfer.html': ['ADMIN'],
+            '/accounts.html': ['ADMIN', 'ACCOUNTS'],
+            '/admin-users.html': ['ADMIN'],
+            '/b2b-orders.html': ['ADMIN'],
+            '/create-b2b-order.html': ['ADMIN']
+        };
+
+        async function initAuthNav() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) { window.location.href = '/login.html'; return; }
+                const me = await res.json();
+                // Only admins can create B2B orders
+                if (me.role !== 'ADMIN') {
+                    document.body.innerHTML = '<div class="container" style="text-align:center; padding:60px;"><h2>Access Denied</h2><p style="color:#000;">You do not have permission to access this page. Admin role required.</p><p><a href="/b2b-orders.html" style="color:#000; font-weight:bold;">Back to B2B Orders</a></p></div>';
+                    return;
+                }
+                document.querySelectorAll('.nav a').forEach(a => {
+                    const href = a.getAttribute('href');
+                    const allowed = NAV_PERMISSIONS[href];
+                    if (allowed && !allowed.includes(me.role)) a.style.display = 'none';
+                });
+                const nav = document.querySelector('.nav');
+                if (nav) {
+                    const badge = document.createElement('span');
+                    badge.style.marginLeft = 'auto';
+                    badge.style.color = '#666';
+                    badge.style.fontSize = '13px';
+                    badge.innerHTML = `${esc(me.name || me.email)} (${esc(me.role)}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                    nav.appendChild(badge);
+                    document.getElementById('logoutLink').addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login.html';
+                    });
+                }
+            } catch (e) {
+                window.location.href = '/login.html';
+            }
+        }
+
+        // ===== URL parameter pre-fill =====
+        // Supports: ?company=...&contact=...&phone=...&email=...&address=...&notes=...
+        //           &q_[SKU]=qty  (e.g. q_APZPA403-MEG-2=2&q_APZPA403-MEG-3=2)
+        function applyUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const company = params.get('company');
+            const contact = params.get('contact');
+            const phone = params.get('phone');
+            const email = params.get('email');
+            const address = params.get('address');
+            const notes = params.get('notes');
+
+            if (company) document.getElementById('company_name').value = company;
+            if (contact) document.getElementById('contact_name').value = contact;
+            if (phone) document.getElementById('phone').value = phone;
+            if (email) document.getElementById('email').value = email;
+            if (address) document.getElementById('shipping_address').value = address;
+            if (notes) document.getElementById('notes').value = notes;
+
+            // Pre-fill quantities: look for params starting with q_
+            let anyQty = false;
+            for (const [key, value] of params.entries()) {
+                if (key.startsWith('q_')) {
+                    const sku = key.substring(2); // remove 'q_' prefix
+                    const qty = parseInt(value, 10);
+                    if (qty > 0) {
+                        const input = document.querySelector(`input[data-sku="${sku}"]`);
+                        if (input) {
+                            input.value = qty;
+                            input.classList.add('has-value');
+                            input.closest('.product-card').classList.add('highlight');
+                            anyQty = true;
+                        }
+                    }
+                }
+            }
+
+            if (anyQty) {
+                updateSummary();
+                // Scroll to summary
+                setTimeout(() => {
+                    const summary = document.querySelector('.summary-section');
+                    if (summary && window.innerWidth <= 768) {
+                        summary.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 300);
+            }
+        }
+
+        // ===== Init =====
+        renderProducts();
+        setupSearch();
+        updateSummary();
+        applyUrlParams();
+        initAuthNav();
+    </script>
+</body>
+</html>

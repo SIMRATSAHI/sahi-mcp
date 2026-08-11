@@ -940,6 +940,7 @@ app.get(['/accounts.html'], requireAuthPage(['ADMIN', 'ACCOUNTS']), (req, res) =
 app.get(['/invoices.html'], requireAuthPage(['ADMIN', 'BUYER']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices.html')));
 app.get(['/admin-users.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 app.get(['/b2b-orders.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-orders.html')));
+app.get(['/create-b2b-order.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'create-b2b-order.html')));
 app.get('/lookbook.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lookbook.html')));
 
 app.use(express.static('public'));
@@ -2854,6 +2855,59 @@ app.get('/api/b2b/orders', async (req, res) => {
     res.json(ord.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Admin: create a B2B order on behalf of a customer
+app.post('/api/b2b/admin/create-order', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Cart is empty.' });
+    }
+    if (!company_name || !contact_name) {
+      return res.status(400).json({ error: 'Company name and contact name are required.' });
+    }
+
+    let totalAmount = 0;
+    let itemCount = 0;
+    for (const item of items) {
+      totalAmount += (item.unit_price || 0) * (item.quantity || 0);
+      itemCount += item.quantity || 0;
+    }
+
+    const hstAmount = parseFloat((totalAmount * 0.13).toFixed(2));
+    const grandTotal = parseFloat((totalAmount + hstAmount).toFixed(2));
+
+    const client = await pool.connect();
+    let orderId;
+    try {
+      await client.query('BEGIN');
+      const ord = await client.query(
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count, hst_amount, grand_total)
+         VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, totalAmount, itemCount, hstAmount, grandTotal]
+      );
+      orderId = ord.rows[0].id;
+      for (const item of items) {
+        const lineTotal = (item.unit_price || 0) * (item.quantity || 0);
+        await client.query(
+          'INSERT INTO b2b_order_items (order_id, sku, product_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)',
+          [orderId, item.sku, item.product_name, item.quantity, item.unit_price || 0, lineTotal]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    res.json({ success: true, orderId, total: totalAmount, hst: hstAmount, grandTotal, itemCount });
+  } catch (err) {
+    console.error('Admin create order error:', err.message);
+    res.status(500).json({ error: 'Failed to create order: ' + err.message });
   }
 });
 
