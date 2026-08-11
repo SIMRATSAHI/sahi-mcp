@@ -1,0 +1,17 @@
+{
+  "name": "SAHI London — Wholesale Catalogue",
+  "short_name": "SAHI London",
+  "description": "SAHI London B2B wholesale jewellery & accessories catalogue",
+  "start_url": "/catalogue.html?sales",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#87CFEB",
+  "lang": "en",
+  "icons": [
+    { "src": "/images/pwa/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/images/pwa/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/images/pwa/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/images/pwa/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
