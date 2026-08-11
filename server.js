@@ -512,6 +512,14 @@ async function ensureSchema() {
     console.error('b2b_orders migration warning:', err.message);
   }
 
+  // HST and grand total columns for B2B orders (added after initial table creation)
+  try {
+    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS hst_amount NUMERIC NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS grand_total NUMERIC NOT NULL DEFAULT 0`);
+  } catch (err) {
+    console.error('b2b_orders hst/grand_total migration warning:', err.message);
+  }
+
   // B2B order line items
   try {
     await pool.query(`
@@ -2660,14 +2668,18 @@ app.post('/api/b2b/order', async (req, res) => {
       itemCount += item.quantity || 0;
     }
 
+    // Calculate HST (13% for Ontario-based customers) and grand total
+    const hstAmount = parseFloat((totalAmount * 0.13).toFixed(2));
+    const grandTotal = parseFloat((totalAmount + hstAmount).toFixed(2));
+
     const client = await pool.connect();
     let orderId;
     try {
       await client.query('BEGIN');
       const ord = await client.query(
-        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, itemCount]
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count, hst_amount, grand_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        [user.userId, companyName, contactName, user.email, phone, hstGst, shipping, notes || null, totalAmount, itemCount, hstAmount, grandTotal]
       );
       orderId = ord.rows[0].id;
       for (const item of items) {
@@ -2699,7 +2711,7 @@ Phone: ${phone}
 HST/GST: ${hstGst || 'N/A'}
 Shipping: ${shipping || 'N/A'}
 Notes: ${notes || 'None'}
-Items: ${itemCount} | Total: CAD $${totalAmount.toFixed(2)}
+Items: ${itemCount} | Subtotal: CAD $${totalAmount.toFixed(2)} | HST (13%): CAD $${hstAmount.toFixed(2)} | Grand Total: CAD $${grandTotal.toFixed(2)}
 
 --- ORDER LINES ---
 SKU\tProduct\tQty\tUnit Price\tLine Total
@@ -2719,6 +2731,8 @@ View in admin: https://sahi-mcp.onrender.com/index.html
       shipping_address: shipping || '',
       notes: notes || '',
       total_amount: totalAmount,
+      hst_amount: hstAmount,
+      grand_total: grandTotal,
       item_count: itemCount,
       status: 'NEW',
       created_at: new Date().toISOString(),
