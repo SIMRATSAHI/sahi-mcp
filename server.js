@@ -3043,13 +3043,16 @@ app.post('/api/b2b/admin/customers/upload-card', requireAuthApi(['ADMIN']), card
 app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
     const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image } = req.body;
-    if (!company_name || !contact_name) {
-      return res.status(400).json({ error: 'Company name and contact name are required.' });
+    if (!contact_name) {
+      return res.status(400).json({ error: 'Contact name is required.' });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: 'Please provide at least an email or phone number.' });
     }
     const result = await pool.query(
       `INSERT INTO b2b_customers (company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image || '']
+      [company_name || '', contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image || '']
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -3062,13 +3065,16 @@ app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res)
 app.put('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
     const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image } = req.body;
-    if (!company_name || !contact_name) {
-      return res.status(400).json({ error: 'Company name and contact name are required.' });
+    if (!contact_name) {
+      return res.status(400).json({ error: 'Contact name is required.' });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: 'Please provide at least an email or phone number.' });
     }
     const result = await pool.query(
       `UPDATE b2b_customers SET company_name=$1, contact_name=$2, email=$3, phone=$4, hst_gst_number=$5, shipping_address=$6, notes=$7, card_image=$8
        WHERE id=$9 RETURNING *`,
-      [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image !== undefined ? card_image : '', req.params.id]
+      [company_name || '', contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image !== undefined ? card_image : '', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
     res.json(result.rows[0]);
