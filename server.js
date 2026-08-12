@@ -2936,8 +2936,8 @@ app.post('/api/b2b/admin/create-order', requireAuthApi(['ADMIN']), async (req, r
     try {
       await client.query('BEGIN');
       const ord = await client.query(
-        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count, hst_amount, grand_total)
-         VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count, hst_amount, grand_total, status)
+         VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'DRAFT') RETURNING id`,
         [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, totalAmount, itemCount, hstAmount, grandTotal]
       );
       orderId = ord.rows[0].id;
