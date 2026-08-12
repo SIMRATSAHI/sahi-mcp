@@ -601,10 +601,17 @@ async function ensureSchema() {
   } catch (err) {
     console.error('b2b_customers migration warning:', err.message);
   }
-  try {
-    await pool.query(`ALTER TABLE b2b_customers ADD COLUMN IF NOT EXISTS card_image TEXT DEFAULT ''`);
-  } catch (err) {
-    console.error('b2b_customers card_image migration warning:', err.message);
+  // Add missing columns if table already existed with older schema
+  const customerColumns = [
+    'company_name', 'contact_name', 'email', 'phone',
+    'hst_gst_number', 'shipping_address', 'notes', 'card_image'
+  ];
+  for (const col of customerColumns) {
+    try {
+      await pool.query(`ALTER TABLE b2b_customers ADD COLUMN IF NOT EXISTS ${col} TEXT ${col === 'company_name' || col === 'contact_name' ? "NOT NULL DEFAULT ''" : "DEFAULT ''"}`);
+    } catch (err) {
+      // Column may already exist with NOT NULL, ignore
+    }
   }
 
   // Widen role constraint to include B2B_CUSTOMER
