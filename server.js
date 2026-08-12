@@ -76,14 +76,14 @@ function generateOrderPDF(order) {
         .text('1231, Niagara On The Lake', 40, 48)
         .text('Ontario L0S 1J0, Canada', 40, 61)
         .text('HST #732146907', 40, 74);
-      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
         .text('ORDER', 350, 22, { width: 205, align: 'right' });
       doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
         .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
       const orderDate = order.created_at
         ? new Date(order.created_at).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
         : new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-      doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
         .text('DATE', 350, 64, { width: 205, align: 'right' });
       doc.fontSize(10).font('Helvetica').fillColor(BLACK)
         .text(orderDate, 350, 78, { width: 205, align: 'right' });
@@ -146,11 +146,11 @@ function generateOrderPDF(order) {
           .text('1231, Niagara On The Lake', 40, 48)
           .text('Ontario L0S 1J0, Canada', 40, 61)
           .text('HST #732146907', 40, 74);
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
           .text('ORDER', 350, 22, { width: 205, align: 'right' });
         doc.fontSize(20).font('Helvetica-Bold').fillColor(BLACK)
           .text(`#${order.id}`, 350, 35, { width: 205, align: 'right' });
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#444444')
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
           .text('DATE', 350, 64, { width: 205, align: 'right' });
         doc.fontSize(10).font('Helvetica').fillColor(BLACK)
           .text(orderDate, 350, 78, { width: 205, align: 'right' });
@@ -211,35 +211,35 @@ function generateOrderPDF(order) {
       const grandTotal = order.grand_total ? Number(order.grand_total) : Number(order.total_amount || 0);
 
       // Subtotal
-      doc.fillColor(GREY).fontSize(10).font('Helvetica')
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica')
         .text(`Subtotal:`, 300, totalBarY, { width: 120, align: 'right' });
       doc.fillColor(BLACK).fontSize(10).font('Helvetica')
         .text(`CAD $${Number(order.total_amount || 0).toFixed(2)}`, 425, totalBarY, { width: 130, align: 'right' });
 
       // HST
       if (hstAmt > 0) {
-        doc.fillColor(GREY).fontSize(10).font('Helvetica')
+        doc.fillColor(BLACK).fontSize(10).font('Helvetica')
           .text(`HST (13%, Ontario):`, 300, totalBarY + 16, { width: 120, align: 'right' });
         doc.fillColor(BLACK).fontSize(10).font('Helvetica')
           .text(`CAD $${hstAmt.toFixed(2)}`, 425, totalBarY + 16, { width: 130, align: 'right' });
       }
 
       // Grand Total
-      doc.roundedRect(300, totalBarY + (hstAmt > 0 ? 36 : 20), 255, 24, 6).fill(PASTEL_PINK);
+      doc.roundedRect(300, totalBarY + (hstAmt > 0 ? 36 : 20), 255, 24, 6).fill(LIGHT_GREY).stroke('#cccccc');
       doc.fillColor(BLACK).fontSize(15).font('Helvetica-Bold')
         .text(`GRAND TOTAL: CAD $${grandTotal.toFixed(2)}`, 310, totalBarY + (hstAmt > 0 ? 40 : 24), { width: 235, align: 'right' });
 
       // ── NOTES ──
       if (order.notes) {
         const notesY = totalBarY + (hstAmt > 0 ? 76 : 54);
-        doc.fillColor(GREY).fontSize(8).font('Helvetica')
+        doc.fillColor(BLACK).fontSize(8).font('Helvetica')
           .text('NOTES:', 40, notesY);
         doc.fillColor(BLACK)
           .text(order.notes, 40, notesY + 12, { width: 515 });
       }
 
       // ── FOOTER ──
-      doc.fillColor('#AAAAAA').fontSize(7.5).font('Helvetica')
+      doc.fillColor(BLACK).fontSize(7.5).font('Helvetica')
         .text(`SAHI London  •  B2B Order #${order.id}  •  ${new Date().toISOString().split('T')[0]}`, 40, 800, { width: 515, align: 'center' });
 
       doc.end();
@@ -558,6 +558,13 @@ async function ensureSchema() {
     console.error('b2b_orders hst/grand_total migration warning:', err.message);
   }
 
+  // Soft-delete column for B2B orders
+  try {
+    await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE`);
+  } catch (err) {
+    console.error('b2b_orders deleted column migration warning:', err.message);
+  }
+
   // B2B order line items
   try {
     await pool.query(`
@@ -573,6 +580,38 @@ async function ensureSchema() {
     `);
   } catch (err) {
     console.error('b2b_order_items migration warning:', err.message);
+  }
+
+  // B2B customers table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS b2b_customers (
+        id SERIAL PRIMARY KEY,
+        company_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        hst_gst_number TEXT DEFAULT '',
+        shipping_address TEXT DEFAULT '',
+        notes TEXT,
+        card_image TEXT DEFAULT '',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch (err) {
+    console.error('b2b_customers migration warning:', err.message);
+  }
+  // Add missing columns if table already existed with older schema
+  const customerColumns = [
+    'company_name', 'contact_name', 'email', 'phone',
+    'hst_gst_number', 'shipping_address', 'notes', 'card_image'
+  ];
+  for (const col of customerColumns) {
+    try {
+      await pool.query(`ALTER TABLE b2b_customers ADD COLUMN IF NOT EXISTS ${col} TEXT ${col === 'company_name' || col === 'contact_name' ? "NOT NULL DEFAULT ''" : "DEFAULT ''"}`);
+    } catch (err) {
+      // Column may already exist with NOT NULL, ignore
+    }
   }
 
   // Widen role constraint to include B2B_CUSTOMER
@@ -646,7 +685,10 @@ function defaultLandingFor(role) {
 function requireAuthPage(rolesAllowed) {
   return (req, res, next) => {
     const user = getSessionUser(req);
-    if (!user) return res.redirect('/login.html');
+    if (!user) {
+      const originalUrl = req.originalUrl || req.url;
+      return res.redirect('/login.html?redirect=' + encodeURIComponent(originalUrl));
+    }
     if (rolesAllowed && !rolesAllowed.includes(user.role)) {
       return res.redirect(defaultLandingFor(user.role));
     }
@@ -933,6 +975,8 @@ app.get(['/accounts.html'], requireAuthPage(['ADMIN', 'ACCOUNTS']), (req, res) =
 app.get(['/invoices.html'], requireAuthPage(['ADMIN', 'BUYER']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices.html')));
 app.get(['/admin-users.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 app.get(['/b2b-orders.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-orders.html')));
+app.get(['/b2b-customers.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-customers.html')));
+app.get(['/create-b2b-order.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'create-b2b-order.html')));
 app.get('/lookbook.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lookbook.html')));
 
 app.use(express.static('public'));
@@ -2850,6 +2894,59 @@ app.get('/api/b2b/orders', async (req, res) => {
   }
 });
 
+// Admin: create a B2B order on behalf of a customer
+app.post('/api/b2b/admin/create-order', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Cart is empty.' });
+    }
+    if (!company_name || !contact_name) {
+      return res.status(400).json({ error: 'Company name and contact name are required.' });
+    }
+
+    let totalAmount = 0;
+    let itemCount = 0;
+    for (const item of items) {
+      totalAmount += (item.unit_price || 0) * (item.quantity || 0);
+      itemCount += item.quantity || 0;
+    }
+
+    const hstAmount = parseFloat((totalAmount * 0.13).toFixed(2));
+    const grandTotal = parseFloat((totalAmount + hstAmount).toFixed(2));
+
+    const client = await pool.connect();
+    let orderId;
+    try {
+      await client.query('BEGIN');
+      const ord = await client.query(
+        `INSERT INTO b2b_orders (user_id, company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, total_amount, item_count, hst_amount, grand_total)
+         VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        [company_name, contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, totalAmount, itemCount, hstAmount, grandTotal]
+      );
+      orderId = ord.rows[0].id;
+      for (const item of items) {
+        const lineTotal = (item.unit_price || 0) * (item.quantity || 0);
+        await client.query(
+          'INSERT INTO b2b_order_items (order_id, sku, product_name, quantity, unit_price, total) VALUES ($1, $2, $3, $4, $5, $6)',
+          [orderId, item.sku, item.product_name, item.quantity, item.unit_price || 0, lineTotal]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    res.json({ success: true, orderId, total: totalAmount, hst: hstAmount, grandTotal, itemCount });
+  } catch (err) {
+    console.error('Admin create order error:', err.message);
+    res.status(500).json({ error: 'Failed to create order: ' + err.message });
+  }
+});
+
 // Admin: view all B2B orders
 app.get('/api/b2b/admin/orders', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
@@ -2859,6 +2956,150 @@ app.get('/api/b2b/admin/orders', requireAuthApi(['ADMIN']), async (req, res) => 
     res.json(ord.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Admin: soft-delete a B2B order
+app.delete('/api/b2b/admin/orders/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE b2b_orders SET deleted = TRUE WHERE id = $1 AND deleted = FALSE RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found or already deleted' });
+    res.json({ success: true, message: 'Order marked as deleted' });
+  } catch (err) {
+    console.error('B2B order delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
+// Admin: restore a soft-deleted B2B order
+app.post('/api/b2b/admin/orders/:id/restore', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE b2b_orders SET deleted = FALSE WHERE id = $1 AND deleted = TRUE RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found or not deleted' });
+    res.json({ success: true, message: 'Order restored' });
+  } catch (err) {
+    console.error('B2B order restore error:', err.message);
+    res.status(500).json({ error: 'Failed to restore order' });
+  }
+});
+
+// ===== B2B Customer Management =====
+
+// List all customers
+app.get('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM b2b_customers ORDER BY company_name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('B2B customers list error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch customers' });
+  }
+});
+
+// Get single customer
+app.get('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM b2b_customers WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('B2B customer get error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch customer' });
+  }
+});
+
+// Upload business card photo
+const cardUpload = multer({
+  storage: multer.diskStorage({
+    destination: path.join(__dirname, 'public', 'images', 'cards'),
+    filename: (req, file, cb) => {
+      cb(null, `card_${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /jpeg|jpg|png|webp/.test(file.mimetype);
+    cb(ok ? null : new Error('Only JPEG, PNG, or WebP images allowed'), ok);
+  }
+});
+
+// Ensure cards directory exists
+const cardsDir = path.join(__dirname, 'public', 'images', 'cards');
+try { fs.mkdirSync(cardsDir, { recursive: true }); } catch (e) {}
+
+app.post('/api/b2b/admin/customers/upload-card', requireAuthApi(['ADMIN']), cardUpload.single('card'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+    const imageUrl = `/images/cards/${req.file.filename}`;
+    res.json({ success: true, card_image: imageUrl });
+  } catch (err) {
+    console.error('Card upload error:', err.message);
+    res.status(500).json({ error: 'Failed to upload card: ' + err.message });
+  }
+});
+
+// Create customer
+app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image } = req.body;
+    if (!contact_name) {
+      return res.status(400).json({ error: 'Contact name is required.' });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: 'Please provide at least an email or phone number.' });
+    }
+    const result = await pool.query(
+      `INSERT INTO b2b_customers (company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [company_name || '', contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image || '']
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('B2B customer create error:', err.message);
+    res.status(500).json({ error: 'Failed to create customer: ' + err.message });
+  }
+});
+
+// Update customer
+app.put('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { company_name, contact_name, email, phone, hst_gst_number, shipping_address, notes, card_image } = req.body;
+    if (!contact_name) {
+      return res.status(400).json({ error: 'Contact name is required.' });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: 'Please provide at least an email or phone number.' });
+    }
+    const result = await pool.query(
+      `UPDATE b2b_customers SET company_name=$1, contact_name=$2, email=$3, phone=$4, hst_gst_number=$5, shipping_address=$6, notes=$7, card_image=$8
+       WHERE id=$9 RETURNING *`,
+      [company_name || '', contact_name, email || '', phone || '', hst_gst_number || '', shipping_address || '', notes || null, card_image !== undefined ? card_image : '', req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('B2B customer update error:', err.message);
+    res.status(500).json({ error: 'Failed to update customer' });
+  }
+});
+
+// Delete customer
+app.delete('/api/b2b/admin/customers/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM b2b_customers WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Customer not found' });
+    res.json({ success: true, message: 'Customer deleted' });
+  } catch (err) {
+    console.error('B2B customer delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete customer' });
   }
 });
 
@@ -2872,6 +3113,7 @@ app.get('/api/b2b/admin/orders/:id/csv', requireAuthApi(['ADMIN']), async (req, 
     );
     if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     const order = ord.rows[0];
+    if (order.deleted) return res.status(403).json({ error: 'Cannot export CSV for a deleted order' });
 
     const items = await pool.query(
       'SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id',
@@ -2921,6 +3163,7 @@ app.get('/api/b2b/admin/orders/:id/pdf', requireAuthApi(['ADMIN']), async (req, 
     const ord = await pool.query('SELECT * FROM b2b_orders WHERE id = $1', [id]);
     if (ord.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     const order = ord.rows[0];
+    if (order.deleted) return res.status(403).json({ error: 'Cannot download PDF for a deleted order' });
 
     const items = await pool.query('SELECT * FROM b2b_order_items WHERE order_id = $1 ORDER BY id', [id]);
 

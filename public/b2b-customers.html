@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAHI Portal - B2B Customers</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 1200px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .logo .l2 { font-size: 9px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: #000; font-weight: bold; }
+        h2 { margin-bottom: 5px; }
+        p.sub { color: #000; font-size: 13px; margin-top: 0; }
+
+        .toolbar { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; flex-wrap: wrap; }
+        .search-box { flex: 1; min-width: 200px; }
+        .search-box input { width: 100%; padding: 8px 12px; border: 1px solid #87CEEB; border-radius: 4px; font-size: 14px; font-family: Arial, sans-serif; color: #000; box-sizing: border-box; }
+        .search-box input:focus { outline: none; border-color: #6bc3de; }
+
+        .customer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 15px; }
+        .customer-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 0; overflow: hidden; }
+        .customer-card .card-banner { background: #eaf6fb; padding: 10px 12px; border-bottom: 1px solid #d4eef7; display: flex; justify-content: space-between; align-items: center; }
+        .customer-card .card-banner .name { font-weight: bold; font-size: 14px; color: #000; }
+        .customer-card .card-banner .id { font-size: 11px; color: #666; }
+        .customer-card .card-body { padding: 12px; }
+        .customer-card .card-body .row { display: flex; gap: 8px; margin-bottom: 4px; font-size: 12px; color: #000; }
+        .customer-card .card-body .row .label { font-weight: bold; min-width: 60px; color: #555; }
+        .customer-card .card-body .row .val { flex: 1; word-break: break-word; }
+        .customer-card .card-photo { width: 100%; max-height: 180px; object-fit: contain; background: #f9f9f9; border-radius: 4px; margin-top: 8px; cursor: pointer; }
+        .customer-card .card-photo-placeholder { width: 100%; height: 100px; background: #f0f0f0; border-radius: 4px; margin-top: 8px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px; }
+        .customer-card .card-actions { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid #eee; }
+
+        .btn { display: inline-block; padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; text-decoration: none; color: #000; }
+        .btn-add { background: #87CEEB; }
+        .btn-add:hover { background: #6bc3de; }
+        .btn-edit { background: #D3D3D3; }
+        .btn-edit:hover { background: #c0c0c0; }
+        .btn-delete { background: #ff5252; }
+        .btn-delete:hover { background: #d32f2f; }
+        .btn-order { background: #81c784; }
+        .btn-order:hover { background: #4caf50; }
+        .btn-card { background: #FFB7C5; }
+        .btn-card:hover { background: #ff9aad; }
+        .btn-save { background: #87CEEB; }
+        .btn-save:hover { background: #6bc3de; }
+        .btn-cancel { background: #D3D3D3; }
+        .btn-cancel:hover { background: #c0c0c0; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #000; }
+        .loading { text-align: center; padding: 40px; color: #000; font-size: 14px; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 20px; overflow-y: auto; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #fff; border-radius: 8px; padding: 25px; width: 95%; max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 30px; }
+        .modal h3 { margin-top: 0; color: #000; }
+        .modal-layout { display: flex; gap: 20px; }
+        .modal-left { flex: 1; }
+        .modal-right { width: 200px; flex-shrink: 0; }
+
+        .card-upload-area { border: 2px dashed #87CEEB; border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: background 0.2s; }
+        .card-upload-area:hover { background: #eaf6fb; }
+        .card-upload-area .icon { font-size: 30px; color: #87CEEB; }
+        .card-upload-area .text { font-size: 12px; color: #000; margin-top: 5px; }
+        .card-preview { width: 100%; border-radius: 6px; margin-top: 8px; }
+        .card-preview img { width: 100%; border-radius: 6px; }
+        .ocr-status { font-size: 11px; color: #666; margin-top: 5px; text-align: center; }
+
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-weight: bold; font-size: 12px; margin-bottom: 3px; color: #000; }
+        .form-group label .req { color: #d32f2f; }
+        .form-group input, .form-group textarea { width: 100%; padding: 7px 9px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: Arial, sans-serif; color: #000; box-sizing: border-box; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #87CEEB; }
+        .form-group textarea { resize: vertical; min-height: 45px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .modal-actions .btn { flex: 1; padding: 10px; font-size: 14px; text-align: center; }
+        .error-box { background: #ffe0e0; border: 1px solid #ff9999; border-radius: 4px; padding: 8px 10px; color: #000; font-size: 13px; margin-bottom: 10px; display: none; }
+
+        /* Image viewer overlay */
+        .img-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; cursor: zoom-out; }
+        .img-viewer.active { display: flex; }
+        .img-viewer img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            .company-header { margin: -15px -15px 15px -15px; }
+            .modal-layout { flex-direction: column; }
+            .modal-right { width: 100%; }
+            .customer-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="company-header">
+            <div class="info">
+                <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+                <div class="l2">飒鹤(上海)贸易有限公司</div>
+                <div class="l3">Credit Code: 913100000000000000</div>
+            </div>
+            <div class="logo">
+                <div class="l1">SAHI</div>
+                <div class="l2">PORTAL</div>
+            </div>
+        </div>
+
+        <div class="nav">
+            <a href="/">Sell (Invoice)</a>
+            <a href="/create-po.html">Create PO</a>
+            <a href="/invoices.html">Invoice to PO</a>
+            <a href="/receive-po.html">Receive Stock</a>
+            <a href="/items.html">Item Master</a>
+            <a href="/transfer.html">Transfer Stock</a>
+            <a href="/accounts.html">Accounts</a>
+            <a href="/admin-users.html">Manage Users</a>
+            <a href="/b2b-orders.html">B2B Orders</a>
+            <a href="/b2b-customers.html">Customers</a>
+        </div>
+
+        <h2>B2B Customers</h2>
+        <p class="sub">Capture customer info from business card photos or enter manually. Saved customers can be selected when creating orders.</p>
+
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="search" placeholder="Search by company, contact, email, or phone..." oninput="renderCustomers()">
+            </div>
+            <button class="btn btn-add" onclick="openModal()">+ Add Customer</button>
+            <button class="btn btn-card" onclick="openModal(null, true)">+ Scan Card</button>
+        </div>
+
+        <div id="content"></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+            <h3 id="modal-title">Add Customer</h3>
+            <div class="error-box" id="modal-error"></div>
+            <input type="hidden" id="customer_id">
+            <input type="hidden" id="card_image" value="">
+
+            <div class="modal-layout">
+                <div class="modal-left">
+                    <div class="form-group">
+                        <label>Contact Name <span class="req">*</span></label>
+                        <input type="text" id="contact_name" placeholder="Jane Doe">
+                    </div>
+                    <div class="form-group">
+                        <label>Email <span class="req">*</span></label>
+                        <input type="email" id="email" placeholder="jane@acme.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone <span class="req">*</span></label>
+                        <input type="text" id="phone" placeholder="+1 416 555 0123">
+                    </div>
+                    <div class="form-group">
+                        <label>Company Name</label>
+                        <input type="text" id="company_name" placeholder="Acme Retail Inc. (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label>HST/GST Number</label>
+                        <input type="text" id="hst_gst_number" placeholder="123456789RT0001 (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label>Shipping Address</label>
+                        <textarea id="shipping_address" placeholder="123 Main St, Toronto, ON M1M 1M1, Canada"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea id="notes" placeholder="Internal notes about this customer..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-right">
+                    <label style="font-weight: bold; font-size: 12px; color: #000; display: block; margin-bottom: 5px;">Business Card Photo</label>
+                    <div class="card-upload-area" id="card-upload-area" onclick="document.getElementById('card-file-input').click()">
+                        <div class="icon">&#128247;</div>
+                        <div class="text">Tap to take photo<br>or upload card image</div>
+                    </div>
+                    <input type="file" id="card-file-input" accept="image/*" capture="environment" style="display:none" onchange="handleCardUpload(this)">
+                    <div id="card-preview-container"></div>
+                    <div class="ocr-status" id="ocr-status"></div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-save" onclick="saveCustomer()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image viewer -->
+    <div class="img-viewer" id="img-viewer" onclick="this.classList.remove('active')">
+        <img id="img-viewer-img" src="">
+    </div>
+
+    <!-- Tesseract.js for OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+    <script>
+        let allCustomers = [];
+
+        // ===== Load customers =====
+        async function loadCustomers() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Loading customers...</div>';
+            try {
+                const res = await fetch('/api/b2b/admin/customers');
+                if (!res.ok) throw new Error('Failed to fetch');
+                allCustomers = await res.json();
+                renderCustomers();
+            } catch (err) {
+                content.innerHTML = `<div class="empty-state">Error loading customers: ${esc(err.message)}</div>`;
+            }
+        }
+
+        function renderCustomers() {
+            const content = document.getElementById('content');
+            const term = document.getElementById('search').value.trim().toLowerCase();
+
+            let customers = allCustomers;
+            if (term) {
+                customers = allCustomers.filter(c => {
+                    const text = (c.company_name + ' ' + c.contact_name + ' ' + c.email + ' ' + c.phone).toLowerCase();
+                    return text.includes(term);
+                });
+            }
+
+            if (!customers.length) {
+                const msg = term ? 'No customers match your search.' : 'No customers yet. Click "+ Add Customer" or "+ Scan Card" to get started.';
+                content.innerHTML = `<div class="empty-state">${msg}</div>`;
+                return;
+            }
+
+            let html = '<div class="customer-grid">';
+            for (const c of customers) {
+                html += '<div class="customer-card">';
+                html += `<div class="card-banner"><span class="name">${esc(c.company_name)}</span><span class="id">#${c.id}</span></div>`;
+                html += '<div class="card-body">';
+                html += `<div class="row"><span class="label">Contact</span><span class="val">${esc(c.contact_name)}</span></div>`;
+                if (c.email) html += `<div class="row"><span class="label">Email</span><span class="val">${esc(c.email)}</span></div>`;
+                if (c.phone) html += `<div class="row"><span class="label">Phone</span><span class="val">${esc(c.phone)}</span></div>`;
+                if (c.hst_gst_number) html += `<div class="row"><span class="label">HST/GST</span><span class="val">${esc(c.hst_gst_number)}</span></div>`;
+                if (c.shipping_address) html += `<div class="row"><span class="label">Address</span><span class="val">${esc(c.shipping_address)}</span></div>`;
+
+                if (c.card_image) {
+                    html += `<img class="card-photo" src="${esc(c.card_image)}" onclick="viewImage('${esc(c.card_image)}')" alt="Business Card">`;
+                } else {
+                    html += '<div class="card-photo-placeholder">No card photo</div>';
+                }
+                html += '</div>';
+
+                html += '<div class="card-actions">';
+                html += `<a class="btn btn-order" href="/create-b2b-order.html?customer_id=${c.id}">New Order</a>`;
+                html += `<button class="btn btn-edit" onclick="editCustomer(${c.id})">Edit</button>`;
+                html += `<button class="btn btn-delete" onclick="deleteCustomer(${c.id}, '${esc(c.company_name).replace(/'/g, "\\'")}')">Delete</button>`;
+                html += '</div>';
+                html += '</div>';
+            }
+            html += '</div>';
+            content.innerHTML = html;
+        }
+
+        // ===== Image viewer =====
+        function viewImage(src) {
+            document.getElementById('img-viewer-img').src = src;
+            document.getElementById('img-viewer').classList.add('active');
+        }
+
+        // ===== Modal =====
+        function openModal(customer, focusCard) {
+            document.getElementById('modal-title').textContent = customer ? 'Edit Customer' : 'Add Customer';
+            document.getElementById('customer_id').value = customer ? customer.id : '';
+            document.getElementById('card_image').value = customer ? (customer.card_image || '') : '';
+            document.getElementById('company_name').value = customer ? customer.company_name : '';
+            document.getElementById('contact_name').value = customer ? customer.contact_name : '';
+            document.getElementById('email').value = customer ? customer.email : '';
+            document.getElementById('phone').value = customer ? customer.phone : '';
+            document.getElementById('hst_gst_number').value = customer ? customer.hst_gst_number : '';
+            document.getElementById('shipping_address').value = customer ? customer.shipping_address : '';
+            document.getElementById('notes').value = customer ? (customer.notes || '') : '';
+            document.getElementById('modal-error').style.display = 'none';
+            document.getElementById('ocr-status').textContent = '';
+
+            // Show existing card preview if editing
+            const previewContainer = document.getElementById('card-preview-container');
+            const cardImage = customer ? (customer.card_image || '') : '';
+            if (cardImage) {
+                previewContainer.innerHTML = `<div class="card-preview"><img src="${esc(cardImage)}" alt="Card"></div>`;
+            } else {
+                previewContainer.innerHTML = '';
+            }
+
+            document.getElementById('modal-overlay').classList.add('active');
+
+            if (focusCard) {
+                setTimeout(() => document.getElementById('card-upload-area').click(), 300);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+        }
+
+        async function editCustomer(id) {
+            try {
+                const res = await fetch(`/api/b2b/admin/customers/${id}`);
+                if (!res.ok) throw new Error('Failed to fetch customer');
+                const customer = await res.json();
+                openModal(customer);
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // ===== Business card upload + OCR =====
+        async function handleCardUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('ocr-status');
+            const previewContainer = document.getElementById('card-preview-container');
+
+            // Show preview immediately
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewContainer.innerHTML = `<div class="card-preview"><img src="${e.target.result}" alt="Card"></div>`;
+            };
+            reader.readAsDataURL(file);
+
+            // Run OCR to extract text
+            statusEl.textContent = 'Reading card text...';
+            try {
+                const result = await Tesseract.recognize(file, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            statusEl.textContent = `Reading card... ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                });
+
+                const rawText = result.data.text || '';
+                statusEl.textContent = 'Card text extracted - review fields below.';
+
+                // Auto-fill fields from OCR text
+                autoFillFromOCR(rawText);
+            } catch (err) {
+                statusEl.textContent = 'OCR failed - please fill fields manually.';
+            }
+
+            // Upload the image to server
+            const formData = new FormData();
+            formData.append('card', file);
+            try {
+                const uploadRes = await fetch('/api/b2b/admin/customers/upload-card', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const data = await uploadRes.json();
+                    document.getElementById('card_image').value = data.card_image;
+                }
+            } catch (err) {
+                // Image upload failed but OCR may have worked
+            }
+
+            // Reset input so same file can be re-selected
+            input.value = '';
+        }
+
+        function autoFillFromOCR(text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+            const fullText = text;
+
+            // Extract email
+            const emailMatch = fullText.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+            if (emailMatch && !document.getElementById('email').value) {
+                document.getElementById('email').value = emailMatch[0];
+            }
+
+            // Extract phone (various formats)
+            const phoneMatch = fullText.match(/(\+?1[-.\s]?)?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})/);
+            if (phoneMatch && !document.getElementById('phone').value) {
+                document.getElementById('phone').value = phoneMatch[0];
+            }
+
+            // Extract HST/GST number
+            const gstMatch = fullText.match(/(\d{8,9}[A-Z]{2}\d{4})/i) || fullText.match(/(HST|GST)\s*:?\s*([A-Z0-9]+)/i);
+            if (gstMatch && !document.getElementById('hst_gst_number').value) {
+                document.getElementById('hst_gst_number').value = gstMatch[0].replace(/^(HST|GST)\s*:?\s*/i, '');
+            }
+
+            // Try to identify company name (usually the first or second line, often larger/uppercase)
+            if (!document.getElementById('company_name').value && lines.length > 0) {
+                // Skip lines that look like names (contain Mr/Ms/Dr) or are too short
+                for (const line of lines.slice(0, 5)) {
+                    if (line.length >= 3 && !/^(mr|mrs|ms|dr)\./i.test(line) && !emailMatch?.[0]?.includes(line) && !phoneMatch?.[0]?.includes(line)) {
+                        // Heuristic: company names often contain Inc, Ltd, Corp, LLC, Co, or are all caps
+                        if (/inc|ltd|corp|llc|co\b|company|store|shop|boutique|retail/i.test(line) || (line === line.toUpperCase() && line.length > 3)) {
+                            document.getElementById('company_name').value = line;
+                            break;
+                        }
+                    }
+                }
+                // If no company-like line found, use first non-trivial line
+                if (!document.getElementById('company_name').value) {
+                    document.getElementById('company_name').value = lines[0];
+                }
+            }
+
+            // Try to identify contact name (a line with typical name pattern, not company/email/phone)
+            if (!document.getElementById('contact_name').value && lines.length > 1) {
+                for (const line of lines.slice(0, 6)) {
+                    // Name-like: 2-4 words, each capitalized, no numbers or @
+                    if (!/@|\d/.test(line) && /^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,3}$/.test(line)) {
+                        document.getElementById('contact_name').value = line;
+                        break;
+                    }
+                }
+                // If still empty, use second line if first was company
+                if (!document.getElementById('contact_name').value) {
+                    for (const line of lines.slice(1, 5)) {
+                        if (!/@|\d/.test(line) && line.length >= 3 && line !== document.getElementById('company_name').value) {
+                            document.getElementById('contact_name').value = line;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Try to find address (lines with street/road/ave/etc or city+postal)
+            if (!document.getElementById('shipping_address').value) {
+                const addrMatch = fullText.match(/\d+\s+[\w\s]+(street|st|avenue|ave|road|rd|drive|dr|boulevard|blvd|lane|ln|way|court|ct|unit|suite|ste)[.,]?\s*[\w\s,]*[A-Z][a-z]+,?\s*[A-Z]{2}\s*[A-Z]\d[A-Z]\s?\d[A-Z]\d/i);
+                if (addrMatch) {
+                    document.getElementById('shipping_address').value = addrMatch[0];
+                }
+            }
+        }
+
+        // ===== Save customer =====
+        async function saveCustomer() {
+            const errorBox = document.getElementById('modal-error');
+            errorBox.style.display = 'none';
+
+            const id = document.getElementById('customer_id').value;
+            const data = {
+                company_name: document.getElementById('company_name').value.trim(),
+                contact_name: document.getElementById('contact_name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                hst_gst_number: document.getElementById('hst_gst_number').value.trim(),
+                shipping_address: document.getElementById('shipping_address').value.trim(),
+                notes: document.getElementById('notes').value.trim(),
+                card_image: document.getElementById('card_image').value
+            };
+
+            if (!data.contact_name) {
+                errorBox.textContent = 'Contact name is required.';
+                errorBox.style.display = 'block';
+                return;
+            }
+            if (!data.email && !data.phone) {
+                errorBox.textContent = 'Please provide at least an email or phone number.';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            try {
+                const url = id ? `/api/b2b/admin/customers/${id}` : '/api/b2b/admin/customers';
+                const method = id ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Failed to save customer');
+                }
+                closeModal();
+                loadCustomers();
+            } catch (err) {
+                errorBox.textContent = err.message;
+                errorBox.style.display = 'block';
+            }
+        }
+
+        async function deleteCustomer(id, name) {
+            if (!confirm(`Delete customer "${name}"? This cannot be undone.`)) return;
+            try {
+                const res = await fetch(`/api/b2b/admin/customers/${id}`, { method: 'DELETE' });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Failed to delete customer');
+                }
+                loadCustomers();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        // ===== Auth =====
+        const NAV_PERMISSIONS = {
+            '/': ['ADMIN'],
+            '/create-po.html': ['ADMIN', 'BUYER'],
+            '/items.html': ['ADMIN', 'BUYER'],
+            '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
+            '/transfer.html': ['ADMIN'],
+            '/accounts.html': ['ADMIN', 'ACCOUNTS'],
+            '/admin-users.html': ['ADMIN'],
+            '/b2b-orders.html': ['ADMIN'],
+            '/b2b-customers.html': ['ADMIN']
+        };
+
+        async function initAuthNav() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) { window.location.href = '/login.html'; return; }
+                const me = await res.json();
+                if (me.role !== 'ADMIN') {
+                    document.body.innerHTML = '<div class="container" style="text-align:center; padding:60px;"><h2>Access Denied</h2><p style="color:#000;">Admin role required.</p></div>';
+                    return;
+                }
+                document.querySelectorAll('.nav a').forEach(a => {
+                    const href = a.getAttribute('href');
+                    const allowed = NAV_PERMISSIONS[href];
+                    if (allowed && !allowed.includes(me.role)) a.style.display = 'none';
+                });
+                const nav = document.querySelector('.nav');
+                if (nav) {
+                    const badge = document.createElement('span');
+                    badge.style.marginLeft = 'auto';
+                    badge.style.color = '#666';
+                    badge.style.fontSize = '13px';
+                    badge.innerHTML = `${esc(me.name || me.email)} (${esc(me.role)}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                    nav.appendChild(badge);
+                    document.getElementById('logoutLink').addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        await fetch('/api/logout', { method: 'POST' });
+                        window.location.href = '/login.html';
+                    });
+                }
+            } catch (e) {
+                window.location.href = '/login.html';
+            }
+        }
+
+        // ===== Init =====
+        loadCustomers();
+        initAuthNav();
+    </script>
+</body>
+</html>

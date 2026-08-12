@@ -175,7 +175,7 @@
     object-fit: cover;
   }
   .placeholder {
-    color: var(--blush-pink);
+    color: var(--near-black);
     font-family: 'Lora', serif;
     font-style: italic;
     font-size: 18px;
@@ -215,7 +215,7 @@
   .variant-sku {
     font-weight: 700;
     font-size: 11px;
-    color: var(--blush-pink);
+    color: var(--near-black);
     line-height: 1.6;
   }
   footer {
@@ -383,7 +383,7 @@
   .cart-item-price .ci-remove {
     font-family: Helvetica, Arial, sans-serif;
     font-size: 10px;
-    color: var(--blush-pink);
+    color: var(--near-black);
     cursor: pointer;
     margin-top: 2px;
   }
@@ -465,6 +465,50 @@
 
   body.sales .cart-fab { display: flex; }
   body.sales .tile .add-cart-btn { display: inline-block; }
+
+  /* Search bar (sales mode only) */
+  .search-bar {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #fff;
+    padding: 10px 16px;
+    border-bottom: 1px solid #eee;
+    align-items: center;
+    gap: 8px;
+  }
+  body.sales .search-bar { display: flex; }
+  .search-bar input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: Helvetica, Arial, sans-serif;
+    color: #1A1A1A;
+    outline: none;
+  }
+  .search-bar input:focus { border-color: #87CFEB; }
+  .search-bar .search-clear {
+    padding: 8px 14px;
+    background: #1A1A1A;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: Helvetica, Arial, sans-serif;
+    white-space: nowrap;
+  }
+  .search-bar .search-count {
+    font-size: 11px;
+    color: #8A8A8A;
+    font-family: Helvetica, Arial, sans-serif;
+    white-space: nowrap;
+  }
+  .tile.hidden { display: none; }
+  section.search-hidden { display: none; }
 </style>
 </head>
 <body>
@@ -476,6 +520,13 @@
   <div class="subtitle">Wholesale Order Catalogue</div>
   <div class="rule pink"></div>
   <div class="site">sahilondon.com</div>
+</div>
+
+<!-- Search bar (visible in sales mode) -->
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search by SKU, product name, or color..." oninput="filterCatalogue()">
+  <button class="search-clear" onclick="clearSearch()">Clear</button>
+  <span class="search-count" id="searchCount"></span>
 </div>
 
 <!-- ================================================ -->
@@ -573,7 +624,7 @@
       <div class="tile-img"><img src="images/APAPS401_model.jpg" alt="Cotton Flamingo Printed & Embroidered T-Shirt" loading="lazy"></div>
       <div class="tile-name">Cotton Flamingo Printed & Embroidered T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APAPS401-BLU-1</div><div class="variant-sku">APAPS401-BLU-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APAPS401-BLU-1</div><div class="variant-sku">APAPS401-BLU-2</div><div class="variant-sku">APAPS401-BLU-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS402_model.jpg" alt="Cotton Rabbit Printed & Embroidered T-Shirt" loading="lazy"></div>
@@ -585,7 +636,7 @@
       <div class="tile-img"><img src="images/APAPS403_model.jpg" alt="Cotton Bear Printed & Embroidered T-Shirt" loading="lazy"></div>
       <div class="tile-name">Cotton Bear Printed & Embroidered T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APAPS403-OWT-1</div><div class="variant-sku">APAPS403-OWT-2</div></div>
+      <div class="tile-skus"><div class="variant-sku">APAPS403-OWT-1</div><div class="variant-sku">APAPS403-OWT-2</div><div class="variant-sku">APAPS403-OWT-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS404_model.jpg" alt="Cotton Butterfly Printed & Embroidered T-Shirt" loading="lazy"></div>
@@ -603,13 +654,13 @@
       <div class="tile-img"><img src="images/APAPS407_model.jpg" alt="Cotton Cat Printed & Embroidered T-Shirt" loading="lazy"></div>
       <div class="tile-name">Cotton Cat Printed & Embroidered T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APAPS407-BLU-1</div><div class="variant-sku">APAPS407-BLU-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APAPS407-BLU-1</div><div class="variant-sku">APAPS407-BLU-2</div><div class="variant-sku">APAPS407-BLU-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS408_model.jpg" alt="Cotton Eiffel Tower Printed & Embroidered T-Shirt" loading="lazy"></div>
       <div class="tile-name">Cotton Eiffel Tower Printed & Embroidered T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APAPS408-WHT-1</div><div class="variant-sku">APAPS408-WHT-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APAPS408-WHT-1</div><div class="variant-sku">APAPS408-WHT-2</div><div class="variant-sku">APAPS408-WHT-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS409_model.jpg" alt="Face Printed & Sequence Embroidered T-Shirt" loading="lazy"></div>
@@ -633,7 +684,7 @@
       <div class="tile-img"><img src="images/APAPS412_model.jpg" alt="Cotton Embroidered Beads & Thread Parrot T-Shirt" loading="lazy"></div>
       <div class="tile-name">Cotton Embroidered Beads & Thread Parrot T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APAPS412-BLU-1</div><div class="variant-sku">APAPS412-BLU-2</div></div>
+      <div class="tile-skus"><div class="variant-sku">APAPS412-BLU-1</div><div class="variant-sku">APAPS412-BLU-2</div><div class="variant-sku">APAPS412-BLU-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="images/APAPS501_model.jpg" alt="Cotton Printed and Embroidered Sweatshirt" loading="lazy"></div>
@@ -652,19 +703,19 @@
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/APZPA401-MEG-1.jpg?v=1778228284" alt="Pop Art Bunny Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art Bunny Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA401-MEG-1</div><div class="variant-sku">APZPA401-PNK-1</div><div class="variant-sku">APZPA401-PNK-2</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA401-MEG-1</div><div class="variant-sku">APZPA401-MEG-2</div><div class="variant-sku">APZPA401-MEG-3</div><div class="variant-sku">APZPA401-PNK-1</div><div class="variant-sku">APZPA401-PNK-2</div><div class="variant-sku">APZPA401-PNK-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02361copy1.png?v=1778228283" alt="Pop Art Rabbit Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art Rabbit Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA402-MEG-1</div><div class="variant-sku">APZPA402-MEG-3</div><div class="variant-sku">APZPA402-OWT-3</div><div class="variant-sku">APZPA402-PNK-1</div><div class="variant-sku">APZPA402-PNK-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA402-MEG-1</div><div class="variant-sku">APZPA402-MEG-2</div><div class="variant-sku">APZPA402-MEG-3</div><div class="variant-sku">APZPA402-OWT-1</div><div class="variant-sku">APZPA402-OWT-2</div><div class="variant-sku">APZPA402-OWT-3</div><div class="variant-sku">APZPA402-PNK-1</div><div class="variant-sku">APZPA402-PNK-2</div><div class="variant-sku">APZPA402-PNK-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02536copy1.png?v=1778228278" alt="Pop Art Deer Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art Deer Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA403-MEG-1</div><div class="variant-sku">APZPA403-OWT-1</div><div class="variant-sku">APZPA403-OWT-2</div><div class="variant-sku">APZPA403-OWT-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA403-MEG-1</div><div class="variant-sku">APZPA403-MEG-2</div><div class="variant-sku">APZPA403-MEG-3</div><div class="variant-sku">APZPA403-OWT-1</div><div class="variant-sku">APZPA403-OWT-2</div><div class="variant-sku">APZPA403-OWT-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02171copy4_8eafc454-b3cd-48ac-9fce-6b111a1a71f4.png?v=1778215481" alt="Pop Art Roger Unisex T-Shirt" loading="lazy"></div>
@@ -676,13 +727,13 @@
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC01994copy1.png?v=1778228272" alt="Pop Art Save the Dog Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art Save the Dog Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA405-MEG-1</div><div class="variant-sku">APZPA405-MEG-2</div><div class="variant-sku">APZPA405-OWT-1</div><div class="variant-sku">APZPA405-OWT-2</div><div class="variant-sku">APZPA405-OWT-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA405-MEG-1</div><div class="variant-sku">APZPA405-MEG-2</div><div class="variant-sku">APZPA405-MEG-3</div><div class="variant-sku">APZPA405-OWT-1</div><div class="variant-sku">APZPA405-OWT-2</div><div class="variant-sku">APZPA405-OWT-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02040copy_1_1.png?v=1778228267" alt="Pop Art Jumbo Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art Jumbo Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $18.33</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA406-OWT-1</div><div class="variant-sku">APZPA406-OWT-2</div><div class="variant-sku">APZPA406-PNK-1</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA406-OWT-1</div><div class="variant-sku">APZPA406-OWT-2</div><div class="variant-sku">APZPA406-OWT-3</div><div class="variant-sku">APZPA406-PNK-1</div><div class="variant-sku">APZPA406-PNK-2</div><div class="variant-sku">APZPA406-PNK-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02314copy3.png?v=1778228262" alt="Pop Art Alice Unisex T-Shirt" loading="lazy"></div>
@@ -694,13 +745,13 @@
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02011copy1.png?v=1778228264" alt="Pop Art 411 Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art 411 Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $16.66</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA411-OWT-1</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA411-OWT-1</div><div class="variant-sku">APZPA411-OWT-2</div><div class="variant-sku">APZPA411-OWT-3</div></div>
     </div>
     <div class="tile">
       <div class="tile-img"><img src="https://cdn.shopify.com/s/files/1/0092/4005/1790/files/DSC02254copy1.png?v=1778228261" alt="Pop Art 417 Cotton Unisex T-Shirt" loading="lazy"></div>
       <div class="tile-name">Pop Art 417 Cotton Unisex T-Shirt</div>
       <div class="tile-price">Wholesale CAD $16.66</div>
-      <div class="tile-skus"><div class="variant-sku">APZPA417-OWT-1</div><div class="variant-sku">APZPA417-OWT-3</div></div>
+      <div class="tile-skus"><div class="variant-sku">APZPA417-OWT-1</div><div class="variant-sku">APZPA417-OWT-2</div><div class="variant-sku">APZPA417-OWT-3</div></div>
     </div>
   </div>
 </section>
@@ -1365,6 +1416,56 @@
 const isSales = location.search.includes('sales');
 if (isSales) {
   document.body.classList.add('sales');
+}
+
+// ── Search / filter catalogue ──
+function filterCatalogue() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const tiles = document.querySelectorAll('.tile');
+  const sections = document.querySelectorAll('section');
+  let matchCount = 0;
+
+  tiles.forEach(tile => {
+    if (!q) {
+      tile.classList.remove('hidden');
+      matchCount++;
+      return;
+    }
+    const sku = (tile.querySelector('.tile-sku') || {}).textContent || '';
+    const name = (tile.querySelector('.tile-name') || {}).textContent || '';
+    const variants = Array.from(tile.querySelectorAll('.variant-sku')).map(v => v.textContent).join(' ');
+    const text = (sku + ' ' + name + ' ' + variants).toLowerCase();
+    if (text.includes(q)) {
+      tile.classList.remove('hidden');
+      matchCount++;
+    } else {
+      tile.classList.add('hidden');
+    }
+  });
+
+  // Hide sections with no visible tiles
+  sections.forEach(sec => {
+    const visible = sec.querySelectorAll('.tile:not(.hidden)');
+    if (q && visible.length === 0) {
+      sec.classList.add('search-hidden');
+    } else {
+      sec.classList.remove('search-hidden');
+    }
+  });
+
+  // Update count
+  const countEl = document.getElementById('searchCount');
+  if (q) {
+    countEl.textContent = matchCount + ' result' + (matchCount !== 1 ? 's' : '');
+  } else {
+    countEl.textContent = '';
+  }
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  filterCatalogue();
+  document.getElementById('searchInput').focus();
 }
 
 // ── Cart state (localStorage) ──
