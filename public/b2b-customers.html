@@ -51,6 +51,11 @@
         .btn-card:hover { background: #ff9fb0; }
         .btn-email { background: #87CEEB; }
         .btn-email:hover { background: #6bc3de; }
+        .btn-select { background: #D3D3D3; }
+        .btn-select:hover { background: #c0c0c0; }
+        .email-check { padding: 6px 12px; background: #eaf6fb; border-bottom: 1px solid #d4eef7; }
+        .email-check label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .email-check input { width: 16px; height: 16px; cursor: pointer; }
         .btn-card:hover { background: #ff9aad; }
         .btn-save { background: #87CEEB; }
         .btn-save:hover { background: #6bc3de; }
@@ -137,7 +142,8 @@
             </div>
             <button class="btn btn-add" onclick="openModal()">+ Add Customer</button>
             <button class="btn btn-card" onclick="openModal(null, true)">+ Scan Card</button>
-            <button class="btn btn-email" onclick="sendThankYouEmails()">&#9993; Send Thank You Email</button>
+            <button class="btn btn-select" onclick="selectAllEmails()">&#9745; Select All</button>
+            <button class="btn btn-email" id="send-email-btn" onclick="sendThankYouEmails()">&#9993; Send Thank You Email</button>
         </div>
 
         <div id="content"></div>
@@ -213,24 +219,64 @@
         let allCustomers = [];
 
         // ===== Send Thank You Email =====
+        let selectedEmails = new Set();
+
+        function toggleEmail(email, checked) {
+            if (checked) {
+                selectedEmails.add(email);
+            } else {
+                selectedEmails.delete(email);
+            }
+            updateEmailCounter();
+        }
+
+        function selectAllEmails() {
+            const term = document.getElementById('search').value.trim().toLowerCase();
+            let customers = allCustomers;
+            if (term) {
+                customers = allCustomers.filter(c => {
+                    const text = (c.company_name + ' ' + c.contact_name + ' ' + c.email + ' ' + c.phone).toLowerCase();
+                    return text.includes(term);
+                });
+            }
+            const withEmail = customers.filter(c => c.email && c.email.trim());
+            const allSelected = withEmail.every(c => selectedEmails.has(c.email));
+            if (allSelected) {
+                withEmail.forEach(c => selectedEmails.delete(c.email));
+            } else {
+                withEmail.forEach(c => selectedEmails.add(c.email));
+            }
+            renderCustomers();
+        }
+
+        function updateEmailCounter() {
+            const btn = document.getElementById('send-email-btn');
+            if (btn) {
+                btn.textContent = selectedEmails.size > 0 
+                    ? `\u2709 Send Thank You (${selectedEmails.size} selected)` 
+                    : '\u2709 Send Thank You Email';
+            }
+        }
+
         async function sendThankYouEmails() {
-            const withEmail = allCustomers.filter(c => c.email && c.email.trim());
-            if (withEmail.length === 0) {
-                alert('No customers with email addresses found.');
+            if (selectedEmails.size === 0) {
+                alert('Please select at least one customer by checking the box next to their name.');
                 return;
             }
-            const list = withEmail.map(c => `- ${c.contact_name || c.company_name || 'Unknown'} (${c.email})`).join('\\n');
-            if (!confirm(`Send Thank You email to ${withEmail.length} customer(s)?\\n\\n${list}\\n\\nCC: info@sahilondon.com`)) return;
+            const emails = Array.from(selectedEmails);
+            if (!confirm(`Send Thank You email to ${emails.length} customer(s)?\n\nCC: info@sahilondon.com`)) return;
 
             try {
                 const res = await fetch('/api/b2b/admin/send-thank-you', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ emails: withEmail.map(c => c.email) })
+                    body: JSON.stringify({ emails: emails })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert(`Emails sent!\\n\\nSent: ${data.sent}\\nFailed: ${data.failed}${data.failed > 0 ? '\\n\\nCheck console for details.' : ''}`);
+                    alert(`Emails sent!\n\nSent: ${data.sent}\nFailed: ${data.failed}${data.failed > 0 ? '\n\nSome emails failed - check server logs.' : ''}`);
+                    selectedEmails.clear();
+                    renderCustomers();
                 } else {
                     alert('Error: ' + (data.error || 'Unknown error'));
                 }
@@ -238,6 +284,7 @@
                 alert('Failed to send: ' + err.message);
             }
         }
+
 
         // ===== Load customers =====
         async function loadCustomers() {
@@ -274,7 +321,12 @@
             let html = '<div class="customer-grid">';
             for (const c of customers) {
                 html += '<div class="customer-card">';
+                const hasEmail = c.email && c.email.trim();
+                const isChecked = hasEmail && selectedEmails.has(c.email);
                 html += `<div class="card-banner"><span class="name">${esc(c.company_name)}</span><span class="id">#${c.id}</span></div>`;
+                if (hasEmail) {
+                    html += `<div class="email-check"><label><input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleEmail('${esc(c.email)}', this.checked)"> <span style="font-size:11px;color:#555;">Send thank-you email</span></label></div>`;
+                }
                 html += '<div class="card-body">';
                 html += `<div class="row"><span class="label">Contact</span><span class="val">${esc(c.contact_name)}</span></div>`;
                 if (c.email) html += `<div class="row"><span class="label">Email</span><span class="val">${esc(c.email)}</span></div>`;
