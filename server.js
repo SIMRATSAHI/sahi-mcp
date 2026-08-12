@@ -3257,5 +3257,112 @@ app.patch('/api/b2b/admin/orders/:id/status', requireAuthApi(['ADMIN']), async (
   }
 });
 
+// ── Send Thank You Email to customers ──
+app.post('/api/b2b/admin/send-thank-you', requireLogin, requireRole('ADMIN'), async (req, res) => {
+  const { emails, customer_name } = req.body;
+  
+  if (!emails || !Array.isArray(emails) || emails.length === 0) {
+    return res.status(400).json({ error: 'At least one email address is required' });
+  }
+
+  if (!EMAIL_PASS) {
+    return res.status(500).json({ error: 'Email not configured (EMAIL_PASS missing)' });
+  }
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:20px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;">
+        <tr><td style="background:#87CEEB;padding:35px 30px 30px;text-align:center;">
+          <div style="font-size:32px;font-weight:bold;color:#000;letter-spacing:6px;margin-bottom:2px;">SAHI</div>
+          <div style="font-size:11px;color:#000;letter-spacing:8px;text-transform:uppercase;margin-bottom:12px;">LONDON</div>
+          <div style="font-size:12px;color:#000;font-style:italic;letter-spacing:1px;">Made by hand. Worn with intent.</div>
+        </td></tr>
+        <tr><td style="padding:35px 30px 20px;">
+          <p style="font-size:16px;color:#000;margin:0 0 20px;">Dear ${customer_name || 'Valued Partner'},</p>
+          <p style="font-size:14px;color:#000;line-height:1.7;margin:0 0 16px;">Thank you so much for visiting the SAHI stand at Toronto Market Week. It was a pleasure meeting you and sharing our latest collections with you.</p>
+          <p style="font-size:14px;color:#000;line-height:1.7;margin:0 0 16px;">We truly appreciate the time you took to explore our pieces. Each SAHI creation is crafted with care, blending contemporary design with artisanal quality, and we would be delighted to welcome you into the SAHI family.</p>
+        </td></tr>
+        <tr><td style="padding:0 30px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFB7C5;border-radius:8px;">
+            <tr><td style="padding:20px 25px;text-align:center;">
+              <p style="font-size:15px;color:#000;margin:0;font-weight:bold;">Visit Our Online Catalogue</p>
+              <p style="font-size:13px;color:#000;margin:6px 0 16px;">Explore our full range of apparel and accessories</p>
+              <a href="https://sahi-mcp.onrender.com/catalogue.html?sales" target="_blank" rel="noopener" style="display:inline-block;background:#87CEEB;color:#000;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 30px;border-radius:6px;">View Catalogue</a>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:10px 30px 25px;">
+          <p style="font-size:14px;color:#000;line-height:1.7;margin:0 0 12px;">If you have any questions about our products, pricing, or would like to place an order, please do not hesitate to reach out. We are here to help.</p>
+          <p style="font-size:14px;color:#000;line-height:1.7;margin:0 0 8px;">Warm regards,</p>
+          <p style="font-size:14px;color:#000;margin:0;font-weight:bold;">The SAHI London Team</p>
+        </td></tr>
+        <tr><td style="background:#f4f4f4;padding:25px 30px;">
+          <p style="font-size:13px;color:#000;margin:0 0 15px;font-weight:bold;text-align:center;">Connect With Us</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td width="50%" style="padding:0 8px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;">
+                  <tr><td style="padding:15px;text-align:center;">
+                    <div style="font-size:28px;margin-bottom:5px;">&#128247;</div>
+                    <div style="font-size:11px;color:#666;margin-bottom:3px;">Instagram</div>
+                    <a href="https://www.instagram.com/sahi_london/" target="_blank" rel="noopener" style="font-size:14px;color:#000;font-weight:bold;text-decoration:none;">@sahi_london</a>
+                  </td></tr>
+                </table>
+              </td>
+              <td width="50%" style="padding:0 8px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;">
+                  <tr><td style="padding:15px;text-align:center;">
+                    <div style="font-size:28px;margin-bottom:5px;">&#128172;</div>
+                    <div style="font-size:11px;color:#666;margin-bottom:3px;">WhatsApp</div>
+                    <a href="https://wa.me/447518130383" target="_blank" rel="noopener" style="font-size:14px;color:#000;font-weight:bold;text-decoration:none;">+44 7518 130383</a>
+                  </td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+        <tr><td style="background:#87CEEB;padding:20px 30px;text-align:center;">
+          <p style="font-size:14px;color:#000;margin:0 0 4px;font-weight:bold;letter-spacing:2px;">SAHI LONDON</p>
+          <p style="font-size:11px;color:#000;margin:0;line-height:1.6;">1231 Niagara On The Lake, Ontario L0S 1J0, Canada<br>Instagram: <a href="https://www.instagram.com/sahi_london/" target="_blank" rel="noopener" style="color:#000;font-weight:bold;text-decoration:none;">@sahi_london</a> &middot; WhatsApp: <a href="https://wa.me/447518130383" target="_blank" rel="noopener" style="color:#000;font-weight:bold;text-decoration:none;">+44 7518 130383</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const results = { sent: [], failed: [] };
+
+  for (const email of emails) {
+    try {
+      await mailer.sendMail({
+        from: EMAIL_USER,
+        to: email,
+        cc: 'info@sahilondon.com',
+        subject: 'Thank You from SAHI London — Toronto Market Week',
+        html: htmlContent
+      });
+      results.sent.push(email);
+      console.log(`[THANK YOU EMAIL] Sent to ${email} (CC: info@sahilondon.com)`);
+    } catch (err) {
+      results.failed.push({ email, error: err.message });
+      console.error(`[THANK YOU EMAIL] Failed for ${email}:`, err.message);
+    }
+  }
+
+  logActivity(req.user, 'THANK_YOU_EMAIL_SENT', null, { sent: results.sent.length, failed: results.failed.length });
+
+  res.json({
+    success: true,
+    sent: results.sent.length,
+    failed: results.failed.length,
+    details: results
+  });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Portal running on port ${PORT}`));

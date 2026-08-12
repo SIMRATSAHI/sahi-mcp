@@ -48,6 +48,9 @@
         .btn-order { background: #81c784; }
         .btn-order:hover { background: #4caf50; }
         .btn-card { background: #FFB7C5; }
+        .btn-card:hover { background: #ff9fb0; }
+        .btn-email { background: #87CEEB; }
+        .btn-email:hover { background: #6bc3de; }
         .btn-card:hover { background: #ff9aad; }
         .btn-save { background: #87CEEB; }
         .btn-save:hover { background: #6bc3de; }
@@ -134,6 +137,7 @@
             </div>
             <button class="btn btn-add" onclick="openModal()">+ Add Customer</button>
             <button class="btn btn-card" onclick="openModal(null, true)">+ Scan Card</button>
+            <button class="btn btn-email" onclick="sendThankYouEmails()">&#9993; Send Thank You Email</button>
         </div>
 
         <div id="content"></div>
@@ -207,6 +211,33 @@
 
     <script>
         let allCustomers = [];
+
+        // ===== Send Thank You Email =====
+        async function sendThankYouEmails() {
+            const withEmail = allCustomers.filter(c => c.email && c.email.trim());
+            if (withEmail.length === 0) {
+                alert('No customers with email addresses found.');
+                return;
+            }
+            const list = withEmail.map(c => `- ${c.contact_name || c.company_name || 'Unknown'} (${c.email})`).join('\\n');
+            if (!confirm(`Send Thank You email to ${withEmail.length} customer(s)?\\n\\n${list}\\n\\nCC: info@sahilondon.com`)) return;
+
+            try {
+                const res = await fetch('/api/b2b/admin/send-thank-you', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emails: withEmail.map(c => c.email) })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Emails sent!\\n\\nSent: ${data.sent}\\nFailed: ${data.failed}${data.failed > 0 ? '\\n\\nCheck console for details.' : ''}`);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Failed to send: ' + err.message);
+            }
+        }
 
         // ===== Load customers =====
         async function loadCustomers() {
