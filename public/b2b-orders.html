@@ -33,9 +33,13 @@
         .filter-btn:hover { background: #d4f0f9; }
         .actions { display: flex; gap: 6px; flex-wrap: nowrap; }
         .status-new { background: #e6fffa; color: #000; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
+        .status-draft { background: #fff3cd; color: #000; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
         .status-deleted { background: #ffe0e0; color: #000; padding: 2px 8px; border-radius: 3px; font-weight: bold; font-size: 11px; }
         tr.deleted-row td { opacity: 0.55; }
         tr.deleted-row td:first-child strong { text-decoration: line-through; }
+        tr.draft-row { background-color: #fff8e1; }
+        .btn-publish { background: #c9a96e; color: #fff; border: none; padding: 5px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-publish:hover { background: #b8985f; }
         .empty-state { text-align: center; padding: 60px 20px; color: #000; }
         .loading { text-align: center; padding: 40px; color: #000; font-size: 14px; }
     </style>
@@ -127,7 +131,8 @@
                 for (const o of orders) {
                     const items = o.items || [];
                     const isDeleted = o.deleted === true;
-                    const rowClass = isDeleted ? 'deleted-row' : '';
+                    const isDraft = o.status === 'DRAFT';
+                    const rowClass = isDeleted ? 'deleted-row' : (isDraft ? 'draft-row' : '');
                     html += `<tr class="${rowClass}">`;
                     html += `<td><strong>#${o.id}</strong></td>`;
                     html += `<td>${o.created_at ? new Date(o.created_at).toLocaleDateString('en-CA') : ''}</td>`;
@@ -140,6 +145,8 @@
                     html += `<td style="text-align:right; font-weight:bold;">$${Number(o.grand_total || 0).toFixed(2)}</td>`;
                     if (isDeleted) {
                         html += `<td><span class="status-deleted">DELETED</span></td>`;
+                    } else if (isDraft) {
+                        html += `<td><span class="status-draft">DRAFT</span></td>`;
                     } else {
                         html += `<td><span class="status-new">${esc(o.status)}</span></td>`;
                     }
@@ -148,6 +155,10 @@
                         html += `<span class="btn btn-disabled">PDF</span>`;
                         html += `<span class="btn btn-disabled">CSV</span>`;
                         html += `<button class="btn btn-restore" onclick="restoreOrder(${o.id})">Restore</button>`;
+                    } else if (isDraft) {
+                        html += `<button class="btn-publish" onclick="publishOrder(${o.id})">Publish</button>`;
+                        html += `<span class="btn btn-disabled">PDF</span>`;
+                        html += `<span class="btn btn-disabled">CSV</span>`;
                     } else {
                         html += `<a class="btn btn-pdf" href="/api/b2b/admin/orders/${o.id}/pdf" download>PDF</a>`;
                         html += `<a class="btn btn-csv" href="/api/b2b/admin/orders/${o.id}/csv" download>CSV</a>`;
@@ -185,6 +196,24 @@
                     const err = await res.json().catch(() => ({}));
                     throw new Error(err.error || 'Failed to delete order');
                 }
+                loadOrders();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function publishOrder(id) {
+            if (!confirm(`Publish Order #${id}?\n\nThis will make it active (status: NEW). PDF and CSV downloads will be enabled.`)) return;
+            try {
+                const res = await fetch(`/api/b2b/admin/orders/${id}/publish`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'Failed to publish order');
+                }
+                alert(data.message);
                 loadOrders();
             } catch (err) {
                 alert('Error: ' + err.message);

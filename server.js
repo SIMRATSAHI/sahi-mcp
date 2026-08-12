@@ -542,7 +542,7 @@ async function ensureSchema() {
         notes TEXT,
         total_amount NUMERIC NOT NULL DEFAULT 0,
         item_count INTEGER NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED')),
+        status TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('DRAFT', 'NEW', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'DELETED')),
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
@@ -563,6 +563,22 @@ async function ensureSchema() {
     await pool.query(`ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE`);
   } catch (err) {
     console.error('b2b_orders deleted column migration warning:', err.message);
+  }
+
+  // Update CHECK constraint to include DRAFT and DELETED statuses (for existing tables)
+  try {
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'b2b_orders_status_check') THEN
+          ALTER TABLE b2b_orders DROP CONSTRAINT b2b_orders_status_check;
+        END IF;
+        ALTER TABLE b2b_orders ADD CONSTRAINT b2b_orders_status_check
+          CHECK (status IN ('DRAFT', 'NEW', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'DELETED'));
+      END $$;
+    `);
+  } catch (err) {
+    console.error('b2b_orders status constraint update warning:', err.message);
   }
 
   // B2B order line items
@@ -3178,6 +3194,66 @@ app.get('/api/b2b/admin/orders/:id/pdf', requireAuthApi(['ADMIN']), async (req, 
   } catch (err) {
     console.error('PDF export error:', err.message);
     res.status(500).json({ error: 'Failed to export PDF' });
+  }
+});
+
+// Admin: publish a DRAFT B2B order (change status from DRAFT to NEW)
+app.patch('/api/b2b/admin/orders/:id/publish', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const check = await pool.query('SELECT id, status, company_name, contact_name, email, phone, total_amount, item_count FROM b2b_orders WHERE id = $1', [id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const order = check.rows[0];
+
+    if (order.status !== 'DRAFT') {
+      return res.status(400).json({ error: `Order #${id} is already published (status: ${order.status}). Only DRAFT orders can be published.` });
+    }
+
+    await pool.query("UPDATE b2b_orders SET status = 'NEW' WHERE id = $1", [id]);
+
+    logActivity(req.user, 'B2B_ORDER_PUBLISHED', String(id), { company: order.company_name, total: order.total_amount });
+
+    console.log(`[B2B ORDER] #${id} published by ${req.user.email || 'admin'} — status changed DRAFT → NEW`);
+
+    res.json({
+      success: true,
+      orderId: id,
+      status: 'NEW',
+      message: `Order #${id} has been published successfully. It is now active.`
+    });
+  } catch (err) {
+    console.error('Publish B2B order error:', err.message);
+    res.status(500).json({ error: 'Failed to publish order' });
+  }
+});
+
+// Admin: update B2B order status (NEW → PROCESSING → SHIPPED → COMPLETED)
+app.patch('/api/b2b/admin/orders/:id/status', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['NEW', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const check = await pool.query('SELECT id, status FROM b2b_orders WHERE id = $1', [id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    await pool.query('UPDATE b2b_orders SET status = $1 WHERE id = $2', [status, id]);
+    logActivity(req.user, 'B2B_STATUS_UPDATE', String(id), { from: check.rows[0].status, to: status });
+
+    res.json({ success: true, orderId: id, status, message: `Order #${id} status updated to ${status}` });
+  } catch (err) {
+    console.error('Status update error:', err.message);
+    res.status(500).json({ error: 'Failed to update order status' });
   }
 });
 
