@@ -3258,7 +3258,7 @@ app.patch('/api/b2b/admin/orders/:id/status', requireAuthApi(['ADMIN']), async (
 });
 
 // ── Send Thank You Email to customers ──
-app.post('/api/b2b/admin/send-thank-you', requireLogin, requireRole('ADMIN'), async (req, res) => {
+app.post('/api/b2b/admin/send-thank-you', requireAuthApi(['ADMIN']), async (req, res) => {
   const { emails, customer_name } = req.body;
   
   if (!emails || !Array.isArray(emails) || emails.length === 0) {
