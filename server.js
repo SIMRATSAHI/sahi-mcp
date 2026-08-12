@@ -3057,7 +3057,7 @@ app.post('/api/b2b/admin/customers', requireAuthApi(['ADMIN']), async (req, res)
     res.json(result.rows[0]);
   } catch (err) {
     console.error('B2B customer create error:', err.message);
-    res.status(500).json({ error: 'Failed to create customer' });
+    res.status(500).json({ error: 'Failed to create customer: ' + err.message });
   }
 });
 
