@@ -6,7 +6,7 @@
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#5046E5",
+  "theme_color": "#87CFEB",
   "lang": "en",
   "icons": [
     { "src": "/images/pwa/icon-192.png", "sizes": "192x192", "type": "image/png" },
