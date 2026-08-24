@@ -669,6 +669,39 @@ async function ensureSchema() {
   } catch (err) {
     console.error('item_master bulk columns migration warning:', err.message);
   }
+
+  // Set defaults on NOT NULL columns so bulk import INSERTs don't fail
+  try {
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN category_code SET DEFAULT 'IMP'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN year_code SET DEFAULT 'A'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN collection_code SET DEFAULT 'IMP'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN department_code SET DEFAULT '1'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN color_code SET DEFAULT 'NA'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN material SET DEFAULT 'Unknown'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN hs_code SET DEFAULT '9505100090'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN std_cost_rmb SET DEFAULT 0`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN description SET DEFAULT 'Bulk imported'`);
+    // Make nullable so bulk import (which doesn't set these) won't fail
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN category_code DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN year_code DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN collection_code DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN department_code DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN color_code DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN material DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN hs_code DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN std_cost_rmb DROP NOT NULL`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN description DROP NOT NULL`);
+  } catch (err) {
+    console.error('item_master defaults migration warning:', err.message);
+  }
+
+  // Ensure inventory table has a unique constraint on (sku, org_id) so
+  // ON CONFLICT DO NOTHING works correctly for bulk import and other inserts
+  try {
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_sku_org ON inventory(sku, org_id)`);
+  } catch (err) {
+    console.error('inventory unique index migration warning:', err.message);
+  }
 }
 ensureSchema();
 
@@ -3404,7 +3437,8 @@ app.post('/api/b2b/admin/send-thank-you', requireAuthApi(['ADMIN']), async (req,
 app.get('/api/items/all', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT sku, friendly_name, barcode, collection, category, status
+      `SELECT sku, friendly_name, barcode, collection, category, status,
+              color_code AS color, material, vendor_item_number
        FROM item_master
        ORDER BY sku`
     );
@@ -3448,8 +3482,12 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
       }
 
       await pool.query(
-        `INSERT INTO item_master (sku, barcode, friendly_name, collection, category, original_qty, balance_qty, status, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO item_master (sku, barcode, friendly_name,
+           category_code, year_code, collection_code, department_code, color_code,
+           material, hs_code, std_cost_rmb, description,
+           collection, category, original_qty, balance_qty, status, created_by)
+         VALUES ($1, $2, $3, 'IMP', 'A', 'IMP', '1', 'NA', 'Unknown', '9505100090', 0, 'Bulk imported from Excel',
+           $4, $5, $6, $7, $8, $9)
          ON CONFLICT (sku) DO NOTHING`,
         [
           item.sku,
