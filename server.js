@@ -672,11 +672,11 @@ async function ensureSchema() {
 
   // Set defaults on NOT NULL columns so bulk import INSERTs don't fail
   try {
-    await pool.query(`ALTER TABLE item_master ALTER COLUMN category_code SET DEFAULT 'IMP'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN category_code SET DEFAULT 'JW'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN year_code SET DEFAULT 'A'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN collection_code SET DEFAULT 'IMP'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN department_code SET DEFAULT '1'`);
-    await pool.query(`ALTER TABLE item_master ALTER COLUMN color_code SET DEFAULT 'NA'`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN color_code SET DEFAULT 'n/a'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN material SET DEFAULT 'Unknown'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN hs_code SET DEFAULT '9505100090'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN std_cost_rmb DROP DEFAULT`);
@@ -3481,19 +3481,33 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
         continue;
       }
 
+      // Map department_code by category: 1=Bracelet, 2=Brooch, 3=Earring, 4=Necklace, 5=Ring, 6=Charms
+      const catLower = (item.category || '').toLowerCase();
+      let deptCode = '1';
+      if (catLower.includes('brooch') || catLower.includes('broock')) deptCode = '2';
+      else if (catLower.includes('earring') || catLower.includes('earing')) deptCode = '3';
+      else if (catLower.includes('necklace') || catLower.includes('neclace')) deptCode = '4';
+      else if (catLower.includes('ring')) deptCode = '5';
+      else if (catLower.includes('charm')) deptCode = '6';
+
+      // Use Excel collection as collection_code (LT, IG, CB, etc.)
+      const collectionCode = (item.collection || 'IMP').substring(0, 10);
+
       await pool.query(
         `INSERT INTO item_master (sku, barcode, friendly_name,
            category_code, year_code, collection_code, department_code, color_code,
            material, hs_code, description,
            collection, category, original_qty, balance_qty, status, created_by)
-         VALUES ($1, $2, $3, 'IMP', 'A', 'IMP', '1', 'NA',
+         VALUES ($1, $2, $3, 'JW', 'A', $4, $5, 'n/a',
            'Unknown', '9505100090', 'Bulk imported from Excel',
-           $4, $5, $6, $7, $8, $9)
+           $6, $7, $8, $9, $10, $11)
          ON CONFLICT (sku) DO NOTHING`,
         [
           item.sku,
           item.barcode || null,
           item.friendly_name || item.sku,
+          collectionCode,
+          deptCode,
           item.collection || null,
           item.category || null,
           item.original_qty || item.qty || 0,
