@@ -702,6 +702,26 @@ async function ensureSchema() {
   } catch (err) {
     console.error('inventory unique index migration warning:', err.message);
   }
+
+  // Unmatched barcodes — physical items scanned during opening inventory
+  // whose barcode isn't in item_master yet. Resolved later by matching SKU.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS unmatched_barcodes (
+        id SERIAL PRIMARY KEY,
+        barcode TEXT NOT NULL,
+        qty INTEGER DEFAULT 1,
+        org_id INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'PENDING',
+        matched_sku TEXT,
+        created_by TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_unmatched_barcode ON unmatched_barcodes(barcode)`);
+  } catch (err) {
+    console.error('unmatched_barcodes table migration warning:', err.message);
+  }
 }
 ensureSchema();
 
@@ -3658,6 +3678,113 @@ app.get('/api/opening-inventory/summary', requireAuthApi(['ADMIN', 'BUYER']), as
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching opening inventory summary:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/unmatched-barcodes — list unmatched barcodes (default: pending only)
+app.get('/api/unmatched-barcodes', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const showAll = req.query.all === '1';
+    const result = await pool.query(
+      `SELECT * FROM unmatched_barcodes ${showAll ? '' : "WHERE status = 'PENDING'"} ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching unmatched barcodes:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/unmatched-barcodes — save a batch of unknown scanned barcodes
+app.post('/api/unmatched-barcodes', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { items, org_id } = req.body;
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No barcodes provided' });
+  }
+  const targetOrg = org_id || 1;
+  const createdBy = req.user ? req.user.email : 'system';
+  try {
+    let saved = 0;
+    for (const item of items) {
+      if (!item.barcode) continue;
+      const existing = await pool.query(
+        'SELECT id, qty FROM unmatched_barcodes WHERE barcode = $1 AND org_id = $2 AND status = $3',
+        [String(item.barcode).trim(), targetOrg, 'PENDING']
+      );
+      if (existing.rows.length > 0) {
+        await pool.query('UPDATE unmatched_barcodes SET qty = qty + $1 WHERE id = $2', [item.qty || 1, existing.rows[0].id]);
+      } else {
+        await pool.query(
+          `INSERT INTO unmatched_barcodes (barcode, qty, org_id, created_by) VALUES ($1, $2, $3, $4)`,
+          [String(item.barcode).trim(), item.qty || 1, targetOrg, createdBy]
+        );
+      }
+      saved++;
+    }
+    logActivity(req.user, 'UNMATCHED_BARCODE_SAVE', null, { saved, org_id: targetOrg });
+    res.json({ success: true, saved });
+  } catch (err) {
+    console.error('Error saving unmatched barcodes:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/unmatched-barcodes/:id/resolve — match an unmatched barcode to a SKU.
+// Updates item_master.barcode for that SKU and converts the row into opening stock.
+app.post('/api/unmatched-barcodes/:id/resolve', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { sku } = req.body;
+  if (!sku) return res.status(400).json({ error: 'SKU is required' });
+  try {
+    const row = await pool.query('SELECT * FROM unmatched_barcodes WHERE id = $1', [req.params.id]);
+    if (row.rows.length === 0) return res.status(404).json({ error: 'Unmatched barcode not found' });
+    const ub = row.rows[0];
+
+    const item = await pool.query('SELECT sku, friendly_name, color FROM item_master WHERE TRIM(sku) = $1', [String(sku).trim()]);
+    if (item.rows.length === 0) {
+      return res.status(404).json({ error: `SKU ${sku} not found in Item Master` });
+    }
+    const im = item.rows[0];
+
+    // 1. Attach the barcode to the item
+    await pool.query('UPDATE item_master SET barcode = $1 WHERE sku = $2', [ub.barcode, im.sku]);
+
+    // 2. Convert to opening inventory
+    const existing = await pool.query(
+      'SELECT id, qty FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+      [im.sku, ub.org_id]
+    );
+    if (existing.rows.length > 0) {
+      await pool.query('UPDATE opening_inventory SET qty = qty + $1, barcode = $2 WHERE id = $3', [ub.qty, ub.barcode, existing.rows[0].id]);
+    } else {
+      await pool.query(
+        `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [im.sku, ub.barcode, im.friendly_name, im.color, ub.qty, ub.org_id, req.user ? req.user.email : 'system']
+      );
+    }
+
+    // 3. Mark resolved
+    await pool.query(
+      `UPDATE unmatched_barcodes SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW() WHERE id = $2`,
+      [im.sku, ub.id]
+    );
+
+    logActivity(req.user, 'UNMATCHED_BARCODE_RESOLVE', im.sku, { barcode: ub.barcode, qty: ub.qty });
+    res.json({ success: true, sku: im.sku, barcode: ub.barcode, qty: ub.qty });
+  } catch (err) {
+    console.error('Error resolving unmatched barcode:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/unmatched-barcodes/:id — discard an unmatched barcode (not stock)
+app.delete('/api/unmatched-barcodes/:id', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM unmatched_barcodes WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting unmatched barcode:', err);
     res.status(500).json({ error: err.message });
   }
 });
