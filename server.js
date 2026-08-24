@@ -3461,6 +3461,28 @@ app.delete('/api/items/all', requireAuthApi(['ADMIN']), async (req, res) => {
   }
 });
 
+// GET /api/items/barcode/:barcode — lookup single item by barcode (for scanner)
+app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const barcode = String(req.params.barcode).trim();
+    const result = await pool.query(
+      `SELECT sku, friendly_name, barcode, collection, category, status,
+              color_code AS color, material, vendor_item_number
+       FROM item_master
+       WHERE TRIM(barcode::text) = $1
+       LIMIT 1`,
+      [barcode]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found', barcode });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error looking up barcode:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/items/bulk — bulk create items from Excel
 app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { items } = req.body;
