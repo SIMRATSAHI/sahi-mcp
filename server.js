@@ -3463,24 +3463,6 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
 
   for (const item of items) {
     try {
-      const existing = await pool.query('SELECT sku, barcode FROM item_master WHERE sku = $1', [item.sku]);
-      if (existing.rows.length > 0) {
-        // SKU exists - update barcode if missing, update collection/category if missing
-        const existingBarcode = existing.rows[0].barcode;
-        if (!existingBarcode && item.barcode) {
-          await pool.query(
-            `UPDATE item_master SET barcode = $1, collection = COALESCE(collection, $2), category = COALESCE(category, $3) WHERE sku = $4`,
-            [item.barcode, item.collection, item.category, item.sku]
-          );
-          imported++;
-          details.push({ sku: item.sku, status: 'updated', reason: 'Barcode added to existing item' });
-        } else {
-          skipped++;
-          details.push({ sku: item.sku, status: 'skipped', reason: 'SKU already exists with barcode' });
-        }
-        continue;
-      }
-
       // Map department_code by category: 1=Bracelet, 2=Brooch, 3=Earring, 4=Necklace, 5=Ring, 6=Charms
       const catLower = (item.category || '').toLowerCase();
       let deptCode = '1';
@@ -3492,6 +3474,40 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
 
       // Use Excel collection as collection_code (LT, IG, CB, etc.)
       const collectionCode = (item.collection || 'IMP').substring(0, 10);
+
+      const existing = await pool.query('SELECT sku, barcode, balance_qty, original_qty, status FROM item_master WHERE sku = $1', [item.sku]);
+      if (existing.rows.length > 0) {
+        // SKU exists - UPSERT smart defaults but preserve barcode/qty/status
+        const ex = existing.rows[0];
+        const newBarcode = ex.barcode || item.barcode || null;
+        await pool.query(
+          `UPDATE item_master SET
+             category_code = $1,
+             collection_code = $2,
+             department_code = $3,
+             color_code = 'n/a',
+             collection = COALESCE(NULLIF($4, ''), collection),
+             category = COALESCE(NULLIF($5, ''), category),
+             original_qty = COALESCE(NULLIF($6::integer, 0), original_qty),
+             balance_qty = COALESCE(NULLIF($7::integer, 0), balance_qty),
+             barcode = $8
+           WHERE sku = $9`,
+          [
+            'JW',
+            collectionCode,
+            deptCode,
+            item.collection || '',
+            item.category || '',
+            item.original_qty || item.qty || 0,
+            item.balance || item.qty || 0,
+            newBarcode,
+            item.sku
+          ]
+        );
+        imported++;
+        details.push({ sku: item.sku, status: 'updated', reason: ex.barcode ? 'Smart defaults fixed' : 'Barcode added' });
+        continue;
+      }
 
       await pool.query(
         `INSERT INTO item_master (sku, barcode, friendly_name,
