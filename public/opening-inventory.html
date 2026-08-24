@@ -119,6 +119,17 @@
             <tbody id="sessionTableBody"></tbody>
         </table>
 
+        <div id="unknownSessionBox" style="display:none; margin-top:20px;">
+            <h3 style="color:#d32f2f; font-size:16px;">❓ Unmatched Barcodes (this session) <span id="unknownSessionCount" style="background:#d32f2f; color:white; border-radius:10px; padding:2px 10px; font-size:13px;">0</span></h3>
+            <p style="color:#888; font-size:12px;">Physical items whose barcode isn't in the system yet. They'll be saved with your opening inventory — match them to SKUs later below.</p>
+            <table>
+                <thead>
+                    <tr><th>Barcode</th><th>Qty</th><th>Action</th></tr>
+                </thead>
+                <tbody id="unknownSessionTableBody"></tbody>
+            </table>
+        </div>
+
         <div class="empty-state" id="emptyState">
             <p style="font-size:48px; margin-bottom:10px;">📦</p>
             <p>No items scanned yet. Start scanning barcodes above.</p>
@@ -135,6 +146,17 @@
             <tbody id="savedTableBody"></tbody>
         </table>
         <div id="savedEmpty" style="color:#999; text-align:center; padding:20px;">No saved opening inventory yet.</div>
+
+        <h3 style="color:#333; margin-top:30px;">❓ Unmatched Barcodes — Match to SKU</h3>
+        <p style="color:#666; font-size:13px;">Scanned barcodes not yet in the system. Check the physical item's tag for its SKU, type it below, and click Match — the barcode gets attached to the item and counted as opening stock.</p>
+        <button class="btn btn-pink" onclick="loadUnmatched()" style="margin-bottom:10px;">🔄 Refresh</button>
+        <table id="unmatchedTable" style="display:none;">
+            <thead>
+                <tr><th>Barcode</th><th>Qty</th><th>Scanned</th><th>Match SKU</th><th>Action</th></tr>
+            </thead>
+            <tbody id="unmatchedTableBody"></tbody>
+        </table>
+        <div id="unmatchedEmpty" style="color:#999; text-align:center; padding:20px;">No unmatched barcodes.</div>
     </div>
 
     <div class="item-popup" id="itemPopup">
@@ -149,6 +171,28 @@
                 <input type="number" id="popupQty" class="qty-input" value="1" min="1" autofocus onkeydown="if(event.key==='Enter') confirmQty()">
                 <div style="margin-top:15px;">
                     <button class="btn btn-green" onclick="confirmQty()" style="font-size:16px; padding:10px 30px;">✅ Add to List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="item-popup" id="unknownPopup">
+        <div class="item-popup-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0; color:#d32f2f;">Unknown Barcode</h3>
+                <button onclick="closeUnknownPopup()" style="background:#FFB7C5; padding:4px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+            <div style="text-align:center; margin-bottom:20px;">
+                <p style="font-size:48px; margin:0 0 10px 0;">❓</p>
+                <p style="font-family:monospace; font-size:22px; font-weight:bold; margin:5px 0;" id="unknownBarcodeText"></p>
+                <p style="color:#666; font-size:13px;">Not in Item Master. Check the item tag for its SKU — you can match it later in the Unmatched Barcodes list below.</p>
+            </div>
+            <div style="text-align:center;">
+                <label style="font-weight:bold; display:block; margin-bottom:10px;">Enter Quantity:</label>
+                <input type="number" id="unknownQty" class="qty-input" value="1" min="1" autofocus onkeydown="if(event.key==='Enter') confirmUnknownQty()">
+                <div style="margin-top:15px; display:flex; gap:10px; justify-content:center;">
+                    <button class="btn btn-green" onclick="confirmUnknownQty()" style="font-size:16px; padding:10px 24px;">➕ Add to Unmatched</button>
+                    <button class="btn" onclick="closeUnknownPopup()" style="font-size:16px; padding:10px 24px;">Skip</button>
                 </div>
             </div>
         </div>
@@ -171,8 +215,10 @@
         })();
 
         let sessionItems = [];
+        let sessionUnmatched = [];
         let allItems = [];
         let currentScannedItem = null;
+        let currentUnknownBarcode = null;
         let mode = 'scanner';
 
         async function loadAllItems() {
@@ -239,10 +285,15 @@
                             return;
                         }
                     }
+                    // Unknown barcode — offer to record it as unmatched
                     feedback.className = 'scan-feedback scan-error';
-                    feedback.textContent = `No item found for barcode: ${barcode}`;
-                    setTimeout(() => { feedback.textContent = ''; }, 3000);
-                    document.getElementById('barcodeInput').focus();
+                    feedback.textContent = `Unknown barcode: ${barcode} — added check below`;
+                    currentUnknownBarcode = barcode;
+                    document.getElementById('unknownBarcodeText').textContent = barcode;
+                    document.getElementById('unknownQty').value = '1';
+                    document.getElementById('unknownPopup').style.display = 'flex';
+                    document.getElementById('unknownQty').focus();
+                    document.getElementById('unknownQty').select();
                     return;
                 }
                 
@@ -323,13 +374,56 @@
             renderSession();
         }
 
+        function closeUnknownPopup() {
+            document.getElementById('unknownPopup').style.display = 'none';
+            if (mode === 'scanner') {
+                document.getElementById('barcodeInput').focus();
+            }
+        }
+
+        function confirmUnknownQty() {
+            if (!currentUnknownBarcode) return;
+            const qty = parseInt(document.getElementById('unknownQty').value) || 1;
+            const existing = sessionUnmatched.find(i => i.barcode === currentUnknownBarcode);
+            if (existing) {
+                existing.qty += qty;
+            } else {
+                sessionUnmatched.push({ barcode: currentUnknownBarcode, qty: qty });
+            }
+            currentUnknownBarcode = null;
+            closeUnknownPopup();
+            renderSession();
+        }
+
+        function removeUnknown(idx) {
+            sessionUnmatched.splice(idx, 1);
+            renderSession();
+        }
+
         function renderSession() {
             const tbody = document.getElementById('sessionTableBody');
             const summary = document.getElementById('sessionSummary');
             const table = document.getElementById('sessionTable');
             const empty = document.getElementById('emptyState');
+            const unknownBox = document.getElementById('unknownSessionBox');
+            const unknownTbody = document.getElementById('unknownSessionTableBody');
 
-            if (sessionItems.length === 0) {
+            // Unmatched session barcodes
+            if (sessionUnmatched.length > 0) {
+                unknownBox.style.display = '';
+                document.getElementById('unknownSessionCount').textContent = sessionUnmatched.length;
+                unknownTbody.innerHTML = sessionUnmatched.map((u, idx) => `
+                    <tr>
+                        <td style="font-family:monospace; font-weight:bold;">${u.barcode}</td>
+                        <td><strong>${u.qty}</strong></td>
+                        <td><button class="btn btn-red" onclick="removeUnknown(${idx})" style="padding:2px 8px;">🗑</button></td>
+                    </tr>
+                `).join('');
+            } else {
+                unknownBox.style.display = 'none';
+            }
+
+            if (sessionItems.length === 0 && sessionUnmatched.length === 0) {
                 summary.style.display = 'none';
                 table.style.display = 'none';
                 empty.style.display = '';
@@ -337,7 +431,7 @@
             }
 
             summary.style.display = 'flex';
-            table.style.display = '';
+            table.style.display = sessionItems.length > 0 ? '' : 'none';
             empty.style.display = 'none';
 
             document.getElementById('lineCount').textContent = sessionItems.length;
@@ -372,6 +466,7 @@
         function clearSession() {
             if (!confirm('Clear all scanned items?')) return;
             sessionItems = [];
+            sessionUnmatched = [];
             renderSession();
         }
 
@@ -400,26 +495,48 @@
         }
 
         async function saveOpeningInventory() {
-            if (sessionItems.length === 0) return;
+            if (sessionItems.length === 0 && sessionUnmatched.length === 0) return;
             const orgId = parseInt(document.getElementById('orgSelect').value);
-            if (!confirm(`Save ${sessionItems.length} items with ${sessionItems.reduce((s,i)=>s+i.qty,0)} total units as opening inventory?`)) return;
+            const msg = sessionItems.length > 0 && sessionUnmatched.length > 0
+                ? `Save ${sessionItems.length} known items (${sessionItems.reduce((s,i)=>s+i.qty,0)} units) + ${sessionUnmatched.length} unmatched barcodes?`
+                : sessionUnmatched.length > 0
+                ? `Save ${sessionUnmatched.length} unmatched barcodes?`
+                : `Save ${sessionItems.length} items with ${sessionItems.reduce((s,i)=>s+i.qty,0)} total units as opening inventory?`;
+            if (!confirm(msg)) return;
 
             try {
-                const res = await fetch('/api/opening-inventory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ items: sessionItems, org_id: orgId })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert(`✅ Opening inventory saved! ${data.saved} items, ${data.total_qty} total units.`);
-                    sessionItems = [];
-                    renderSession();
-                    loadSavedInventory();
-                } else {
-                    alert('❌ Error: ' + data.error);
+                if (sessionItems.length > 0) {
+                    const res = await fetch('/api/opening-inventory', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ items: sessionItems, org_id: orgId })
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        alert('❌ Error saving items: ' + data.error);
+                        return;
+                    }
                 }
+                if (sessionUnmatched.length > 0) {
+                    const res2 = await fetch('/api/unmatched-barcodes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ items: sessionUnmatched, org_id: orgId })
+                    });
+                    const data2 = await res2.json();
+                    if (!data2.success) {
+                        alert('❌ Error saving unmatched barcodes: ' + data2.error);
+                        return;
+                    }
+                }
+                alert('✅ Saved!');
+                sessionItems = [];
+                sessionUnmatched = [];
+                renderSession();
+                loadSavedInventory();
+                loadUnmatched();
             } catch (err) {
                 alert('❌ Connection error saving opening inventory.');
             }
@@ -460,8 +577,84 @@
             }
         }
 
+        async function loadUnmatched() {
+            try {
+                const res = await fetch('/api/unmatched-barcodes', { credentials: 'same-origin' });
+                if (!res.ok) return;
+                const data = await res.json();
+                const tbody = document.getElementById('unmatchedTableBody');
+                const table = document.getElementById('unmatchedTable');
+                const empty = document.getElementById('unmatchedEmpty');
+
+                if (!data || data.length === 0) {
+                    table.style.display = 'none';
+                    empty.style.display = '';
+                    return;
+                }
+
+                table.style.display = '';
+                empty.style.display = 'none';
+                tbody.innerHTML = data.map(u => `
+                    <tr>
+                        <td style="font-family:monospace; font-weight:bold;">${u.barcode}</td>
+                        <td><strong>${u.qty}</strong></td>
+                        <td>${new Date(u.created_at).toLocaleDateString('en-CA')}</td>
+                        <td>
+                            <input type="text" id="matchSku_${u.id}" placeholder="SKU from tag..." style="padding:5px; width:160px; font-family:monospace;">
+                        </td>
+                        <td style="white-space:nowrap;">
+                            <button class="btn btn-green" onclick="resolveUnmatched(${u.id})" style="padding:4px 10px;">Match</button>
+                            <button class="btn btn-red" onclick="discardUnmatched(${u.id})" style="padding:4px 10px;">Discard</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading unmatched barcodes:', err);
+            }
+        }
+
+        async function resolveUnmatched(id) {
+            const skuInput = document.getElementById(`matchSku_${id}`);
+            const sku = (skuInput ? skuInput.value : '').trim().toUpperCase();
+            if (!sku) {
+                alert('Type the SKU printed on the item tag first.');
+                skuInput && skuInput.focus();
+                return;
+            }
+            if (!confirm(`Match this barcode to SKU ${sku}?\n\nThe barcode will be attached to the item and counted as opening stock.`)) return;
+            try {
+                const res = await fetch(`/api/unmatched-barcodes/${id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ sku })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ Barcode attached to ${data.sku} — ${data.qty} units added to opening stock.`);
+                    loadUnmatched();
+                    loadSavedInventory();
+                } else {
+                    alert('❌ ' + data.error);
+                }
+            } catch (err) {
+                alert('❌ Connection error.');
+            }
+        }
+
+        async function discardUnmatched(id) {
+            if (!confirm('Discard this unmatched barcode? (Use only if the item is not stock)')) return;
+            try {
+                await fetch(`/api/unmatched-barcodes/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+                loadUnmatched();
+            } catch (err) {
+                alert('❌ Connection error.');
+            }
+        }
+
         loadAllItems().then(() => {
             loadSavedInventory();
+            loadUnmatched();
             const input = document.getElementById('barcodeInput');
             if (input) input.focus();
         }).catch(err => {
@@ -470,6 +663,7 @@
 
         document.addEventListener('click', function(e) {
             if (e.target.id === 'itemPopup') closePopup();
+            if (e.target.id === 'unknownPopup') closeUnknownPopup();
         });
     </script>
 </body>
