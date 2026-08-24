@@ -218,6 +218,7 @@
             const collectionCol = findCol(colIdx, ['系列', '系列collection', 'collection']);
             const categoryCol = findCol(colIdx, ['类目', '类目type', 'type', 'category']);
             const qtyCol = findCol(colIdx, ['quantity', '数量', '数量quantity']);
+            const balanceCol = findCol(colIdx, ['balance', '剩余数量', '剩余']);
 
             // If no proper header found, try to detect by content
             let actualSkuCol = skuCol !== -1 ? skuCol : -1;
@@ -225,6 +226,7 @@
             let actualQtyCol = qtyCol !== -1 ? qtyCol : -1;
             let actualCategoryCol = categoryCol !== -1 ? categoryCol : -1;
             let actualCollectionCol = collectionCol !== -1 ? collectionCol : -1;
+            let actualBalanceCol = balanceCol !== -1 ? balanceCol : -1;
 
             // Fallback: if no headers found, try to detect columns by content
             if (actualSkuCol === -1) {
@@ -287,7 +289,7 @@
                 if (sku.toLowerCase() === 'no' || sku.toLowerCase() === 'name') continue;
 
                 const barcodeRaw = actualBarcodeCol !== -1 ? String(row[actualBarcodeCol] || '').trim() : '';
-                const barcode = barcodeRaw.replace(/['']/g, '').replace(/^0+/, '') || '';
+                const barcode = barcodeRaw.replace(/['']/g, '') || '';
                 const cleanBarcode = (barcode === 'nan' || barcode === 'undefined') ? '' : barcode;
 
                 let collection = sheetName;
@@ -300,6 +302,7 @@
                 const category = categoryMap[rawCat] || (rawCat && rawCat !== 'nan' && rawCat !== 'undefined' ? rawCat : 'Other');
 
                 const qty = actualQtyCol !== -1 ? (parseInt(row[actualQtyCol]) || 0) : 0;
+                const balance = actualBalanceCol !== -1 ? (parseInt(row[actualBalanceCol]) || qty) : qty;
 
                 items.push({
                     sku,
@@ -307,6 +310,7 @@
                     collection,
                     category,
                     qty,
+                    balance,
                     status: 'PENDING_IMAGE'
                 });
             }
