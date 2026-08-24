@@ -3449,6 +3449,18 @@ app.get('/api/items/all', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) =
   }
 });
 
+// DELETE /api/items/all — clean re-import support: wipe all items + inventory
+app.delete('/api/items/all', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const inv = await pool.query('DELETE FROM inventory');
+    const items = await pool.query('DELETE FROM item_master');
+    res.json({ success: true, deleted: items.rowCount, inventoryDeleted: inv.rowCount });
+  } catch (err) {
+    console.error('Error deleting all items:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/items/bulk — bulk create items from Excel
 app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { items } = req.body;
@@ -3477,9 +3489,9 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
 
       const existing = await pool.query('SELECT sku, barcode, balance_qty, original_qty, status FROM item_master WHERE sku = $1', [item.sku]);
       if (existing.rows.length > 0) {
-        // SKU exists - UPSERT smart defaults but preserve barcode/qty/status
-        const ex = existing.rows[0];
-        const newBarcode = ex.barcode || item.barcode || null;
+        // SKU exists - UPSERT smart defaults; Excel barcode is source of truth
+        // (keeps existing barcode only when the Excel row has none)
+        const newBarcode = item.barcode || existing.rows[0].barcode || null;
         await pool.query(
           `UPDATE item_master SET
              category_code = $1,
@@ -3505,7 +3517,7 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
           ]
         );
         imported++;
-        details.push({ sku: item.sku, status: 'updated', reason: ex.barcode ? 'Smart defaults fixed' : 'Barcode added' });
+        details.push({ sku: item.sku, status: 'updated', reason: 'Updated from Excel' });
         continue;
       }
 
