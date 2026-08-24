@@ -227,26 +227,46 @@
             feedback.textContent = `Searching for ${barcode}...`;
 
             try {
-                if (!Array.isArray(allItems) || allItems.length === 0) {
-                    feedback.className = 'scan-feedback scan-error';
-                    feedback.textContent = 'No items loaded! Make sure you are logged in. Try refreshing the page.';
-                    setTimeout(() => { feedback.textContent = ''; }, 5000);
-                    document.getElementById('barcodeInput').focus();
-                    return;
-                }
-
-                console.log(`Looking up barcode: ${barcode} in ${allItems.length} items`);
-                console.log('Sample item:', allItems[0]);
-
-                const item = allItems.find(i => String(i.barcode || '') === String(barcode));
-                if (!item) {
+                // Server-side lookup (primary — handles DB directly)
+                const res = await fetch(`/api/items/barcode/${encodeURIComponent(barcode)}`, { credentials: 'same-origin' });
+                
+                if (res.status === 404) {
+                    // Not found server-side — try client-side fallback
+                    if (Array.isArray(allItems) && allItems.length > 0) {
+                        const item = allItems.find(i => String(i.barcode || '').trim() === String(barcode).trim());
+                        if (item) {
+                            showItemFound(feedback, item);
+                            return;
+                        }
+                    }
                     feedback.className = 'scan-feedback scan-error';
                     feedback.textContent = `No item found for barcode: ${barcode}`;
                     setTimeout(() => { feedback.textContent = ''; }, 3000);
                     document.getElementById('barcodeInput').focus();
                     return;
                 }
+                
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) {
+                        alert('Session expired. Please log in again.');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    throw new Error(`Server error: ${res.status}`);
+                }
 
+                const item = await res.json();
+                showItemFound(feedback, item);
+            } catch (err) {
+                console.error('Lookup error:', err);
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `Error: ${err.message}. Check console for details.`;
+                setTimeout(() => { feedback.textContent = ''; }, 5000);
+                document.getElementById('barcodeInput').focus();
+            }
+        }
+
+        function showItemFound(feedback, item) {
             if (item.status === 'PENDING_IMAGE') {
                 feedback.className = 'scan-feedback scan-error';
                 feedback.textContent = `Item ${item.sku} has no image (PENDING_IMAGE) but can still be counted.`;
@@ -256,16 +276,8 @@
                 feedback.textContent = `Found: ${item.sku} - ${item.friendly_name}`;
                 setTimeout(() => { feedback.textContent = ''; }, 2000);
             }
-
             currentScannedItem = item;
             showPopup(item);
-            } catch (err) {
-                console.error('Lookup error:', err);
-                feedback.className = 'scan-feedback scan-error';
-                feedback.textContent = `Error: ${err.message}. Check console for details.`;
-                setTimeout(() => { feedback.textContent = ''; }, 5000);
-                document.getElementById('barcodeInput').focus();
-            }
         }
 
         function showPopup(item) {
