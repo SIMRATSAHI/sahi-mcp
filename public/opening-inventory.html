@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - Opening Inventory</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 900px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; font-size: 13px; }
+        .nav a.active { color: #000; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th { background: #87CEEB; color: #000; padding: 10px; text-align: left; }
+        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        .btn { padding: 6px 12px; background: #87CEEB; border: none; border-radius: 4px; cursor: pointer; color: #000; font-weight: bold; }
+        .btn-pink { background: #FFB7C5; }
+        .btn-green { background: #4CAF50; color: white; }
+        .btn-red { background: #f44336; color: white; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; color: #333; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .logo .l2 { font-size: 9px; }
+        .scanner-box { background: #f9f9f9; padding: 25px; border: 2px dashed #87CEEB; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .scanner-box h3 { margin-top: 0; color: #333; }
+        #barcodeInput { font-size: 20px; padding: 12px; width: 300px; text-align: center; border: 3px solid #87CEEB; border-radius: 6px; outline: none; }
+        #barcodeInput:focus { border-color: #FFB7C5; box-shadow: 0 0 8px rgba(255,183,197,0.5); }
+        .scan-feedback { margin-top: 10px; font-weight: bold; min-height: 24px; }
+        .scan-success { color: #2e7d32; }
+        .scan-error { color: #d32f2f; }
+        .scan-found { color: #1565c0; }
+        .item-popup { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 60px; }
+        .item-popup-content { background: white; border-radius: 8px; padding: 25px; width: 450px; max-height: 80vh; overflow-y: auto; }
+        .qty-input { font-size: 28px; width: 100px; text-align: center; padding: 8px; border: 3px solid #87CEEB; border-radius: 6px; }
+        .session-summary { background: #e8f5e9; border: 1px solid #4CAF50; border-radius: 6px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .session-summary .count { font-size: 24px; font-weight: bold; color: #2e7d32; }
+        .session-summary .units { font-size: 16px; color: #555; }
+        .mode-toggle { display: flex; gap: 10px; justify-content: center; margin-bottom: 15px; }
+        .mode-btn { padding: 8px 20px; border: 2px solid #87CEEB; background: white; border-radius: 20px; cursor: pointer; font-weight: bold; color: #555; }
+        .mode-btn.active { background: #87CEEB; color: #000; }
+        .manual-search { display: none; background: #f9f9f9; padding: 15px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; }
+        .manual-search input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .manual-search select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-top: 8px; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .org-select { padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="company-header">
+            <div class="info">
+                <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+                <div class="l2">Shanghai, China</div>
+                <div class="l3">Unified Social Credit Code: 91310000MAC67Y4R3QE</div>
+            </div>
+            <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+        </div>
+        <div class="nav">
+            <a href="/">Sell (Invoice)</a>
+            <a href="/create-po.html">Create PO</a>
+            <a href="/invoices.html">Invoice to PO</a>
+            <a href="/receive-po.html">Receive Stock</a>
+            <a href="/items.html">Item Master</a>
+            <a href="/opening-inventory.html" class="active">Opening Inventory</a>
+            <a href="/transfer.html">Transfer</a>
+            <a href="/accounts.html">Accounts</a>
+            <a href="/admin-users.html">Manage Users</a>
+            <a href="/b2b-orders.html">B2B Orders</a>
+        </div>
+        <h2 style="color:#333;">Opening Inventory</h2>
+        <p style="color:#666; font-size:14px;">Scan item barcodes to count existing stock. Uses existing barcodes from Item Master — no new barcodes assigned.</p>
+
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
+            <label style="font-weight:bold; font-size:13px;">Warehouse:</label>
+            <select id="orgSelect" class="org-select">
+                <option value="1">HQ Shanghai (org 1)</option>
+                <option value="2">Canada (org 2)</option>
+                <option value="3">UK (org 3)</option>
+            </select>
+        </div>
+
+        <div class="mode-toggle">
+            <button class="mode-btn active" onclick="setMode('scanner')">📷 Barcode Scanner</button>
+            <button class="mode-btn" onclick="setMode('manual')">🔍 Manual Search</button>
+        </div>
+
+        <div class="manual-search" id="manualSearchBox">
+            <label style="font-weight:bold; font-size:13px;">Search items by SKU or name:</label>
+            <input type="text" id="manualSearchInput" placeholder="Type SKU or name..." oninput="searchItems()" style="margin-top:5px;">
+            <select id="manualSelect" onchange="onManualSelect()" size="6" style="margin-top:8px;"></select>
+        </div>
+
+        <div class="scanner-box" id="scannerBox">
+            <h3>📷 Scan Barcode</h3>
+            <p style="color:#888; font-size:12px; margin-bottom:15px;">Click below and scan with your USB/Bluetooth scanner, or type barcode + Enter</p>
+            <input type="text" id="barcodeInput" placeholder="Scan or type barcode..." autofocus onkeydown="onBarcodeKey(event)">
+            <div id="scanFeedback" class="scan-feedback"></div>
+        </div>
+
+        <div class="session-summary" id="sessionSummary" style="display:none;">
+            <div>
+                <span class="count" id="lineCount">0</span> <span class="units">items scanned</span>
+                &nbsp;|&nbsp;
+                <span class="count" id="totalQty">0</span> <span class="units">total units</span>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-green" onclick="saveOpeningInventory()" style="font-size:16px; padding:10px 24px;">✅ Save Opening Inventory</button>
+                <button class="btn btn-red" onclick="clearSession()">🗑 Clear All</button>
+            </div>
+        </div>
+
+        <table id="sessionTable" style="display:none;">
+            <thead>
+                <tr><th>SKU</th><th>Item Name</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Action</th></tr>
+            </thead>
+            <tbody id="sessionTableBody"></tbody>
+        </table>
+
+        <div class="empty-state" id="emptyState">
+            <p style="font-size:48px; margin-bottom:10px;">📦</p>
+            <p>No items scanned yet. Start scanning barcodes above.</p>
+        </div>
+
+        <hr style="margin:30px 0; border:none; border-top:2px solid #eee;">
+
+        <h3 style="color:#333;">Saved Opening Inventory</h3>
+        <button class="btn btn-pink" onclick="loadSavedInventory()" style="margin-bottom:10px;">🔄 Refresh</button>
+        <table id="savedTable" style="display:none;">
+            <thead>
+                <tr><th>Date</th><th>SKU</th><th>Item Name</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Warehouse</th><th>By</th></tr>
+            </thead>
+            <tbody id="savedTableBody"></tbody>
+        </table>
+        <div id="savedEmpty" style="color:#999; text-align:center; padding:20px;">No saved opening inventory yet.</div>
+    </div>
+
+    <div class="item-popup" id="itemPopup">
+        <div class="item-popup-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0; color:#333;">Confirm Item</h3>
+                <button onclick="closePopup()" style="background:#FFB7C5; padding:4px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+            <div id="popupItemDetails" style="text-align:center; margin-bottom:20px;"></div>
+            <div style="text-align:center;">
+                <label style="font-weight:bold; display:block; margin-bottom:10px;">Enter Quantity:</label>
+                <input type="number" id="popupQty" class="qty-input" value="1" min="1" autofocus onkeydown="if(event.key==='Enter') confirmQty()">
+                <div style="margin-top:15px;">
+                    <button class="btn btn-green" onclick="confirmQty()" style="font-size:16px; padding:10px 30px;">✅ Add to List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionItems = [];
+        let allItems = [];
+        let currentScannedItem = null;
+        let mode = 'scanner';
+
+        async function loadAllItems() {
+            const res = await fetch('/api/items');
+            const data = await res.json();
+            allItems = data || [];
+        }
+
+        function setMode(m) {
+            mode = m;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            if (m === 'scanner') {
+                document.querySelector('.mode-btn').classList.add('active');
+                document.getElementById('scannerBox').style.display = '';
+                document.getElementById('manualSearchBox').style.display = 'none';
+                document.getElementById('barcodeInput').focus();
+            } else {
+                document.querySelectorAll('.mode-btn')[1].classList.add('active');
+                document.getElementById('scannerBox').style.display = 'none';
+                document.getElementById('manualSearchBox').style.display = '';
+                document.getElementById('manualSearchInput').focus();
+            }
+        }
+
+        function onBarcodeKey(event) {
+            if (event.key !== 'Enter') return;
+            const barcode = document.getElementById('barcodeInput').value.trim();
+            if (!barcode) return;
+            document.getElementById('barcodeInput').value = '';
+            lookupBarcode(barcode);
+        }
+
+        async function lookupBarcode(barcode) {
+            const feedback = document.getElementById('scanFeedback');
+            feedback.className = 'scan-feedback scan-found';
+            feedback.textContent = 'Searching...';
+
+            const item = allItems.find(i => String(i.barcode || '') === String(barcode));
+            if (!item) {
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `❌ No item found for barcode: ${barcode}`;
+                setTimeout(() => { feedback.textContent = ''; }, 3000);
+                document.getElementById('barcodeInput').focus();
+                return;
+            }
+
+            if (item.status === 'PENDING_IMAGE') {
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `⚠ Item ${item.sku} has no image (PENDING_IMAGE) but can still be counted.`;
+                setTimeout(() => { feedback.textContent = ''; }, 2000);
+            } else {
+                feedback.className = 'scan-feedback scan-success';
+                feedback.textContent = `✅ Found: ${item.sku} - ${item.friendly_name}`;
+                setTimeout(() => { feedback.textContent = ''; }, 2000);
+            }
+
+            currentScannedItem = item;
+            showPopup(item);
+        }
+
+        function showPopup(item) {
+            const imgBase = (item.vendor_item_number || item.sku || '').replace(/[^a-zA-Z0-9._-]/g, '_');
+            const details = document.getElementById('popupItemDetails');
+            details.innerHTML = `
+                <img src="/images/${imgBase}.jpg" onerror="this.style.display='none'" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #ddd; margin-bottom:10px;">
+                <h3 style="margin:5px 0;">${item.sku}</h3>
+                <p style="color:#666; margin:3px 0;">${item.friendly_name || ''}</p>
+                <p style="color:#888; font-size:13px; margin:3px 0;">Color: ${item.color || 'N/A'} | Material: ${item.material || 'N/A'}</p>
+                <p style="color:#aaa; font-size:12px; margin:3px 0;">Barcode: ${item.barcode || 'N/A'}</p>
+            `;
+            document.getElementById('itemPopup').style.display = 'flex';
+            document.getElementById('popupQty').value = '1';
+            document.getElementById('popupQty').focus();
+            document.getElementById('popupQty').select();
+        }
+
+        function closePopup() {
+            document.getElementById('itemPopup').style.display = 'none';
+            if (mode === 'scanner') {
+                document.getElementById('barcodeInput').focus();
+            }
+        }
+
+        function confirmQty() {
+            if (!currentScannedItem) return;
+            const qty = parseInt(document.getElementById('popupQty').value) || 1;
+
+            const existing = sessionItems.find(i => i.sku === currentScannedItem.sku);
+            if (existing) {
+                existing.qty += qty;
+            } else {
+                sessionItems.push({
+                    sku: currentScannedItem.sku,
+                    friendly_name: currentScannedItem.friendly_name || '',
+                    color: currentScannedItem.color || '',
+                    barcode: currentScannedItem.barcode || '',
+                    qty: qty
+                });
+            }
+            closePopup();
+            renderSession();
+        }
+
+        function renderSession() {
+            const tbody = document.getElementById('sessionTableBody');
+            const summary = document.getElementById('sessionSummary');
+            const table = document.getElementById('sessionTable');
+            const empty = document.getElementById('emptyState');
+
+            if (sessionItems.length === 0) {
+                summary.style.display = 'none';
+                table.style.display = 'none';
+                empty.style.display = '';
+                return;
+            }
+
+            summary.style.display = 'flex';
+            table.style.display = '';
+            empty.style.display = 'none';
+
+            document.getElementById('lineCount').textContent = sessionItems.length;
+            document.getElementById('totalQty').textContent = sessionItems.reduce((s, i) => s + i.qty, 0);
+
+            tbody.innerHTML = sessionItems.map((item, idx) => `
+                <tr>
+                    <td><strong>${item.sku}</strong></td>
+                    <td>${item.friendly_name}</td>
+                    <td>${item.color}</td>
+                    <td style="font-family:monospace; font-size:12px;">${item.barcode}</td>
+                    <td><strong style="font-size:16px;">${item.qty}</strong></td>
+                    <td>
+                        <button class="btn btn-pink" onclick="adjustQty(${idx}, 1)" style="padding:2px 8px;">+1</button>
+                        <button class="btn" onclick="adjustQty(${idx}, -1)" style="padding:2px 8px;">-1</button>
+                        <button class="btn btn-red" onclick="removeItem(${idx})" style="padding:2px 8px;">🗑</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function adjustQty(idx, delta) {
+            sessionItems[idx].qty = Math.max(1, sessionItems[idx].qty + delta);
+            renderSession();
+        }
+
+        function removeItem(idx) {
+            sessionItems.splice(idx, 1);
+            renderSession();
+        }
+
+        function clearSession() {
+            if (!confirm('Clear all scanned items?')) return;
+            sessionItems = [];
+            renderSession();
+        }
+
+        function searchItems() {
+            const term = document.getElementById('manualSearchInput').value.trim().toLowerCase();
+            const select = document.getElementById('manualSelect');
+            if (!term) { select.innerHTML = ''; return; }
+            const matches = allItems.filter(i => {
+                return (i.sku || '').toLowerCase().includes(term) ||
+                       (i.friendly_name || '').toLowerCase().includes(term) ||
+                       (i.barcode || '').includes(term);
+            }).slice(0, 20);
+            select.innerHTML = matches.map(i =>
+                `<option value="${i.sku}">${i.sku} - ${i.friendly_name || 'N/A'} ${i.color ? '(' + i.color + ')' : ''} [${i.barcode || 'no barcode'}]</option>`
+            ).join('');
+        }
+
+        function onManualSelect() {
+            const sku = document.getElementById('manualSelect').value;
+            if (!sku) return;
+            const item = allItems.find(i => i.sku === sku);
+            if (item) {
+                currentScannedItem = item;
+                showPopup(item);
+            }
+        }
+
+        async function saveOpeningInventory() {
+            if (sessionItems.length === 0) return;
+            const orgId = parseInt(document.getElementById('orgSelect').value);
+            if (!confirm(`Save ${sessionItems.length} items with ${sessionItems.reduce((s,i)=>s+i.qty,0)} total units as opening inventory?`)) return;
+
+            try {
+                const res = await fetch('/api/opening-inventory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: sessionItems, org_id: orgId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ Opening inventory saved! ${data.saved} items, ${data.total_qty} total units.`);
+                    sessionItems = [];
+                    renderSession();
+                    loadSavedInventory();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('❌ Connection error saving opening inventory.');
+            }
+        }
+
+        async function loadSavedInventory() {
+            try {
+                const res = await fetch('/api/opening-inventory');
+                const data = await res.json();
+                const tbody = document.getElementById('savedTableBody');
+                const table = document.getElementById('savedTable');
+                const empty = document.getElementById('savedEmpty');
+
+                if (!data || data.length === 0) {
+                    table.style.display = 'none';
+                    empty.style.display = '';
+                    return;
+                }
+
+                table.style.display = '';
+                empty.style.display = 'none';
+
+                const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
+                tbody.innerHTML = data.map(r => `
+                    <tr>
+                        <td>${new Date(r.created_at).toLocaleDateString('en-CA')}</td>
+                        <td><strong>${r.sku}</strong></td>
+                        <td>${r.friendly_name || ''}</td>
+                        <td>${r.color || ''}</td>
+                        <td style="font-family:monospace; font-size:12px;">${r.barcode || ''}</td>
+                        <td><strong>${r.qty}</strong></td>
+                        <td>${orgNames[r.org_id] || r.org_id}</td>
+                        <td>${r.created_by || ''}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading saved inventory:', err);
+            }
+        }
+
+        loadAllItems().then(() => {
+            loadSavedInventory();
+            document.getElementById('barcodeInput').focus();
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target.id === 'itemPopup') closePopup();
+        });
+    </script>
+</body>
+</html>

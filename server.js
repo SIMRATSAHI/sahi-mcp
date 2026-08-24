@@ -637,6 +637,38 @@ async function ensureSchema() {
   } catch (err) {
     console.error('B2B role migration warning:', err.message);
   }
+
+  // Opening inventory table — records migrated stock counts
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS opening_inventory (
+        id SERIAL PRIMARY KEY,
+        sku TEXT NOT NULL,
+        barcode TEXT,
+        friendly_name TEXT,
+        color TEXT,
+        qty INTEGER NOT NULL,
+        org_id INTEGER NOT NULL DEFAULT 1,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_sku ON opening_inventory(sku)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_barcode ON opening_inventory(barcode)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_org ON opening_inventory(org_id)`);
+  } catch (err) {
+    console.error('opening_inventory migration warning:', err.message);
+  }
+
+  // Add columns to item_master for bulk import support
+  try {
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS collection TEXT`);
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS category TEXT`);
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS original_qty INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS balance_qty INTEGER DEFAULT 0`);
+  } catch (err) {
+    console.error('item_master bulk columns migration warning:', err.message);
+  }
 }
 ensureSchema();
 
@@ -3362,6 +3394,155 @@ app.post('/api/b2b/admin/send-thank-you', requireAuthApi(['ADMIN']), async (req,
     failed: results.failed.length,
     details: results
   });
+});
+
+// ════════════════════════════════════════════════════════════════
+// BULK ITEM IMPORT + OPENING INVENTORY
+// ════════════════════════════════════════════════════════════════
+
+// POST /api/items/bulk — bulk create items from Excel
+app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { items } = req.body;
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No items provided' });
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  const details = [];
+
+  for (const item of items) {
+    try {
+      const existing = await pool.query('SELECT id FROM item_master WHERE sku = $1', [item.sku]);
+      if (existing.rows.length > 0) {
+        skipped++;
+        details.push({ sku: item.sku, status: 'skipped', reason: 'SKU already exists' });
+        continue;
+      }
+
+      await pool.query(
+        `INSERT INTO item_master (sku, barcode, friendly_name, collection, category, original_qty, balance_qty, status, created_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+        [
+          item.sku,
+          item.barcode || null,
+          item.friendly_name || item.sku,
+          item.collection || null,
+          item.category || null,
+          item.original_qty || item.qty || 0,
+          item.balance || item.qty || 0,
+          item.status || 'PENDING_IMAGE',
+          req.user ? req.user.email : 'system'
+        ]
+      );
+      imported++;
+      details.push({ sku: item.sku, status: 'created' });
+    } catch (err) {
+      errors++;
+      details.push({ sku: item.sku, status: 'error', error: err.message });
+    }
+  }
+
+  logActivity(req.user, 'BULK_ITEM_IMPORT', null, { imported, skipped, errors, total: items.length });
+
+  res.json({ success: true, imported, skipped, errors, details });
+});
+
+// GET /api/opening-inventory — list all saved opening inventory entries
+app.get('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT oi.*, im.friendly_name, im.color
+      FROM opening_inventory oi
+      LEFT JOIN item_master im ON oi.sku = im.sku
+      ORDER BY oi.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching opening inventory:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/opening-inventory — save a batch of scanned items as opening stock
+app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { items, org_id } = req.body;
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No items provided' });
+  }
+  const targetOrg = org_id || 1;
+  const createdBy = req.user ? req.user.email : 'system';
+
+  try {
+    let saved = 0;
+    let totalQty = 0;
+
+    for (const item of items) {
+      const existing = await pool.query(
+        'SELECT id, qty FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+        [item.sku, targetOrg]
+      );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          'UPDATE opening_inventory SET qty = qty + $1, created_by = $2, created_at = NOW() WHERE id = $3',
+          [item.qty, createdBy, existing.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [item.sku, item.barcode || null, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy]
+        );
+      }
+      saved++;
+      totalQty += item.qty;
+    }
+
+    logActivity(req.user, 'OPENING_INVENTORY_SAVE', null, { saved, totalQty, org_id: targetOrg });
+
+    res.json({ success: true, saved, total_qty: totalQty });
+  } catch (err) {
+    console.error('Error saving opening inventory:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/opening-inventory/summary — summary by org
+app.get('/api/opening-inventory/summary', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT org_id, COUNT(*) as item_count, SUM(qty) as total_qty
+      FROM opening_inventory
+      GROUP BY org_id
+      ORDER BY org_id
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching opening inventory summary:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/items/:sku/barcode — update barcode for existing item
+app.put('/api/items/:sku/barcode', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { sku } = req.params;
+  const { barcode } = req.body;
+  if (!barcode) return res.status(400).json({ error: 'Barcode required' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE item_master SET barcode = $1 WHERE sku = $2 RETURNING *',
+      [barcode, sku]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
