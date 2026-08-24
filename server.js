@@ -3429,10 +3429,21 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
 
   for (const item of items) {
     try {
-      const existing = await pool.query('SELECT sku FROM item_master WHERE sku = $1', [item.sku]);
+      const existing = await pool.query('SELECT sku, barcode FROM item_master WHERE sku = $1', [item.sku]);
       if (existing.rows.length > 0) {
-        skipped++;
-        details.push({ sku: item.sku, status: 'skipped', reason: 'SKU already exists' });
+        // SKU exists - update barcode if missing, update collection/category if missing
+        const existingBarcode = existing.rows[0].barcode;
+        if (!existingBarcode && item.barcode) {
+          await pool.query(
+            `UPDATE item_master SET barcode = $1, collection = COALESCE(collection, $2), category = COALESCE(category, $3) WHERE sku = $4`,
+            [item.barcode, item.collection, item.category, item.sku]
+          );
+          imported++;
+          details.push({ sku: item.sku, status: 'updated', reason: 'Barcode added to existing item' });
+        } else {
+          skipped++;
+          details.push({ sku: item.sku, status: 'skipped', reason: 'SKU already exists with barcode' });
+        }
         continue;
       }
 
