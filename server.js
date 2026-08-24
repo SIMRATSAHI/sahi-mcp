@@ -679,7 +679,7 @@ async function ensureSchema() {
     await pool.query(`ALTER TABLE item_master ALTER COLUMN color_code SET DEFAULT 'NA'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN material SET DEFAULT 'Unknown'`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN hs_code SET DEFAULT '9505100090'`);
-    await pool.query(`ALTER TABLE item_master ALTER COLUMN std_cost_rmb SET DEFAULT 0`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN std_cost_rmb DROP DEFAULT`);
     await pool.query(`ALTER TABLE item_master ALTER COLUMN description SET DEFAULT 'Bulk imported'`);
     // Make nullable so bulk import (which doesn't set these) won't fail
     await pool.query(`ALTER TABLE item_master ALTER COLUMN category_code DROP NOT NULL`);
@@ -3484,9 +3484,10 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
       await pool.query(
         `INSERT INTO item_master (sku, barcode, friendly_name,
            category_code, year_code, collection_code, department_code, color_code,
-           material, hs_code, std_cost_rmb, description,
+           material, hs_code, description,
            collection, category, original_qty, balance_qty, status, created_by)
-         VALUES ($1, $2, $3, 'IMP', 'A', 'IMP', '1', 'NA', 'Unknown', '9505100090', 0, 'Bulk imported from Excel',
+         VALUES ($1, $2, $3, 'IMP', 'A', 'IMP', '1', 'NA',
+           'Unknown', '9505100090', 'Bulk imported from Excel',
            $4, $5, $6, $7, $8, $9)
          ON CONFLICT (sku) DO NOTHING`,
         [
