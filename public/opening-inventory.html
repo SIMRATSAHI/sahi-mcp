@@ -175,9 +175,25 @@
         let mode = 'scanner';
 
         async function loadAllItems() {
-            const res = await fetch('/api/items/all', { credentials: 'same-origin' });
-            const data = await res.json();
-            allItems = data || [];
+            try {
+                const res = await fetch('/api/items/all', { credentials: 'same-origin' });
+                if (!res.ok) {
+                    console.error('Failed to load items:', res.status);
+                    if (res.status === 401 || res.status === 403) {
+                        alert('Session expired. Please log in again.');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    allItems = [];
+                    return;
+                }
+                const data = await res.json();
+                allItems = Array.isArray(data) ? data : [];
+                console.log(`Loaded ${allItems.length} items for scanner`);
+            } catch (err) {
+                console.error('Error loading items:', err);
+                allItems = [];
+            }
         }
 
         function setMode(m) {
@@ -207,29 +223,48 @@
         async function lookupBarcode(barcode) {
             const feedback = document.getElementById('scanFeedback');
             feedback.className = 'scan-feedback scan-found';
-            feedback.textContent = 'Searching...';
+            feedback.textContent = `Searching for ${barcode}...`;
 
-            const item = allItems.find(i => String(i.barcode || '') === String(barcode));
-            if (!item) {
-                feedback.className = 'scan-feedback scan-error';
-                feedback.textContent = `❌ No item found for barcode: ${barcode}`;
-                setTimeout(() => { feedback.textContent = ''; }, 3000);
-                document.getElementById('barcodeInput').focus();
-                return;
-            }
+            try {
+                if (!Array.isArray(allItems) || allItems.length === 0) {
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = 'No items loaded! Make sure you are logged in. Try refreshing the page.';
+                    setTimeout(() => { feedback.textContent = ''; }, 5000);
+                    document.getElementById('barcodeInput').focus();
+                    return;
+                }
+
+                console.log(`Looking up barcode: ${barcode} in ${allItems.length} items`);
+                console.log('Sample item:', allItems[0]);
+
+                const item = allItems.find(i => String(i.barcode || '') === String(barcode));
+                if (!item) {
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `No item found for barcode: ${barcode}`;
+                    setTimeout(() => { feedback.textContent = ''; }, 3000);
+                    document.getElementById('barcodeInput').focus();
+                    return;
+                }
 
             if (item.status === 'PENDING_IMAGE') {
                 feedback.className = 'scan-feedback scan-error';
-                feedback.textContent = `⚠ Item ${item.sku} has no image (PENDING_IMAGE) but can still be counted.`;
+                feedback.textContent = `Item ${item.sku} has no image (PENDING_IMAGE) but can still be counted.`;
                 setTimeout(() => { feedback.textContent = ''; }, 2000);
             } else {
                 feedback.className = 'scan-feedback scan-success';
-                feedback.textContent = `✅ Found: ${item.sku} - ${item.friendly_name}`;
+                feedback.textContent = `Found: ${item.sku} - ${item.friendly_name}`;
                 setTimeout(() => { feedback.textContent = ''; }, 2000);
             }
 
             currentScannedItem = item;
             showPopup(item);
+            } catch (err) {
+                console.error('Lookup error:', err);
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `Error: ${err.message}. Check console for details.`;
+                setTimeout(() => { feedback.textContent = ''; }, 5000);
+                document.getElementById('barcodeInput').focus();
+            }
         }
 
         function showPopup(item) {
@@ -414,7 +449,10 @@
 
         loadAllItems().then(() => {
             loadSavedInventory();
-            document.getElementById('barcodeInput').focus();
+            const input = document.getElementById('barcodeInput');
+            if (input) input.focus();
+        }).catch(err => {
+            console.error('Init error:', err);
         });
 
         document.addEventListener('click', function(e) {
