@@ -3414,7 +3414,7 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
 
   for (const item of items) {
     try {
-      const existing = await pool.query('SELECT id FROM item_master WHERE sku = $1', [item.sku]);
+      const existing = await pool.query('SELECT sku FROM item_master WHERE sku = $1', [item.sku]);
       if (existing.rows.length > 0) {
         skipped++;
         details.push({ sku: item.sku, status: 'skipped', reason: 'SKU already exists' });
@@ -3422,8 +3422,9 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
       }
 
       await pool.query(
-        `INSERT INTO item_master (sku, barcode, friendly_name, collection, category, original_qty, balance_qty, status, created_by, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+        `INSERT INTO item_master (sku, barcode, friendly_name, collection, category, original_qty, balance_qty, status, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (sku) DO NOTHING`,
         [
           item.sku,
           item.barcode || null,
@@ -3436,6 +3437,13 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
           req.user ? req.user.email : 'system'
         ]
       );
+
+      // Also create an inventory row so the item shows up in stock views
+      await pool.query(
+        `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, $2) ON CONFLICT DO NOTHING`,
+        [item.sku, item.balance || item.qty || 0]
+      );
+
       imported++;
       details.push({ sku: item.sku, status: 'created' });
     } catch (err) {
