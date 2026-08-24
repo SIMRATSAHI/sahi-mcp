@@ -175,7 +175,7 @@
         let mode = 'scanner';
 
         async function loadAllItems() {
-            const res = await fetch('/api/items', { credentials: 'same-origin' });
+            const res = await fetch('/api/items/all', { credentials: 'same-origin' });
             const data = await res.json();
             allItems = data || [];
         }

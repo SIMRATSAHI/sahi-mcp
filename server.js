@@ -3400,6 +3400,21 @@ app.post('/api/b2b/admin/send-thank-you', requireAuthApi(['ADMIN']), async (req,
 // BULK ITEM IMPORT + OPENING INVENTORY
 // ════════════════════════════════════════════════════════════════
 
+// GET /api/items/all — returns ALL items regardless of status (for scanner use)
+app.get('/api/items/all', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT sku, friendly_name, barcode, collection, category, status
+       FROM item_master
+       ORDER BY sku`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching all items:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/items/bulk — bulk create items from Excel
 app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { items } = req.body;
