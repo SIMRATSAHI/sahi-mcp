@@ -93,10 +93,14 @@
 
         <div id="previewSection" style="display:none;">
             <div class="summary-box" id="summaryBox"></div>
-            <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;">
                 <button class="btn btn-green" id="importBtn" onclick="startImport()">Import All Items</button>
                 <button class="btn btn-red" onclick="resetAll()">Clear & Start Over</button>
             </div>
+            <label style="display:flex; align-items:center; gap:6px; margin-bottom:15px; color:#c62828; font-size:13px; font-weight:bold;">
+                <input type="checkbox" id="cleanMode" style="width:16px; height:16px;">
+                Clean re-import — delete ALL existing items first (use if barcodes got scrambled)
+            </label>
             <div class="progress-bar" id="progressBar" style="display:none;">
                 <div class="progress-fill" id="progressFill" style="width:0%;">0%</div>
             </div>
@@ -210,7 +214,12 @@
 
             const header = rows[headerRowIdx].map(v => String(v).trim());
             const colIdx = {};
-            header.forEach((h, i) => { colIdx[h.toLowerCase()] = i; });
+            // Keep FIRST occurrence of each header name — sheets like 出库记录 have
+            // duplicate "Name" columns (data + pivot table) and later ones must not win
+            header.forEach((h, i) => {
+                const key = h.toLowerCase();
+                if (key && colIdx[key] === undefined) colIdx[key] = i;
+            });
 
             // Find columns - flexible matching
             const skuCol = findCol(colIdx, ['name', '名称', '名称name']);
@@ -432,7 +441,12 @@
             if (parsedItems.length === 0) return;
             const withBc = parsedItems.filter(i => i.barcode).length;
             const noBc = parsedItems.filter(i => !i.barcode).length;
-            if (!confirm(`Import ${parsedItems.length} items into Item Master?\n\n- ${withBc} with barcodes\n- ${noBc} without barcodes (add later)\n- Total qty: ${parsedItems.reduce((s,i)=>s+i.qty,0)} units\n\nExisting SKUs will be skipped.`)) return;
+            const cleanMode = document.getElementById('cleanMode').checked;
+            let confirmMsg = `Import ${parsedItems.length} items into Item Master?\n\n- ${withBc} with barcodes\n- ${noBc} without barcodes (add later)\n- Total qty: ${parsedItems.reduce((s,i)=>s+i.qty,0)} units\n\nExisting SKUs will be updated from the Excel.`;
+            if (cleanMode) {
+                confirmMsg += `\n\n⚠ CLEAN MODE: ALL existing items will be DELETED first!`;
+            }
+            if (!confirm(confirmMsg)) return;
 
             const btn = document.getElementById('importBtn');
             const progressBar = document.getElementById('progressBar');
@@ -443,6 +457,26 @@
             progressBar.style.display = '';
             logBox.style.display = '';
             logBox.innerHTML = '';
+
+            if (cleanMode) {
+                try {
+                    const res = await fetch('/api/items/all', { method: 'DELETE', credentials: 'same-origin' });
+                    const data = await res.json();
+                    if (data.success) {
+                        logBox.innerHTML += `<div class="log-line log-error">[${new Date().toLocaleTimeString()}] CLEAN MODE: deleted ${data.deleted} existing items</div>`;
+                    } else {
+                        logBox.innerHTML += `<div class="log-line log-error">[${new Date().toLocaleTimeString()}] Clean mode failed: ${data.error}</div>`;
+                        btn.disabled = false;
+                        btn.textContent = 'Import All Items';
+                        return;
+                    }
+                } catch (err) {
+                    logBox.innerHTML += `<div class="log-line log-error">[${new Date().toLocaleTimeString()}] Clean mode error: ${err.message}</div>`;
+                    btn.disabled = false;
+                    btn.textContent = 'Import All Items';
+                    return;
+                }
+            }
 
             const batchSize = 25;
             let imported = 0;
