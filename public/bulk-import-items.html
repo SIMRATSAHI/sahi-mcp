@@ -113,6 +113,21 @@
     </div>
 
     <script>
+        // Check login before anything else
+        (async function checkAuth() {
+            try {
+                const res = await fetch('/api/me', { credentials: 'same-origin' });
+                if (!res.ok) {
+                    alert('Please log in first, then come back to this page.');
+                    window.location.href = '/login.html';
+                    return;
+                }
+            } catch (e) {
+                alert('Please log in first, then come back to this page.');
+                window.location.href = '/login.html';
+            }
+        })();
+
         let workbook = null;
         let allSheetData = {};
         let selectedSheets = new Set();
@@ -436,6 +451,7 @@
                     const res = await fetch('/api/items/bulk', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
                         body: JSON.stringify({ items: batch })
                     });
                     const data = await res.json();
