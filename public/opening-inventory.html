@@ -226,6 +226,34 @@
         let mode = 'scanner';
         let rapidMode = true;  // default ON for bulk scanning
 
+        // --- Scan-session persistence (survives refresh / re-login) ---
+        const SCAN_STORAGE_KEY = 'sahi_scan_session_v1';
+        function persistScanSession() {
+            try {
+                localStorage.setItem(SCAN_STORAGE_KEY, JSON.stringify({
+                    items: sessionItems,
+                    unmatched: sessionUnmatched,
+                    org: document.getElementById('orgSelect') ? document.getElementById('orgSelect').value : '1',
+                    savedAt: Date.now()
+                }));
+            } catch (e) { /* localStorage full/blocked — scan session just won't persist */ }
+        }
+        function restoreScanSession() {
+            try {
+                const raw = localStorage.getItem(SCAN_STORAGE_KEY);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (Array.isArray(data.items)) sessionItems = data.items;
+                if (Array.isArray(data.unmatched)) sessionUnmatched = data.unmatched;
+                if (data.org && document.getElementById('orgSelect')) {
+                    document.getElementById('orgSelect').value = data.org;
+                }
+            } catch (e) { /* corrupt JSON — start fresh */ }
+        }
+        function clearScanSession() {
+            try { localStorage.removeItem(SCAN_STORAGE_KEY); } catch (e) {}
+        }
+
         function toggleRapid() {
             rapidMode = !rapidMode;
             const rb = document.getElementById('rapidBtn');
@@ -500,6 +528,7 @@
         }
 
         function renderSession() {
+            persistScanSession();
             const tbody = document.getElementById('sessionTableBody');
             const summary = document.getElementById('sessionSummary');
             const table = document.getElementById('sessionTable');
@@ -660,6 +689,7 @@
                 alert('✅ Saved!');
                 sessionItems = [];
                 sessionUnmatched = [];
+                clearScanSession();
                 renderSession();
                 loadSavedInventory();
                 loadUnmatched();
@@ -776,6 +806,12 @@
             } catch (err) {
                 alert('❌ Connection error.');
             }
+        }
+
+        // Restore any unsaved scan session from a previous page visit (refresh / re-login)
+        restoreScanSession();
+        if (sessionItems.length > 0 || sessionUnmatched.length > 0) {
+            renderSession();
         }
 
         loadAllItems().then(() => {
