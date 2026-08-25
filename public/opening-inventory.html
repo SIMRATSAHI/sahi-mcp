@@ -626,6 +626,12 @@
                         credentials: 'same-origin',
                         body: JSON.stringify({ items: sessionItems, org_id: orgId })
                     });
+                    if (res.status === 401) {
+                        if (confirm('⏰ Session expired. Your scanned data is safe in this browser. Click OK to log in again.')) {
+                            window.location.href = '/login.html?redirect=' + encodeURIComponent('/opening-inventory.html');
+                        }
+                        return;
+                    }
                     const data = await res.json();
                     if (!data.success) {
                         alert('❌ Error saving items: ' + data.error);
@@ -639,6 +645,12 @@
                         credentials: 'same-origin',
                         body: JSON.stringify({ items: sessionUnmatched, org_id: orgId })
                     });
+                    if (res2.status === 401) {
+                        if (confirm('⏰ Session expired. Your scanned data is safe in this browser. Click OK to log in again.')) {
+                            window.location.href = '/login.html?redirect=' + encodeURIComponent('/opening-inventory.html');
+                        }
+                        return;
+                    }
                     const data2 = await res2.json();
                     if (!data2.success) {
                         alert('❌ Error saving unmatched barcodes: ' + data2.error);
