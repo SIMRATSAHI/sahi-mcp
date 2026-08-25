@@ -214,7 +214,7 @@
 
                     const imgBase = (item.vendor_item_number || item.sku || '').replace(/[^a-zA-Z0-9._-]/g, '_');
                     const imgCell = imgBase
-                        ? `<img src="/images/${imgBase}.jpg" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=&quot;font-size:10px;color:#bbb;&quot;>No photo</span>'" style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid #ddd;">`
+                        ? `<img src="/images/${imgBase}.jpg" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=&quot;font-size:10px;color:#bbb;&quot;>No photo</span>'" ${item.status === 'PENDING_IMAGE' ? `onload="fetch('/api/items/${encodeURIComponent(item.sku)}/mark-has-image',{method:'POST',credentials:'same-origin'}).then(()=>{}).catch(()=>{}); var me=this; setTimeout(()=>{ var r=me.closest('tr'); if(r){ r.style.background=''; } var b=document.getElementById('pendingBanner'); if(b && b.style.display!=='none'){ var c=b.querySelector('strong'); if(c){ var n=parseInt(c.textContent)||0; if(n>0){ c.textContent=(n-1)+' item(s)'; } } } },500);"` : ''} style="width:50px;height:50px;object-fit:cover;border-radius:3px;border:1px solid #ddd;">`
                         : '<span style="font-size:10px;color:#bbb;">No photo</span>';
                     const rowStyle = item.status === 'PENDING_IMAGE' ? 'background:#fffbe6;' : '';
                     const row = `
