@@ -333,13 +333,14 @@
         }
 
         function handleItemFound(feedback, item, scannedBarcode) {
+            const fromPO = item.source === 'po_fallback';
             if (rapidMode) {
                 // Auto-add qty=1, no popup
                 const existing = sessionItems.find(i => i.sku === item.sku);
                 if (existing) {
                     existing.qty += 1;
                     feedback.className = 'scan-feedback scan-success';
-                    feedback.textContent = `✓ ${item.sku}  qty: ${existing.qty} (+1)`;
+                    feedback.textContent = `✓ ${item.sku}  qty: ${existing.qty} (+1)` + (fromPO ? '  • from PO' : '');
                 } else {
                     sessionItems.push({
                         sku: item.sku,
@@ -349,7 +350,7 @@
                         qty: 1
                     });
                     feedback.className = 'scan-feedback scan-success';
-                    feedback.textContent = `✓ ${item.sku}  added`;
+                    feedback.textContent = `✓ ${item.sku}  added` + (fromPO ? '  • from PO archive' : '');
                 }
                 setTimeout(() => { feedback.textContent = ''; }, 1500);
                 renderSession();
