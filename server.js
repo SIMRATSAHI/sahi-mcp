@@ -3538,6 +3538,37 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
           `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
           [sku]
         );
+
+        // Auto-resolve any PENDING unmatched entries for this barcode — their qty
+        // flows into opening_inventory via UPSERT, so the user doesn't have to re-scan
+        let resolvedOrphans = 0;
+        const pending = await pool.query(
+          `SELECT id, qty, org_id FROM unmatched_barcodes
+             WHERE TRIM(barcode::text) = $1 AND status = 'PENDING'`,
+          [barcode]
+        );
+        for (const ub of pending.rows) {
+          const existingOI = await pool.query(
+            'SELECT id FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+            [sku, ub.org_id]
+          );
+          if (existingOI.rows.length > 0) {
+            await pool.query('UPDATE opening_inventory SET qty = qty + $1, barcode = $2 WHERE id = $3',
+              [ub.qty, barcode, existingOI.rows[0].id]);
+          } else {
+            await pool.query(
+              `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+               VALUES ($1, $2, $3, 'n/a', $4, $5, 'system')`,
+              [sku, barcode, sku, ub.qty, ub.org_id]
+            );
+          }
+          await pool.query(
+            `UPDATE unmatched_barcodes SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW() WHERE id = $2`,
+            [sku, ub.id]
+          );
+          resolvedOrphans++;
+        }
+
         const newRow = await pool.query(
           `SELECT sku, friendly_name, barcode, status,
                   color_code AS color, material, vendor_item_number
@@ -3545,12 +3576,13 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
           [sku]
         );
         if (newRow.rows.length > 0) {
-          console.log(`[PO-FALLBACK] Auto-created ${sku} from barcode ${barcode} (purchased qty: ${poHit.qty_purchased})`);
+          console.log(`[PO-FALLBACK] Auto-created ${sku} from barcode ${barcode} (purchased qty: ${poHit.qty_purchased}, orphan resolved: ${resolvedOrphans})`);
           return res.json({
             ...newRow.rows[0],
             source: 'po_fallback',
             po_qty_purchased: poHit.qty_purchased,
-            po_sources: (poHit.sources || []).slice(0, 3)
+            po_sources: (poHit.sources || []).slice(0, 3),
+            orphans_resolved: resolvedOrphans
           });
         }
       } catch (autoErr) {
