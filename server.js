@@ -1982,6 +1982,25 @@ app.post('/api/items/:sku/upload-image', requireAuthApi(['ADMIN', 'BUYER']), ima
   }
 });
 
+// Mark an item as having an image (auto-promote PENDING_IMAGE -> ACTIVE).
+// Used by the items grid when an <img onload> fires for a SKU whose status
+// is still PENDING_IMAGE.  Idempotent — no-op if already ACTIVE.
+app.post('/api/items/:sku/mark-has-image', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE item_master
+       SET status = 'ACTIVE'
+       WHERE sku = $1 AND status = 'PENDING_IMAGE'
+       RETURNING sku, status`,
+      [req.params.sku]
+    );
+    res.json({ success: true, updated: result.rowCount, sku: req.params.sku });
+  } catch (err) {
+    console.error('mark-has-image error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Acquire an edit lock on an item (pessimistic locking).
 app.post('/api/items/:sku/lock', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
