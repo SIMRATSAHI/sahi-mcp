@@ -739,9 +739,38 @@ async function logActivity(user, action, referenceId, details) {
 }
 
 // --- Auth: lightweight, dependency-free (no bcrypt/express-session needed) ---
-// Passwords hashed with Node's built-in scrypt; sessions are random tokens kept
-// in an in-memory Map and handed to the browser as an HttpOnly cookie.
-const sessions = new Map(); // sessionId -> { userId, email, role, name }
+// Passwords hashed with Node's built-in scrypt. Session payload is stored
+// directly in the cookie and signed with HMAC-SHA256, so it survives server
+// restarts (Render auto-deploys would otherwise wipe in-memory sessions).
+const SESSION_SECRET = process.env.SESSION_SECRET
+  || 'sahi-mcp-static-fallback-secret-2026-rotate-via-env';
+const sessions = new Map(); // legacy in-memory (kept for /api/logout compat); unused on the cookie path
+
+function signSessionCookie(payload) {
+  const data = JSON.stringify(payload);
+  const b64 = Buffer.from(data).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(b64).digest('base64url');
+  return `${b64}.${sig}`;
+}
+
+function verifySessionCookie(token) {
+  if (!token || typeof token !== 'string') return null;
+  const dot = token.indexOf('.');
+  if (dot < 0) return null;
+  const b64 = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', SESSION_SECRET).update(b64).digest('base64url');
+  if (sig.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const obj = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'));
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj.exp && obj.exp < Date.now()) return null;
+    return obj;
+  } catch {
+    return null;
+  }
+}
 
 function hashPassword(password, existingSalt) {
   const salt = existingSalt || crypto.randomBytes(16).toString('hex');
@@ -769,9 +798,15 @@ function parseCookies(req) {
 }
 
 function getSessionUser(req) {
-  const sid = parseCookies(req)['sahi_session'];
-  if (!sid) return null;
-  return sessions.get(sid) || null;
+  const token = parseCookies(req)['sahi_session'];
+  if (!token) return null;
+  // Signed cookie path — survives restarts
+  const signed = verifySessionCookie(token);
+  if (signed) {
+    return { userId: signed.userId, email: signed.email, role: signed.role, name: signed.name, company: signed.company, hst_gst: signed.hst_gst };
+  }
+  // Legacy: in-memory session id (kept as fallback for back-compat)
+  return sessions.get(token) || null;
 }
 
 function defaultLandingFor(role) {
@@ -1122,8 +1157,9 @@ app.post('/api/login', async (req, res) => {
     if (!verifyPassword(password, u.password_salt, u.password_hash)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-    const sid = crypto.randomBytes(32).toString('hex');
-    sessions.set(sid, { userId: u.id, email: u.email, role: u.role, name: u.name });
+    const sessionPayload = { userId: u.id, email: u.email, role: u.role, name: u.name, exp: Date.now() + 7*24*60*60*1000 };
+    const sid = signSessionCookie(sessionPayload);
+    sessions.set(sid, sessionPayload);
     res.setHeader('Set-Cookie', `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
     logActivity({ email: u.email, role: u.role }, 'LOGIN', null, null);
     res.json({ success: true, role: u.role, name: u.name, landing: defaultLandingFor(u.role) });
@@ -2798,15 +2834,17 @@ app.post('/api/b2b/login', async (req, res) => {
     }
     // Load company info
     const co = await pool.query('SELECT * FROM b2b_customers WHERE user_id = $1', [u.id]);
-    const sid = crypto.randomBytes(32).toString('hex');
-    sessions.set(sid, {
+    const sessionPayload = {
       userId: u.id,
       email: u.email,
       role: u.role,
       name: u.name,
       company: co.rows.length ? co.rows[0].company_name : '',
-      hst_gst: co.rows.length ? co.rows[0].hst_gst_number || '' : ''
-    });
+      hst_gst: co.rows.length ? co.rows[0].hst_gst_number || '' : '',
+      exp: Date.now() + 7*24*60*60*1000
+    };
+    const sid = signSessionCookie(sessionPayload);
+    sessions.set(sid, sessionPayload);
     res.setHeader('Set-Cookie', `sahi_session=${sid}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`);
     logActivity({ email: u.email, role: u.role }, 'B2B_LOGIN', null, null);
     res.json({ success: true, name: u.name, company: co.rows[0]?.company_name || '' });
