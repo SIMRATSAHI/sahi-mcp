@@ -3481,7 +3481,24 @@ app.delete('/api/items/all', requireAuthApi(['ADMIN']), async (req, res) => {
   }
 });
 
+// Load PO barcode index on startup — falls through when barcode lookup misses item_master
+let poBarcodeIndex = {};
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const idxPath = path.join(__dirname, 'po_barcode_index.json');
+  if (fs.existsSync(idxPath)) {
+    poBarcodeIndex = JSON.parse(fs.readFileSync(idxPath, 'utf8'));
+    console.log(`[PO-INDEX] Loaded ${Object.keys(poBarcodeIndex).length} barcodes from PO archive`);
+  } else {
+    console.log('[PO-INDEX] No po_barcode_index.json found — fallback disabled');
+  }
+} catch (e) {
+  console.error('[PO-INDEX] Failed to load PO index:', e);
+}
+
 // GET /api/items/barcode/:barcode — lookup single item by barcode (for scanner)
+// Fallback chain: item_master → po_barcode_index → 404 (unmatched)
 app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
     const barcode = String(req.params.barcode).trim();
@@ -3493,10 +3510,55 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
        LIMIT 1`,
       [barcode]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Item not found', barcode });
+    if (result.rows.length > 0) {
+      return res.json({ ...result.rows[0], source: 'master' });
     }
-    res.json(result.rows[0]);
+
+    // Fallback: PO archive index — barcode that wasn't imported to item_master yet
+    const poHit = poBarcodeIndex[barcode];
+    if (poHit && poHit.sku) {
+      try {
+        const sku = poHit.sku;
+        // Extract season + 2-char collection_code from SKU pattern: JW22SSBC301T → collection "BC"
+        const skuMatch = sku.match(/^[A-Z]{2}\d{2}[A-Z]{2}([A-Z]{1,4})/);
+        const collectionCode = (skuMatch && skuMatch[1]) ? skuMatch[1].substring(0, 10) : 'IMP';
+
+        await pool.query(
+          `INSERT INTO item_master (sku, barcode, friendly_name, status,
+             category_code, year_code, collection_code, department_code, color_code,
+             material, hs_code, description, created_by)
+           VALUES ($1, $2, $3, 'PENDING_IMAGE',
+             'JW', 'A', $4, '1', 'n/a',
+             'Unknown', '9505100090', 'Auto-created from PO archive', 'system')
+           ON CONFLICT (sku) DO NOTHING`,
+          [sku, barcode, sku, collectionCode]
+        );
+        // Make sure an inventory row exists for org 1 (HQ Shanghai)
+        await pool.query(
+          `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
+          [sku]
+        );
+        const newRow = await pool.query(
+          `SELECT sku, friendly_name, barcode, status,
+                  color_code AS color, material, vendor_item_number
+           FROM item_master WHERE sku = $1`,
+          [sku]
+        );
+        if (newRow.rows.length > 0) {
+          console.log(`[PO-FALLBACK] Auto-created ${sku} from barcode ${barcode} (purchased qty: ${poHit.qty_purchased})`);
+          return res.json({
+            ...newRow.rows[0],
+            source: 'po_fallback',
+            po_qty_purchased: poHit.qty_purchased,
+            po_sources: (poHit.sources || []).slice(0, 3)
+          });
+        }
+      } catch (autoErr) {
+        console.error('[PO-FALLBACK] Auto-create failed:', autoErr.message);
+      }
+    }
+
+    return res.status(404).json({ error: 'Item not found', barcode });
   } catch (err) {
     console.error('Error looking up barcode:', err);
     res.status(500).json({ error: err.message });
