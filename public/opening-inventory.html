@@ -73,13 +73,17 @@
         <h2 style="color:#333;">Opening Inventory</h2>
         <p style="color:#666; font-size:14px;">Scan item barcodes to count existing stock. Uses existing barcodes from Item Master — no new barcodes assigned.</p>
 
-        <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:15px;">
             <label style="font-weight:bold; font-size:13px;">Warehouse:</label>
             <select id="orgSelect" class="org-select">
                 <option value="1">HQ Shanghai (org 1)</option>
                 <option value="2">Canada (org 2)</option>
                 <option value="3">UK (org 3)</option>
             </select>
+            <label style="font-weight:bold; font-size:13px; margin-left:15px;">Scan Mode:</label>
+            <button id="rapidBtn" class="btn btn-green" onclick="toggleRapid()" style="padding:6px 14px;">📦 Rapid (1-click)</button>
+            <button id="confirmBtn" class="btn" onclick="toggleRapid()" style="padding:6px 14px; opacity:0.5;">⏵ Confirm (popup)</button>
+            <span style="color:#888; font-size:11px;">📦 Rapid = scan adds qty 1 instantly, no popup</span>
         </div>
 
         <div class="mode-toggle">
@@ -168,7 +172,7 @@
             <div id="popupItemDetails" style="text-align:center; margin-bottom:20px;"></div>
             <div style="text-align:center;">
                 <label style="font-weight:bold; display:block; margin-bottom:10px;">Enter Quantity:</label>
-                <input type="number" id="popupQty" class="qty-input" value="1" min="1" max="9999" maxlength="4" autofocus onkeydown="if(event.key==='Enter') confirmQty()">
+                <input type="number" id="popupQty" class="qty-input" value="1" min="1" max="9999" maxlength="4" autofocus onkeydown="if(event.key==='Enter') confirmQty(); else if(event.key==='Escape') closePopup();">
                 <div style="margin-top:15px;">
                     <button class="btn btn-green" onclick="confirmQty()" style="font-size:16px; padding:10px 30px;">✅ Add to List</button>
                 </div>
@@ -189,7 +193,7 @@
             </div>
             <div style="text-align:center;">
                 <label style="font-weight:bold; display:block; margin-bottom:10px;">Enter Quantity:</label>
-                <input type="number" id="unknownQty" class="qty-input" value="1" min="1" max="9999" maxlength="4" autofocus onkeydown="if(event.key==='Enter') confirmUnknownQty()">
+                <input type="number" id="unknownQty" class="qty-input" value="1" min="1" max="9999" maxlength="4" autofocus onkeydown="if(event.key==='Enter') confirmUnknownQty(); else if(event.key==='Escape') closeUnknownPopup();">
                 <div style="margin-top:15px; display:flex; gap:10px; justify-content:center;">
                     <button class="btn btn-green" onclick="confirmUnknownQty()" style="font-size:16px; padding:10px 24px;">➕ Add to Unmatched</button>
                     <button class="btn" onclick="closeUnknownPopup()" style="font-size:16px; padding:10px 24px;">Skip</button>
@@ -220,6 +224,24 @@
         let currentScannedItem = null;
         let currentUnknownBarcode = null;
         let mode = 'scanner';
+        let rapidMode = true;  // default ON for bulk scanning
+
+        function toggleRapid() {
+            rapidMode = !rapidMode;
+            const rb = document.getElementById('rapidBtn');
+            const cb = document.getElementById('confirmBtn');
+            if (rapidMode) {
+                rb.className = 'btn btn-green';
+                rb.style.opacity = '1';
+                cb.className = 'btn';
+                cb.style.opacity = '0.5';
+            } else {
+                rb.className = 'btn';
+                rb.style.opacity = '0.5';
+                cb.className = 'btn btn-green';
+                cb.style.opacity = '1';
+            }
+        }
 
         async function loadAllItems() {
             try {
@@ -275,28 +297,21 @@
             try {
                 // Server-side lookup (primary — handles DB directly)
                 const res = await fetch(`/api/items/barcode/${encodeURIComponent(barcode)}`, { credentials: 'same-origin' });
-                
+
                 if (res.status === 404) {
                     // Not found server-side — try client-side fallback
                     if (Array.isArray(allItems) && allItems.length > 0) {
                         const item = allItems.find(i => String(i.barcode || '').trim() === String(barcode).trim());
                         if (item) {
-                            showItemFound(feedback, item);
+                            handleItemFound(feedback, item, barcode);
                             return;
                         }
                     }
-                    // Unknown barcode — offer to record it as unmatched
-                    feedback.className = 'scan-feedback scan-error';
-                    feedback.textContent = `Unknown barcode: ${barcode} — added check below`;
-                    currentUnknownBarcode = barcode;
-                    document.getElementById('unknownBarcodeText').textContent = barcode;
-                    document.getElementById('unknownQty').value = '1';
-                    document.getElementById('unknownPopup').style.display = 'flex';
-                    document.getElementById('unknownQty').focus();
-                    document.getElementById('unknownQty').select();
+                    // Unknown barcode
+                    handleUnknownBarcode(feedback, barcode);
                     return;
                 }
-                
+
                 if (!res.ok) {
                     if (res.status === 401 || res.status === 403) {
                         alert('Session expired. Please log in again.');
@@ -307,13 +322,69 @@
                 }
 
                 const item = await res.json();
-                showItemFound(feedback, item);
+                handleItemFound(feedback, item, barcode);
             } catch (err) {
                 console.error('Lookup error:', err);
                 feedback.className = 'scan-feedback scan-error';
                 feedback.textContent = `Error: ${err.message}. Check console for details.`;
                 setTimeout(() => { feedback.textContent = ''; }, 5000);
                 document.getElementById('barcodeInput').focus();
+            }
+        }
+
+        function handleItemFound(feedback, item, scannedBarcode) {
+            if (rapidMode) {
+                // Auto-add qty=1, no popup
+                const existing = sessionItems.find(i => i.sku === item.sku);
+                if (existing) {
+                    existing.qty += 1;
+                    feedback.className = 'scan-feedback scan-success';
+                    feedback.textContent = `✓ ${item.sku}  qty: ${existing.qty} (+1)`;
+                } else {
+                    sessionItems.push({
+                        sku: item.sku,
+                        friendly_name: item.friendly_name || '',
+                        color: item.color || '',
+                        barcode: item.barcode || scannedBarcode,
+                        qty: 1
+                    });
+                    feedback.className = 'scan-feedback scan-success';
+                    feedback.textContent = `✓ ${item.sku}  added`;
+                }
+                setTimeout(() => { feedback.textContent = ''; }, 1500);
+                renderSession();
+                document.getElementById('barcodeInput').focus();
+            } else {
+                showItemFound(feedback, item);
+            }
+        }
+
+        function handleUnknownBarcode(feedback, barcode) {
+            if (rapidMode) {
+                // Auto-save to unmatched with qty=1, no popup
+                const existing = sessionUnmatched.find(i => i.barcode === barcode);
+                if (existing) {
+                    existing.qty += 1;
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `? Unknown saved: ${barcode}  qty: ${existing.qty}`;
+                } else {
+                    sessionUnmatched.push({ barcode: barcode, qty: 1 });
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `? Unknown saved: ${barcode}  (match SKU later)`;
+                }
+                setTimeout(() => { feedback.textContent = ''; }, 2000);
+                renderSession();
+                document.getElementById('barcodeInput').focus();
+            } else {
+                // Confirm mode — show popup
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `Unknown barcode: ${barcode} — added check below`;
+                currentUnknownBarcode = barcode;
+                document.getElementById('unknownBarcodeText').textContent = barcode;
+                document.getElementById('unknownQty').value = '1';
+                document.getElementById('unknownPopup').style.display = 'flex';
+                document.getElementById('unknownQty').focus();
+                document.getElementById('unknownQty').select();
             }
         }
 
@@ -475,7 +546,11 @@
                     <td>${item.friendly_name}</td>
                     <td>${item.color}</td>
                     <td style="font-family:monospace; font-size:12px;">${item.barcode}</td>
-                    <td><strong style="font-size:16px;">${item.qty}</strong></td>
+                    <td>
+                        <input type="number" min="1" max="9999" maxlength="4"
+                               value="${item.qty}" onchange="updateSessionQty(${idx}, this.value)"
+                               style="width:70px; font-size:14px; padding:4px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold;">
+                    </td>
                     <td>
                         <button class="btn btn-pink" onclick="adjustQty(${idx}, 1)" style="padding:2px 8px;">+1</button>
                         <button class="btn" onclick="adjustQty(${idx}, -1)" style="padding:2px 8px;">-1</button>
@@ -486,8 +561,14 @@
         }
 
         function adjustQty(idx, delta) {
-            sessionItems[idx].qty = Math.max(1, sessionItems[idx].qty + delta);
+            sessionItems[idx].qty = Math.max(1, Math.min(9999, sessionItems[idx].qty + delta));
             renderSession();
+        }
+
+        function updateSessionQty(idx, val) {
+            const q = Math.max(1, Math.min(9999, parseInt(String(val).trim()) || 1));
+            sessionItems[idx].qty = q;
+            document.getElementById('totalQty').textContent = sessionItems.reduce((s, i) => s + i.qty, 0);
         }
 
         function removeItem(idx) {
