@@ -723,7 +723,7 @@ async function ensureSchema() {
     console.error('unmatched_barcodes table migration warning:', err.message);
   }
 }
-ensureSchema();
+ensureSchema().then(() => backfillItemCategories()).catch(() => {});
 
 // Record an action in the audit trail. Never lets a logging failure break the
 // actual request - logging is best-effort.
@@ -3554,6 +3554,76 @@ try {
   console.error('[PO-INDEX] Failed to load PO index:', e);
 }
 
+// Load live item master (from Item Master-Live-V2.xlsx) — exact SKU→category/name
+// mapping plus prefix+style-digit derivation rules for the rest
+let itemMasterLive = { items: {}, rules: {} };
+try {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const imPath = path2.join(__dirname, 'item_master_live.json');
+  if (fs2.existsSync(imPath)) {
+    itemMasterLive = JSON.parse(fs2.readFileSync(imPath, 'utf8'));
+    console.log(`[ITEM-MASTER-LIVE] Loaded ${Object.keys(itemMasterLive.items || {}).length} SKUs from live item master`);
+  } else {
+    console.log('[ITEM-MASTER-LIVE] No item_master_live.json found — category derivation uses rules only');
+  }
+} catch (e) {
+  console.error('[ITEM-MASTER-LIVE] Failed to load:', e);
+}
+
+// Derive product department (EARRING, NECKLACE, HANDBAG, ...) from a SKU.
+// 1. Exact match in the live item master, else 2. prefix + style-number rules:
+//    JW 1xx=BRACELET 2xx=BROOCH 3xx=EARRING 4xx=NECKLACE 5xx=RING 6xx=CHARM
+//    BG any=HANDBAG, AP 2xx=BROOCH 4xx=T-SHIRT 5xx=JERSEY
+function deriveCategory(sku) {
+  const s = String(sku || '').trim().toUpperCase();
+  if (!s) return '';
+  const hit = (itemMasterLive.items || {})[s];
+  if (hit && hit.category) return hit.category;
+  const prefix = s.substring(0, 2);
+  const rules = (itemMasterLive.rules || {})[prefix];
+  if (!rules) return '';
+  if (rules.default) return rules.default;
+  const m = s.match(/(\d{3})/);
+  if (m && rules[m[1][0]]) return rules[m[1][0]];
+  return '';
+}
+
+// One-time backfill: set category/friendly_name on item_master rows that are
+// missing them, using the live item master + derivation rules
+async function backfillItemCategories() {
+  try {
+    const rows = await pool.query(
+      `SELECT sku, friendly_name, category FROM item_master`
+    );
+    let catUpdates = 0, nameUpdates = 0;
+    for (const r of rows.rows) {
+      const cat = deriveCategory(r.sku);
+      const live = (itemMasterLive.items || {})[String(r.sku).trim().toUpperCase()];
+      const realName = live && live.item_name ? live.item_name : '';
+      const updates = [];
+      const params = [];
+      if (cat && (!r.category || r.category === '')) {
+        updates.push(`category = $${params.length + 1}`);
+        params.push(cat);
+        catUpdates++;
+      }
+      if (realName && (!r.friendly_name || r.friendly_name === r.sku)) {
+        updates.push(`friendly_name = $${params.length + 1}`);
+        params.push(realName);
+        nameUpdates++;
+      }
+      if (updates.length > 0) {
+        params.push(r.sku);
+        await pool.query(`UPDATE item_master SET ${updates.join(', ')} WHERE sku = $${params.length}`, params);
+      }
+    }
+    console.log(`[ITEM-MASTER-LIVE] Backfill done: ${catUpdates} categories, ${nameUpdates} names updated`);
+  } catch (e) {
+    console.error('[ITEM-MASTER-LIVE] Backfill failed:', e.message);
+  }
+}
+
 // GET /api/items/barcode/:barcode — lookup single item by barcode (for scanner)
 // Fallback chain: item_master → po_barcode_index → 404 (unmatched)
 app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
@@ -3579,16 +3649,20 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
         // Extract season + 2-char collection_code from SKU pattern: JW22SSBC301T → collection "BC"
         const skuMatch = sku.match(/^[A-Z]{2}\d{2}[A-Z]{2}([A-Z]{1,4})/);
         const collectionCode = (skuMatch && skuMatch[1]) ? skuMatch[1].substring(0, 10) : 'IMP';
+        // Derive department (EARRING/NECKLACE/...) + real name from live item master
+        const liveHit = (itemMasterLive.items || {})[sku];
+        const department = deriveCategory(sku);
+        const realName = (liveHit && liveHit.item_name) ? liveHit.item_name : `${department || 'ITEM'} ${sku}`;
 
         await pool.query(
           `INSERT INTO item_master (sku, barcode, friendly_name, status,
              category_code, year_code, collection_code, department_code, color_code,
-             material, hs_code, description, created_by)
+             material, hs_code, description, category, created_by)
            VALUES ($1, $2, $3, 'PENDING_IMAGE',
              'JW', 'A', $4, '1', 'n/a',
-             'Unknown', '9505100090', 'Auto-created from PO archive', 'system')
+             'Unknown', '9505100090', 'Auto-created from PO archive', $5, 'system')
            ON CONFLICT (sku) DO NOTHING`,
-          [sku, barcode, sku, collectionCode]
+          [sku, barcode, realName, collectionCode, department || null]
         );
         // Make sure an inventory row exists for org 1 (HQ Shanghai)
         await pool.query(
@@ -3616,7 +3690,7 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
             await pool.query(
               `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
                VALUES ($1, $2, $3, 'n/a', $4, $5, 'system')`,
-              [sku, barcode, sku, ub.qty, ub.org_id]
+              [sku, barcode, realName, ub.qty, ub.org_id]
             );
           }
           await pool.query(
@@ -3761,12 +3835,18 @@ app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res)
 app.get('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT oi.*, im.friendly_name, im.color
+      SELECT oi.*, im.friendly_name, im.color, im.category
       FROM opening_inventory oi
       LEFT JOIN item_master im ON oi.sku = im.sku
       ORDER BY oi.created_at DESC
     `);
-    res.json(result.rows);
+    // Enrich: derive department (EARRING/NECKLACE/HANDBAG/...) for rows where
+    // item_master has no category — covers SKUs the backfill rules can infer
+    const rows = result.rows.map(r => ({
+      ...r,
+      department: (r.category && r.category.trim()) ? r.category.trim() : deriveCategory(r.sku)
+    }));
+    res.json(rows);
   } catch (err) {
     console.error('Error fetching opening inventory:', err);
     res.status(500).json({ error: err.message });
