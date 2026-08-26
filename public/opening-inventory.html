@@ -145,7 +145,7 @@
         <button class="btn btn-pink" onclick="loadSavedInventory()" style="margin-bottom:10px;">🔄 Refresh</button>
         <table id="savedTable" style="display:none;">
             <thead>
-                <tr><th>Date</th><th>SKU</th><th>Item Name</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Warehouse</th><th>By</th></tr>
+                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Warehouse</th><th>Created By</th></tr>
             </thead>
             <tbody id="savedTableBody"></tbody>
         </table>
@@ -698,6 +698,26 @@
             }
         }
 
+        // Derive product department (EARRING, NECKLACE, HANDBAG...) from SKU.
+        // Rules validated against Item Master-Live-V2.xlsx (367 SKUs):
+        // JW 1xx=BRACELET 2xx=BROOCH 3xx=EARRING 4xx=NECKLACE 5xx=RING 6xx=CHARM
+        // BG any=HANDBAG, AP 2xx=BROOCH 4xx=T-SHIRT 5xx=JERSEY
+        function deriveDepartment(sku) {
+            const s = String(sku || '').trim().toUpperCase();
+            if (!s) return '';
+            const prefix = s.substring(0, 2);
+            if (prefix === 'BG') return 'HANDBAG';
+            if (prefix === 'AC') return 'ACCESSORY';
+            if (prefix !== 'JW' && prefix !== 'AP') return '';
+            const m = s.match(/(\d{3})/);
+            if (!m) return '';
+            const d = m[1][0];
+            if (prefix === 'AP') {
+                return { '2': 'BROOCH', '4': 'T-SHIRT', '5': 'JERSEY' }[d] || '';
+            }
+            return { '1': 'BRACELET', '2': 'BROOCH', '3': 'EARRING', '4': 'NECKLACE', '5': 'RING', '6': 'CHARM' }[d] || '';
+        }
+
         async function loadSavedInventory() {
             try {
                 const res = await fetch('/api/opening-inventory', { credentials: 'same-origin' });
@@ -720,8 +740,8 @@
                     <tr>
                         <td>${new Date(r.created_at).toLocaleDateString('en-CA')}</td>
                         <td><strong>${r.sku}</strong></td>
-                        <td>${r.friendly_name || ''}</td>
-                        <td>${r.color || ''}</td>
+                        <td>${r.department || deriveDepartment(r.sku)}</td>
+                        <td>${r.color || 'NA'}</td>
                         <td style="font-family:monospace; font-size:12px;">${r.barcode || ''}</td>
                         <td><strong>${r.qty}</strong></td>
                         <td>${orgNames[r.org_id] || r.org_id}</td>
