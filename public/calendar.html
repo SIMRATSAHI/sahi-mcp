@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAHI London — Content Calendar</title>
+<style>
+:root{
+  --blue:#87CEEB; --pink:#FFB7C5; --grey:#D3D3D3; --grey-lt:#F4F6F8;
+  --ink:#2A3439; --ink-soft:#5A6A72; --white:#FFFFFF;
+  --shadow:0 2px 10px rgba(42,52,57,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Helvetica,Arial,sans-serif;background:var(--white);color:var(--ink);font-size:14px}
+header{padding:22px 28px 0;border-bottom:1px solid var(--grey)}
+.brandrow{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.wordmark{font-size:24px;font-weight:700;letter-spacing:.35em}
+.wordmark .dot{color:var(--blue)}
+.tagline{color:var(--ink-soft);font-size:12px}
+.pink-rule{height:3px;background:var(--pink);width:120px;margin:10px 0 16px;border-radius:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.btn{border:1px solid var(--grey);background:var(--white);color:var(--ink);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;transition:all .15s}
+.btn:hover{border-color:var(--blue);background:#EAF6FC}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#0E3A4D;font-weight:600}
+.btn.primary:hover{background:#6FC3E5}
+.btn.pink{background:var(--pink);border-color:var(--pink);color:#5A2230;font-weight:600}
+.btn.small{padding:4px 10px;font-size:12px;border-radius:6px}
+main{padding:20px 28px 60px;max-width:1280px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
+.stat{background:var(--grey-lt);border:1px solid var(--grey);border-radius:12px;padding:14px 16px}
+.stat .num{font-size:26px;font-weight:700}
+.stat .lbl{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+.stat.b{border-top:3px solid var(--blue)} .stat.p{border-top:3px solid var(--pink)}
+.filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.filters select,.filters input{padding:6px 10px;border:1px solid var(--grey);border-radius:8px;font-family:inherit;font-size:13px;background:var(--white)}
+table{width:100%;border-collapse:collapse;background:var(--white);box-shadow:var(--shadow);border-radius:12px;overflow:hidden}
+th{background:var(--grey-lt);text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);border-bottom:1px solid var(--grey)}
+td{padding:11px 14px;border-bottom:1px solid #EAEDEF;vertical-align:top}
+tr.row{cursor:pointer;transition:background .12s}
+tr.row:hover{background:#F0F9FE}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.badge.in{background:var(--pink);color:#5A2230}
+.badge.ovs{background:var(--blue);color:#0E3A4D}
+.status{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:600}
+.st-draft{background:var(--grey);color:#333}.st-pending_review{background:#FFF0C2;color:#7A5B00}
+.st-approved{background:#D9F2E5;color:#1D6A40}.st-scheduled{background:#D6EDFB;color:#0E5A80}
+.st-posted{background:var(--blue);color:#0E3A4D}.st-rejected{background:var(--pink);color:#5A2230}
+.perf{font-size:12px;color:var(--ink-soft)}
+.modal-bg{position:fixed;inset:0;background:rgba(42,52,57,.35);display:none;z-index:50}
+.modal-bg.open{display:flex;align-items:flex-start;justify-content:flex-end}
+.side{background:var(--white);width:440px;max-width:95vw;height:100vh;overflow-y:auto;padding:24px;box-shadow:-4px 0 20px rgba(0,0,0,.12)}
+.side h2{font-size:17px;margin-bottom:4px}
+.side .meta{color:var(--ink-soft);font-size:12px;margin-bottom:16px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--grey);border-radius:8px;font-family:inherit;font-size:13px}
+.field textarea{min-height:80px;resize:vertical}
+.comments{margin-top:18px;border-top:1px solid var(--grey);padding-top:14px}
+.comment{background:var(--grey-lt);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.comment .who{font-weight:700;font-size:12px;color:#0E5A80}
+.comment .when{font-size:10px;color:var(--ink-soft);margin-left:6px}
+.comment .txt{margin-top:3px;white-space:pre-wrap}
+.cnew{display:flex;gap:8px;margin-top:8px}
+.cnew input{flex:1;padding:8px 10px;border:1px solid var(--grey);border-radius:8px;font-family:inherit}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.actions .warn{margin-left:auto}
+.empty{padding:40px;text-align:center;color:var(--ink-soft)}
+.settings{background:var(--white);border-radius:14px;box-shadow:var(--shadow);max-width:520px;margin:60px auto;padding:26px}
+.settings h2{margin-bottom:6px}
+.hint{font-size:11px;color:var(--ink-soft);margin-top:4px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;opacity:0;transition:opacity .3s;z-index:99}
+.toast.show{opacity:1}
+@media(max-width:760px){.side{width:100vw}main{padding:14px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brandrow">
+    <div class="wordmark">SAHI<span class="dot">.</span>LONDON</div>
+    <div class="tagline">Content Calendar — plan · review · post · measure</div>
+  </div>
+  <div class="pink-rule"></div>
+  <div class="toolbar">
+    <button class="btn primary" onclick="newPost()">+ New Post</button>
+    <button class="btn" onclick="syncPerf()">↻ Sync Performance</button>
+    <button class="btn" onclick="exportJSON()">⬇ Export</button>
+    <button class="btn" onclick="document.getElementById('imp').click()">⬆ Import</button>
+    <input type="file" id="imp" accept=".json" style="display:none" onchange="importJSON(this)">
+    <button class="btn" onclick="openSettings()">⚙ Settings</button>
+  </div>
+</header>
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="filters">
+    <select id="fAcct" onchange="render()">
+      <option value="">All accounts</option>
+      <option value="sahi_london">sahi_london (Overseas)</option>
+      <option value="sahi_london_in">sahi_london_in (India)</option>
+    </select>
+    <select id="fStatus" onchange="render()">
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="pending_review">Pending review</option>
+      <option value="approved">Approved</option>
+      <option value="scheduled">Scheduled</option>
+      <option value="posted">Posted</option>
+      <option value="rejected">Rejected</option>
+    </select>
+    <input id="fSearch" placeholder="Search title / caption…" oninput="render()">
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th>Post</th><th>Account</th><th>Platform</th><th>Category</th><th>Status</th><th>Performance</th><th>💬</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">No posts match. Create one or clear filters.</div>
+</main>
+
+<div class="modal-bg" id="bg" onclick="if(event.target===this)closeSide()">
+  <div class="side" id="side"></div>
+</div>
+
+<div class="modal-bg" id="sbg" onclick="if(event.target===this)closeSettings()">
+  <div class="settings">
+    <h2>Settings</h2>
+    <p class="hint" style="margin-bottom:14px">The Meta access token is stored only in this browser (localStorage) and sent only to graph.facebook.com. Never share this URL's browser storage.</p>
+    <div class="field">
+      <label>Meta access token (best-boy)</label>
+      <input type="password" id="setTok" placeholder="EAAF…">
+      <div class="hint">System-user token used to pull real like/comment counts during Sync Performance.</div>
+    </div>
+    <div class="field">
+      <label>Your name (for comments)</label>
+      <input id="setUser" placeholder="Simrat">
+    </div>
+    <div class="actions">
+      <button class="btn primary" onclick="saveSettings()">Save</button>
+      <button class="btn" onclick="closeSettings()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY='sahi_calendar_v1', SKEY='sahi_calendar_settings';
+const STATUS=['draft','pending_review','approved','scheduled','posted','rejected'];
+const STLBL={draft:'Draft',pending_review:'Pending review',approved:'Approved',scheduled:'Scheduled',posted:'Posted',rejected:'Rejected'};
+let DB={posts:[]}, SEL=null;
+
+function load(){
+  try{DB=JSON.parse(localStorage.getItem(KEY))||{posts:[]}}catch(e){DB={posts:[]}}
+  if(!DB.posts)DB.posts=[];
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(DB))}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function user(){try{return JSON.parse(localStorage.getItem(SKEY)).user||'You'}catch(e){return 'You'}}
+function token(){try{return JSON.parse(localStorage.getItem(SKEY)).token||''}catch(e){return ''}}
+
+function newPost(){
+  const p={id:'p'+Date.now(),date:'',time:'18:00',profile:'sahi_london',platform:'instagram',pillar:'BAGS',title:'',caption:'',media_path:'',status:'draft',comments:[],posted_id:'',perf:null};
+  DB.posts.push(p);save();editPost(p.id);
+}
+function editPost(id){SEL=id;renderSide();document.getElementById('bg').classList.add('open')}
+function closeSide(){SEL=null;document.getElementById('bg').classList.remove('open');render()}
+function setStatus(id,st){const p=DB.posts.find(x=>x.id===id);if(!p)return;p.status=st;save();renderSide();render();toast('Status → '+STLBL[st])}
+function delPost(id){if(!confirm('Delete this post plan?'))return;DB.posts=DB.posts.filter(p=>p.id!==id);save();closeSide();toast('Deleted')}
+function addComment(id){
+  const p=DB.posts.find(x=>x.id===id);const inp=document.getElementById('cinput');
+  if(!p||!inp.value.trim())return;
+  p.comments.push({by:user(),text:inp.value.trim(),at:new Date().toISOString()});
+  inp.value='';save();renderSide();render();
+}
+function saveField(id,f,v){const p=DB.posts.find(x=>x.id===id);if(p){p[f]=v;save();render()}}
+
+function visible(){
+  const a=document.getElementById('fAcct').value,s=document.getElementById('fStatus').value,q=document.getElementById('fSearch').value.toLowerCase();
+  return DB.posts.filter(p=>(!a||p.profile===a)&&(!s||p.status===s)&&(!q||(p.title+' '+p.caption).toLowerCase().includes(q)))
+    .sort((x,y)=>(x.date+(x.time||'')).localeCompare(y.date+(y.time||'')));
+}
+function render(){
+  const vs=visible(),tb=document.getElementById('rows');
+  document.getElementById('empty').style.display=vs.length?'none':'block';
+  tb.innerHTML=vs.map(p=>`<tr class="row" onclick="editPost('${p.id}')">
+    <td style="white-space:nowrap">${esc(p.date)}<br><span class="perf">${esc(p.time||'')}</span></td>
+    <td><strong>${esc(p.title)||'(untitled)'}</strong><br><span class="perf">${esc((p.caption||'').slice(0,60))}${(p.caption||'').length>60?'…':''}</span></td>
+    <td><span class="badge ${p.profile==='sahi_london_in'?'in':'ovs'}">${p.profile==='sahi_london_in'?'IN':'OVS'}</span></td>
+    <td>${esc(p.platform)}</td>
+    <td>${esc(p.pillar||'—')}</td>
+    <td><span class="status st-${p.status}">${STLBL[p.status]}</span></td>
+    <td class="perf">${p.perf?('❤ '+p.perf.likes+'  💬 '+p.perf.comments):'—'}</td>
+    <td>${p.comments.length}</td>
+  </tr>`).join('');
+  const n=DB.posts.length,st={};DB.posts.forEach(p=>st[p.status]=(st[p.status]||0)+1);
+  document.getElementById('stats').innerHTML=`
+    <div class="stat b"><div class="num">${n}</div><div class="lbl">Total planned</div></div>
+    <div class="stat b"><div class="num">${st.pending_review||0}</div><div class="lbl">Pending review</div></div>
+    <div class="stat b"><div class="num">${st.approved||0}</div><div class="lbl">Approved</div></div>
+    <div class="stat p"><div class="num">${st.scheduled||0}</div><div class="lbl">Scheduled</div></div>
+    <div class="stat p"><div class="num">${st.posted||0}</div><div class="lbl">Posted</div></div>`;
+}
+function renderSide(){
+  const p=DB.posts.find(x=>x.id===SEL);if(!p)return;
+  document.getElementById('side').innerHTML=`
+    <h2>${esc(p.title)||'(untitled)'}</h2>
+    <div class="meta">${STLBL[p.status]} · ${esc(p.date)} ${esc(p.time||'')}</div>
+    <div class="field"><label>Date</label><input type="date" value="${esc(p.date)}" onchange="saveField('${p.id}','date',this.value)"></div>
+    <div class="field"><label>Time</label><input type="time" value="${esc(p.time)}" onchange="saveField('${p.id}','time',this.value)"></div>
+    <div class="field"><label>Account</label><select onchange="saveField('${p.id}','profile',this.value)">
+      <option value="sahi_london" ${p.profile==='sahi_london'?'selected':''}>sahi_london (Overseas)</option>
+      <option value="sahi_london_in" ${p.profile==='sahi_london_in'?'selected':''}>sahi_london_in (India)</option></select></div>
+    <div class="field"><label>Platform</label><select onchange="saveField('${p.id}','platform',this.value)">
+      ${['instagram','facebook','both'].map(x=>`<option ${p.platform===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="field"><label>Category</label><select onchange="saveField('${p.id}','pillar',this.value)">
+      ${['JEWELRY','BAGS','T-SHIRTS'].map(x=>`<option ${p.pillar===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="field"><label>Title</label><input value="${esc(p.title)}" onchange="saveField('${p.id}','title',this.value)"></div>
+    <div class="field"><label>Caption</label><textarea oninput="saveField('${p.id}','caption',this.value)">${esc(p.caption)}</textarea></div>
+    <div class="field"><label>Media path / URL</label><input value="${esc(p.media_path)}" onchange="saveField('${p.id}','media_path',this.value)"></div>
+    <div class="field"><label>Posted ID (for performance sync)</label><input value="${esc(p.posted_id)}" placeholder="IG media id or FB post id" onchange="saveField('${p.id}','posted_id',this.value)"></div>
+    <div class="actions">
+      ${STATUS.map(s=>`<button class="btn small ${s==='posted'?'primary':''} ${s==='rejected'?'pink':''}" onclick="setStatus('${p.id}','${s}')">${STLBL[s]}</button>`).join('')}
+      <button class="btn small warn" style="margin-left:auto;color:#B00020" onclick="delPost('${p.id}')">Delete</button>
+    </div>
+    <div class="comments">
+      <strong>Comments</strong>
+      ${p.comments.map(c=>`<div class="comment"><span class="who">${esc(c.by)}</span><span class="when">${new Date(c.at).toLocaleString()}</span><div class="txt">${esc(c.text)}</div></div>`).join('')||'<div class="hint">No comments yet.</div>'}
+      <div class="cnew"><input id="cinput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')addComment('${p.id}')"><button class="btn small primary" onclick="addComment('${p.id}')">Send</button></div>
+    </div>`;
+}
+
+/* Performance sync — talks directly to Graph API from the browser */
+async function syncPerf(){
+  const tok=token();
+  if(!tok){openSettings();toast('Add your Meta token in Settings first');return}
+  const targets=DB.posts.filter(p=>p.status==='posted'&&p.posted_id);
+  if(!targets.length){toast('No posted posts with a Posted ID yet');return}
+  let ok=0,fail=0;
+  for(const p of targets){
+    try{
+      const fields=p.platform==='facebook'?'likes.summary(true).summary(total_count),comments.summary(true).summary(total_count)':'like_count,comments_count';
+      const r=await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(p.posted_id)}?fields=${fields}&access_token=${encodeURIComponent(tok)}`);
+      const d=await r.json();
+      if(d.error){fail++;continue}
+      p.perf={likes:p.platform==='facebook'?(d.likes?.summary?.total_count??d.likes):(d.like_count??0),
+              comments:p.platform==='facebook'?(d.comments?.summary?.total_count??d.comments):(d.comments_count??0),
+              synced_at:new Date().toISOString()};
+      ok++;
+    }catch(e){fail++}
+  }
+  save();render();if(SEL)renderSide();
+  toast(`Synced ${ok} post${ok!==1?'s':''}${fail?` · ${fail} failed`:''}`);
+}
+
+function exportJSON(){
+  const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sahi-calendar-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+}
+function importJSON(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.posts))throw 0;
+    const ids=new Set(DB.posts.map(p=>p.id));d.posts.forEach(p=>{if(!ids.has(p.id))DB.posts.push(p)});
+    save();render();toast('Imported '+d.posts.length+' posts (merged)')}catch(e){toast('Invalid file')}};
+  r.readAsText(f);inp.value='';
+}
+function openSettings(){
+  const s=JSON.parse(localStorage.getItem(SKEY)||'{}');
+  document.getElementById('setTok').value=s.token||'';document.getElementById('setUser').value=s.user||'';
+  document.getElementById('sbg').classList.add('open');
+}
+function closeSettings(){document.getElementById('sbg').classList.remove('open')}
+function saveSettings(){
+  localStorage.setItem(SKEY,JSON.stringify({token:document.getElementById('setTok').value.trim(),user:document.getElementById('setUser').value.trim()||'You'}));
+  closeSettings();toast('Settings saved');
+}
+
+load();
+if(!DB.posts.length){
+  DB.posts=[
+    {id:'p001',date:'2026-09-01',time:'19:00',profile:'sahi_london',platform:'instagram',pillar:'JEWELRY',title:'Statement jewellery — 3 ways to wear it',
+     caption:'From the boardroom to a night out — one statement piece, three looks. Which one is yours? 1, 2 or 3? 💍',
+     media_path:'',status:'pending_review',comments:[{by:'Simrat',text:'Good hook — maybe add a Canada shipping note at the end.',at:new Date().toISOString()}],posted_id:'',perf:null},
+    {id:'p002',date:'2026-09-03',time:'20:30',profile:'sahi_london_in',platform:'instagram',pillar:'JEWELRY',title:'Brooch styling — 3 ways',
+     caption:'From saree drape to denim jacket. Which look is yours? 1, 2 or 3? 📌',
+     media_path:'',status:'draft',comments:[],posted_id:'',perf:null}
+  ];
+  save();
+}
+render();
+</script>
+</body>
+</html>
