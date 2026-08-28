@@ -38,6 +38,11 @@ th{background:var(--grey-lt);text-align:left;padding:10px 14px;font-size:11px;te
 td{padding:11px 14px;border-bottom:1px solid #EAEDEF;vertical-align:top}
 tr.row{cursor:pointer;transition:background .12s}
 tr.row:hover{background:#F0F9FE}
+.thumb{width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid var(--grey);background:var(--grey-lt);display:block}
+.pcell{display:flex;gap:10px;align-items:flex-start}
+.pcell .ptxt{min-width:0}
+.preview{width:100%;border-radius:12px;border:1px solid var(--grey);margin-bottom:14px;display:block;background:var(--grey-lt)}
+.linkbtn{display:inline-block;margin-top:4px;font-size:12px;color:#0E5A80;font-weight:600;text-decoration:none;border-bottom:1px dotted #0E5A80}
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
 .badge.in{background:var(--pink);color:#5A2230}
 .badge.ovs{background:var(--blue);color:#0E3A4D}
@@ -109,7 +114,7 @@ tr.row:hover{background:#F0F9FE}
     <input id="fSearch" placeholder="Search title / caption…" oninput="render()">
   </div>
   <table>
-    <thead><tr><th>Date</th><th>Post</th><th>Account</th><th>Platform</th><th>Category</th><th>Status</th><th>Performance</th><th>💬</th></tr></thead>
+    <thead><tr><th></th><th>Date</th><th>Post</th><th>Account</th><th>Platform</th><th>Category</th><th>Status</th><th>Performance</th><th>💬</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
   <div class="empty" id="empty" style="display:none">No posts match. Create one or clear filters.</div>
@@ -158,7 +163,7 @@ function user(){try{return JSON.parse(localStorage.getItem(SKEY)).user||'You'}ca
 function token(){try{return JSON.parse(localStorage.getItem(SKEY)).token||''}catch(e){return ''}}
 
 function newPost(){
-  const p={id:'p'+Date.now(),date:'',time:'18:00',profile:'sahi_london',platform:'instagram',pillar:'BAGS',title:'',caption:'',media_path:'',status:'draft',comments:[],posted_id:'',perf:null};
+  const p={id:'p'+Date.now(),date:'',time:'18:00',profile:'sahi_london',platform:'instagram',pillar:'BAGS',title:'',caption:'',media_path:'',image_url:'',status:'draft',comments:[],posted_id:'',perf:null};
   DB.posts.push(p);save();editPost(p.id);
 }
 function editPost(id){SEL=id;renderSide();document.getElementById('bg').classList.add('open')}
@@ -182,8 +187,9 @@ function render(){
   const vs=visible(),tb=document.getElementById('rows');
   document.getElementById('empty').style.display=vs.length?'none':'block';
   tb.innerHTML=vs.map(p=>`<tr class="row" onclick="editPost('${p.id}')">
+    <td style="padding:6px 4px">${p.image_url?`<img class="thumb" src="${esc(p.image_url)}" loading="lazy" alt="">`:'<div class="thumb"></div>'}</td>
     <td style="white-space:nowrap">${esc(p.date)}<br><span class="perf">${esc(p.time||'')}</span></td>
-    <td><strong>${esc(p.title)||'(untitled)'}</strong><br><span class="perf">${esc((p.caption||'').slice(0,60))}${(p.caption||'').length>60?'…':''}</span></td>
+    <td><div class="pcell"><div class="ptxt"><strong>${esc(p.title)||'(untitled)'}</strong><br><span class="perf">${esc((p.caption||'').slice(0,60))}${(p.caption||'').length>60?'…':''}</span></div></div></td>
     <td><span class="badge ${p.profile==='sahi_london_in'?'in':'ovs'}">${p.profile==='sahi_london_in'?'IN':'OVS'}</span></td>
     <td>${esc(p.platform)}</td>
     <td>${esc(p.pillar||'—')}</td>
@@ -202,8 +208,10 @@ function render(){
 function renderSide(){
   const p=DB.posts.find(x=>x.id===SEL);if(!p)return;
   document.getElementById('side').innerHTML=`
+    ${p.image_url?`<img class="preview" src="${esc(p.image_url)}" alt="post image">`:'<div class="hint" style="margin-bottom:12px">No image yet — paste an image URL below.</div>'}
     <h2>${esc(p.title)||'(untitled)'}</h2>
     <div class="meta">${STLBL[p.status]} · ${esc(p.date)} ${esc(p.time||'')}</div>
+    <div class="field"><label>Image URL</label><input value="${esc(p.image_url||'')}" placeholder="https://cdn.shopify.com/…" onchange="saveField('${p.id}','image_url',this.value)"></div>
     <div class="field"><label>Date</label><input type="date" value="${esc(p.date)}" onchange="saveField('${p.id}','date',this.value)"></div>
     <div class="field"><label>Time</label><input type="time" value="${esc(p.time)}" onchange="saveField('${p.id}','time',this.value)"></div>
     <div class="field"><label>Account</label><select onchange="saveField('${p.id}','profile',this.value)">
@@ -215,7 +223,7 @@ function renderSide(){
       ${['JEWELRY','BAGS','T-SHIRTS'].map(x=>`<option ${p.pillar===x?'selected':''}>${x}</option>`).join('')}</select></div>
     <div class="field"><label>Title</label><input value="${esc(p.title)}" onchange="saveField('${p.id}','title',this.value)"></div>
     <div class="field"><label>Caption</label><textarea oninput="saveField('${p.id}','caption',this.value)">${esc(p.caption)}</textarea></div>
-    <div class="field"><label>Media path / URL</label><input value="${esc(p.media_path)}" onchange="saveField('${p.id}','media_path',this.value)"></div>
+    <div class="field"><label>Media path / URL</label><input value="${esc(p.media_path)}" onchange="saveField('${p.id}','media_path',this.value)">${p.media_path?`<a class="linkbtn" href="${esc(p.media_path)}" target="_blank" rel="noopener">Open link ↗</a>`:''}</div>
     <div class="field"><label>Posted ID (for performance sync)</label><input value="${esc(p.posted_id)}" placeholder="IG media id or FB post id" onchange="saveField('${p.id}','posted_id',this.value)"></div>
     <div class="actions">
       ${STATUS.map(s=>`<button class="btn small ${s==='posted'?'primary':''} ${s==='rejected'?'pink':''}" onclick="setStatus('${p.id}','${s}')">${STLBL[s]}</button>`).join('')}
