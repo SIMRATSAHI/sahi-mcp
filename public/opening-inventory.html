@@ -229,6 +229,7 @@
         let sessionItems = [];
         let sessionUnmatched = [];
         let allItems = [];
+        let savedInventory = [];  // mirror of /api/opening-inventory for hint lookups
         let currentScannedItem = null;
         let currentUnknownBarcode = null;
         let mode = 'scanner';
@@ -716,7 +717,15 @@
             document.getElementById('lineCount').textContent = sessionItems.length;
             document.getElementById('totalQty').textContent = sessionItems.reduce((s, i) => s + i.qty, 0);
 
-            tbody.innerHTML = sessionItems.map((item, idx) => `
+            tbody.innerHTML = sessionItems.map((item, idx) => {
+                const savedRow = savedInventory.find(s => s.sku === item.sku && String(s.org_id) === String(document.getElementById('orgSelect').value));
+                const savedQty = savedRow ? savedRow.qty : 0;
+                const willReplace = savedQty > 0;
+                const isShrinkage = willReplace && item.qty < savedQty;
+                const hint = willReplace
+                    ? `<div style="font-size:11px; color:#666; margin-top:2px;">saved: <b>${savedQty}</b> → will become <b style="color:#2e7d32;">${item.qty}</b>${isShrinkage ? ' <span style="color:#d32f2f;">(shrinks by ' + (savedQty - item.qty) + ')</span>' : ''}</div>`
+                    : `<div style="font-size:11px; color:#999; margin-top:2px;">new item</div>`;
+                return `
                 <tr>
                     <td><strong>${item.sku}</strong></td>
                     <td>${item.friendly_name}</td>
@@ -726,6 +735,7 @@
                         <input type="number" min="1" max="9999" maxlength="4"
                                value="${item.qty}" onchange="updateSessionQty(${idx}, this.value)"
                                style="width:70px; font-size:14px; padding:4px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold;">
+                        ${hint}
                     </td>
                     <td>
                         <button class="btn btn-pink" onclick="adjustQty(${idx}, 1)" style="padding:2px 8px;">+1</button>
@@ -733,7 +743,8 @@
                         <button class="btn btn-red" onclick="removeItem(${idx})" style="padding:2px 8px;">🗑</button>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         function adjustQty(idx, delta) {
@@ -786,12 +797,23 @@
         async function saveOpeningInventory() {
             if (sessionItems.length === 0 && sessionUnmatched.length === 0) return;
             const orgId = parseInt(document.getElementById('orgSelect').value);
+            const totalUnits = sessionItems.reduce((s,i)=>s+i.qty,0);
             const msg = sessionItems.length > 0 && sessionUnmatched.length > 0
-                ? `Save ${sessionItems.length} known items (${sessionItems.reduce((s,i)=>s+i.qty,0)} units) + ${sessionUnmatched.length} unmatched barcodes?`
+                ? `Save ${sessionItems.length} known items (${totalUnits} units) + ${sessionUnmatched.length} unmatched barcodes?\n\n(Existing saved counts for these SKUs will be REPLACED — opening inventory is a physical count.)`
                 : sessionUnmatched.length > 0
                 ? `Save ${sessionUnmatched.length} unmatched barcodes?`
-                : `Save ${sessionItems.length} items with ${sessionItems.reduce((s,i)=>s+i.qty,0)} total units as opening inventory?`;
+                : `Save ${sessionItems.length} items with ${totalUnits} total units as opening inventory?\n\n(Existing saved counts for these SKUs will be REPLACED — opening inventory is a physical count.)`;
             if (!confirm(msg)) return;
+
+            // Detect destructive updates (shrinking) and warn
+            const shrinkages = sessionItems.map(i => {
+                const savedRow = savedInventory.find(s => s.sku === i.sku && String(s.org_id) === String(orgId));
+                return savedRow && i.qty < savedRow.qty ? { sku: i.sku, from: savedRow.qty, to: i.qty } : null;
+            }).filter(Boolean);
+            if (shrinkages.length > 0) {
+                const lines = shrinkages.map(s => `  ${s.sku}: ${s.from} → ${s.to}  (loses ${s.from - s.to})`).join('\n');
+                if (!confirm(`⚠️ The following SKUs will SHRINK:\n${lines}\n\nThis replaces the saved count with your session count (no add).\n\nContinue?`)) return;
+            }
 
             try {
                 if (sessionItems.length > 0) {
@@ -875,11 +897,13 @@
                 if (!data || data.length === 0) {
                     table.style.display = 'none';
                     empty.style.display = '';
+                    savedInventory = [];
                     return;
                 }
 
                 table.style.display = '';
                 empty.style.display = 'none';
+                savedInventory = data;  // cache for session-row hints
 
                 const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
                 tbody.innerHTML = data.map(r => `
