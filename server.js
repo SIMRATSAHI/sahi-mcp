@@ -4203,7 +4203,7 @@ async function tryAutoResolveOneBarcode(barcode) {
   );
   if (masterHit.rows.length > 0) {
     return { sku: masterHit.rows[0].sku, friendly_name: masterHit.rows[0].friendly_name,
-             color: masterHit.rows[0].color, source: 'master_barcode' };
+             color: masterHit.rows[0].color, barcode: code, source: 'master_barcode' };
   }
 
   // Tier 2 — EAN registry barcode → SKU (size-variant EAN on an existing item)
@@ -4216,7 +4216,7 @@ async function tryAutoResolveOneBarcode(barcode) {
     );
     if (er.rows.length > 0) {
       return { sku: er.rows[0].sku, friendly_name: er.rows[0].friendly_name,
-               color: er.rows[0].color, source: 'ean_index' };
+               color: er.rows[0].color, barcode: code, source: 'ean_index' };
     }
     // SKU known to EAN but missing from item_master — auto-create (same shape as barcode lookup chain)
     const department = deriveCategory(eanSku);
@@ -4237,7 +4237,7 @@ async function tryAutoResolveOneBarcode(barcode) {
         `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
         [eanSku]
       );
-      return { sku: eanSku, friendly_name: realName, color: 'n/a', source: 'ean_fallback' };
+      return { sku: eanSku, friendly_name: realName, color: 'n/a', barcode: code, source: 'ean_fallback' };
     } catch (e) {
       console.error('[AUTO-RESOLVE] ean create failed:', e.message);
     }
@@ -4246,13 +4246,19 @@ async function tryAutoResolveOneBarcode(barcode) {
   // Tier 3 — input is actually a SKU code (the scanner/operator typed a SKU by mistake)
   const skuUp = code.toUpperCase().replace(/\s+/g, '');
   const skuHit = await pool.query(
-    `SELECT sku, friendly_name, color_code AS color FROM item_master
+    `SELECT sku, friendly_name, color_code AS color, barcode FROM item_master
       WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
     [skuUp]
   );
   if (skuHit.rows.length > 0) {
+    // Resolve to the REAL EAN barcode (per SOP: barcode is always the EAN on the
+    // item, not the SKU text). Prefer the EAN registry's primary EAN, then the
+    // item_master barcode field, then the scanned text as a last resort.
+    const s2b = (eanRegistry.sku_to_barcodes || {})[skuUp];
+    const registryEan = (s2b && s2b.length > 0) ? s2b[0] : null;
+    const realBarcode = registryEan || skuHit.rows[0].barcode || code;
     return { sku: skuHit.rows[0].sku, friendly_name: skuHit.rows[0].friendly_name,
-             color: skuHit.rows[0].color, source: 'sku_lookup' };
+             color: skuHit.rows[0].color, barcode: realBarcode, source: 'sku_lookup' };
   }
 
   // Tier 4 — SKU is in EAN registry or live catalog but not yet in item_master; pick the
@@ -4277,7 +4283,8 @@ async function tryAutoResolveOneBarcode(barcode) {
         `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
         [skuUp]
       );
-      return { sku: skuUp, friendly_name: realName, color: 'n/a', source: 'sku_fallback' };
+      // SKU source → real barcode must be the EAN, NOT the SKU text we just scanned
+      return { sku: skuUp, friendly_name: realName, color: 'n/a', barcode: eanForSku || code, source: 'sku_fallback' };
     } catch (e) {
       console.error('[AUTO-RESOLVE] sku create failed:', e.message);
     }
@@ -4300,11 +4307,16 @@ app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER
       try {
         const match = await tryAutoResolveOneBarcode(ub.barcode);
         if (match && match.sku) {
-          // Attach the scanned barcode to the SKU (only when item_master.barcode is empty —
+          // Per SOP: barcode is the EAN, not the SKU text. When the scanner was fed
+          // a SKU (e.g. JW22SSFN303C) we resolve to the canonical EAN from the
+          // registry; when it was fed an EAN we keep that EAN. match.barcode is the
+          // canonical value to write everywhere.
+          const canonicalBarcode = match.barcode || ub.barcode;
+          // Attach the canonical barcode to the SKU (only when item_master.barcode is empty —
           // barcode lookup chain already set a primary barcode; don't overwrite)
           await pool.query(
             `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE sku = $2`,
-            [ub.barcode, match.sku]
+            [canonicalBarcode, match.sku]
           );
           // Convert orphan → opening inventory (ADD semantics, matches scanner save flow)
           const existing = await pool.query(
@@ -4320,14 +4332,14 @@ app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER
                       color = COALESCE(NULLIF(color, ''), $4),
                       created_by = $5, created_at = NOW()
                 WHERE id = $6`,
-              [ub.qty, ub.barcode, match.friendly_name, match.color || 'n/a',
+              [ub.qty, canonicalBarcode, match.friendly_name, match.color || 'n/a',
                req.user ? req.user.email : 'system', existing.rows[0].id]
             );
           } else {
             await pool.query(
               `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
                VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-              [match.sku, ub.barcode, match.friendly_name, match.color || 'n/a',
+              [match.sku, canonicalBarcode, match.friendly_name, match.color || 'n/a',
                ub.qty, ub.org_id, req.user ? req.user.email : 'system']
             );
           }
@@ -4337,7 +4349,7 @@ app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER
               WHERE id = $2`,
             [match.sku, ub.id]
           );
-          resolved.push({ barcode: ub.barcode, sku: match.sku, qty: ub.qty, source: match.source });
+          resolved.push({ barcode: canonicalBarcode, sku: match.sku, qty: ub.qty, source: match.source });
         } else {
           skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'no_match_in_any_source' });
         }
@@ -4357,6 +4369,65 @@ app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER
     });
   } catch (err) {
     console.error('Error in auto-resolve unmatched barcodes:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/opening-inventory/canonicalize-barcodes — one-off fixup that rewrites
+// opening_inventory.barcode to the canonical EAN (from registry or item_master).
+// Used to clean up rows that were saved with a SKU code as the barcode (before the
+// canonical-barcode logic landed). Idempotent — re-running does nothing if everything
+// already matches.
+app.post('/api/opening-inventory/canonicalize-barcodes', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT id, sku, barcode, org_id FROM opening_inventory ORDER BY id`
+    );
+    const fixed = [];
+    const already = [];
+    const unresolved = [];
+    for (const oi of rows.rows) {
+      const sku = (oi.sku || '').trim().toUpperCase();
+      // Look up canonical barcode: EAN registry primary EAN, else item_master barcode
+      const eanFromReg = ((eanRegistry.sku_to_barcodes || {})[sku] || [])[0] || null;
+      let canonical = eanFromReg;
+      if (!canonical) {
+        const im = await pool.query(
+          `SELECT barcode FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+          [sku]
+        );
+        if (im.rows.length > 0 && im.rows[0].barcode) canonical = im.rows[0].barcode.toString().trim();
+      }
+      if (!canonical) {
+        unresolved.push({ id: oi.id, sku, current: oi.barcode });
+        continue;
+      }
+      const current = (oi.barcode || '').toString().trim();
+      if (current === canonical) {
+        already.push({ id: oi.id, sku, barcode: canonical });
+      } else {
+        await pool.query(`UPDATE opening_inventory SET barcode = $1 WHERE id = $2`, [canonical, oi.id]);
+        // Also align item_master.barcode (only if empty)
+        await pool.query(
+          `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE TRIM(UPPER(sku)) = $2`,
+          [canonical, sku]
+        );
+        fixed.push({ id: oi.id, sku, from: current, to: canonical });
+      }
+    }
+    logActivity(req.user, 'OI_CANONICALIZE_BARCODES', null,
+      { fixed: fixed.length, already: already.length, unresolved: unresolved.length });
+    res.json({
+      success: true,
+      fixed_count: fixed.length,
+      already_count: already.length,
+      unresolved_count: unresolved.length,
+      fixed,
+      already,
+      unresolved
+    });
+  } catch (err) {
+    console.error('Error canonicalizing barcodes:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -4442,14 +4513,18 @@ app.post('/api/scan/resolve-unknown', requireAuthApi(['ADMIN', 'BUYER']), async 
       console.log(`[SCAN-RESOLVE] Auto-created ${cleanSku} from at-scan link (barcode ${cleanBarcode})`);
     }
 
-    // 3. Attach the scanned barcode to the item (only if item has no barcode yet,
-    //    so we don't overwrite a known good barcode with a wrong scan)
+    // 3. Attach the canonical barcode to the item (only if item has no barcode yet,
+    //    so we don't overwrite a known good barcode with a wrong scan). Per SOP the
+    //    barcode is the EAN, not the SKU text — when the operator typed a SKU into
+    //    the scanner, prefer the EAN registry's primary EAN, then the existing
+    //    item_master barcode, then the scanned value.
+    const eanRegistryEan = ((eanRegistry.sku_to_barcodes || {})[cleanSku] || [])[0] || null;
+    const canonicalBarcode = eanRegistryEan || item.barcode || cleanBarcode;
     const currentBc = (item.barcode || '').toString().trim();
-    if (!currentBc) {
-      await pool.query('UPDATE item_master SET barcode = $1 WHERE sku = $2', [cleanBarcode, cleanSku]);
-    } else if (currentBc !== cleanBarcode) {
-      // Different barcode already attached — log but still allow opening inventory row to use scanned value
-      console.log(`[SCAN-RESOLVE] ${cleanSku} already has barcode ${currentBc}, scanned ${cleanBarcode} (will use scanned for OI row)`);
+    if (!currentBc && canonicalBarcode) {
+      await pool.query('UPDATE item_master SET barcode = $1 WHERE sku = $2', [canonicalBarcode, cleanSku]);
+    } else if (currentBc && currentBc !== canonicalBarcode) {
+      console.log(`[SCAN-RESOLVE] ${cleanSku} item.barcode=${currentBc}, canonical=${canonicalBarcode} (will use canonical for OI row)`);
     }
 
     // 4. Upsert opening_inventory row
@@ -4459,22 +4534,22 @@ app.post('/api/scan/resolve-unknown', requireAuthApi(['ADMIN', 'BUYER']), async 
     );
     if (existing.rows.length > 0) {
       await pool.query(
-        'UPDATE opening_inventory SET qty = qty + $1, barcode = $2 WHERE id = $3',
-        [cleanQty, cleanBarcode, existing.rows[0].id]
+        'UPDATE opening_inventory SET qty = qty + $1, barcode = COALESCE(NULLIF(barcode, $2), $2) WHERE id = $3',
+        [cleanQty, canonicalBarcode, existing.rows[0].id]
       );
     } else {
       await pool.query(
         `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [cleanSku, cleanBarcode, item.friendly_name, item.color, cleanQty, orgId, req.user ? req.user.email : 'system']
+        [cleanSku, canonicalBarcode, item.friendly_name, item.color, cleanQty, orgId, req.user ? req.user.email : 'system']
       );
     }
 
-    logActivity(req.user, 'SCAN_RESOLVE_UNKNOWN', cleanSku, { barcode: cleanBarcode, qty: cleanQty, org_id: orgId });
+    logActivity(req.user, 'SCAN_RESOLVE_UNKNOWN', cleanSku, { barcode: canonicalBarcode, qty: cleanQty, org_id: orgId });
     res.json({
       success: true,
       sku: cleanSku,
-      barcode: cleanBarcode,
+      barcode: canonicalBarcode,
       qty: cleanQty,
       friendly_name: item.friendly_name,
       color: item.color,
