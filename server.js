@@ -4184,6 +4184,183 @@ app.delete('/api/unmatched-barcodes/:id', requireAuthApi(['ADMIN', 'BUYER']), as
   }
 });
 
+// POST /api/unmatched-barcodes/auto-resolve — re-run the full lookup chain
+// (item_master barcode → PO archive → EAN barcode→sku → EAN sku→barcodes →
+// item_master SKU → live catalog) against every PENDING unmatched entry.
+// Matches are converted into opening_inventory + their barcode attached to
+// the item; the row is marked RESOLVED. Per the SOP: barcode→SKU is always
+// known; SKU→barcode requires a PO / the EAN registry — this endpoint uses
+// every source we have.
+async function tryAutoResolveOneBarcode(barcode) {
+  const code = String(barcode || '').trim();
+  if (!code) return null;
+
+  // Tier 1 — item_master already has this barcode
+  const masterHit = await pool.query(
+    `SELECT sku, friendly_name, color_code AS color FROM item_master
+      WHERE TRIM(barcode::text) = $1 LIMIT 1`,
+    [code]
+  );
+  if (masterHit.rows.length > 0) {
+    return { sku: masterHit.rows[0].sku, friendly_name: masterHit.rows[0].friendly_name,
+             color: masterHit.rows[0].color, source: 'master_barcode' };
+  }
+
+  // Tier 2 — EAN registry barcode → SKU (size-variant EAN on an existing item)
+  const eanSku = (eanRegistry.barcode_to_sku || {})[code];
+  if (eanSku) {
+    const er = await pool.query(
+      `SELECT sku, friendly_name, color_code AS color FROM item_master
+        WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+      [eanSku.toUpperCase()]
+    );
+    if (er.rows.length > 0) {
+      return { sku: er.rows[0].sku, friendly_name: er.rows[0].friendly_name,
+               color: er.rows[0].color, source: 'ean_index' };
+    }
+    // SKU known to EAN but missing from item_master — auto-create (same shape as barcode lookup chain)
+    const department = deriveCategory(eanSku);
+    const liveHit = (itemMasterLive.items || {})[eanSku];
+    const realName = (liveHit && liveHit.item_name) ? liveHit.item_name : `${department || 'ITEM'} ${eanSku}`;
+    try {
+      await pool.query(
+        `INSERT INTO item_master (sku, barcode, friendly_name, status,
+           category_code, year_code, collection_code, department_code, color_code,
+           material, hs_code, description, category, created_by)
+         VALUES ($1, $2, $3, 'PENDING_IMAGE',
+           'EAN', 'A', 'IMP', '1', 'n/a',
+           'Unknown', '9505100090', 'Auto-created from EAN registry on unmatched-resolve', $4, 'system')
+         ON CONFLICT (sku) DO NOTHING`,
+        [eanSku, code, realName, department || null]
+      );
+      await pool.query(
+        `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
+        [eanSku]
+      );
+      return { sku: eanSku, friendly_name: realName, color: 'n/a', source: 'ean_fallback' };
+    } catch (e) {
+      console.error('[AUTO-RESOLVE] ean create failed:', e.message);
+    }
+  }
+
+  // Tier 3 — input is actually a SKU code (the scanner/operator typed a SKU by mistake)
+  const skuUp = code.toUpperCase().replace(/\s+/g, '');
+  const skuHit = await pool.query(
+    `SELECT sku, friendly_name, color_code AS color FROM item_master
+      WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+    [skuUp]
+  );
+  if (skuHit.rows.length > 0) {
+    return { sku: skuHit.rows[0].sku, friendly_name: skuHit.rows[0].friendly_name,
+             color: skuHit.rows[0].color, source: 'sku_lookup' };
+  }
+
+  // Tier 4 — SKU is in EAN registry or live catalog but not yet in item_master; pick the
+  // first allocated EAN from the registry and auto-create the row
+  const eanForSku = ((eanRegistry.sku_to_barcodes || {})[skuUp] || [])[0] || null;
+  const liveSkuHit = (itemMasterLive.items || {})[skuUp];
+  if (eanForSku || liveSkuHit) {
+    const department = deriveCategory(skuUp);
+    const realName = (liveSkuHit && liveSkuHit.item_name) ? liveSkuHit.item_name : `${department || 'ITEM'} ${skuUp}`;
+    try {
+      await pool.query(
+        `INSERT INTO item_master (sku, barcode, friendly_name, status,
+           category_code, year_code, collection_code, department_code, color_code,
+           material, hs_code, description, category, created_by)
+         VALUES ($1, $2, $3, 'PENDING_IMAGE',
+           'SKU', 'A', 'IMP', '1', 'n/a',
+           'Unknown', '9505100090', 'Auto-created from SKU on unmatched-resolve', $4, 'system')
+         ON CONFLICT (sku) DO NOTHING`,
+        [skuUp, eanForSku, realName, department || null]
+      );
+      await pool.query(
+        `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
+        [skuUp]
+      );
+      return { sku: skuUp, friendly_name: realName, color: 'n/a', source: 'sku_fallback' };
+    } catch (e) {
+      console.error('[AUTO-RESOLVE] sku create failed:', e.message);
+    }
+  }
+
+  return null;
+}
+
+app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const orgFilter = req.body && req.body.org_id ? `AND org_id = ${parseInt(req.body.org_id, 10)}` : '';
+    const rows = await pool.query(
+      `SELECT * FROM unmatched_barcodes
+        WHERE status = 'PENDING' ${orgFilter}
+        ORDER BY created_at ASC`
+    );
+    const resolved = [];
+    const skipped = [];
+    for (const ub of rows.rows) {
+      try {
+        const match = await tryAutoResolveOneBarcode(ub.barcode);
+        if (match && match.sku) {
+          // Attach the scanned barcode to the SKU (only when item_master.barcode is empty —
+          // barcode lookup chain already set a primary barcode; don't overwrite)
+          await pool.query(
+            `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE sku = $2`,
+            [ub.barcode, match.sku]
+          );
+          // Convert orphan → opening inventory (ADD semantics, matches scanner save flow)
+          const existing = await pool.query(
+            'SELECT id FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+            [match.sku, ub.org_id]
+          );
+          if (existing.rows.length > 0) {
+            await pool.query(
+              `UPDATE opening_inventory
+                  SET qty = qty + $1,
+                      barcode = COALESCE(NULLIF(barcode, ''), $2),
+                      friendly_name = COALESCE(NULLIF(friendly_name, ''), $3),
+                      color = COALESCE(NULLIF(color, ''), $4),
+                      created_by = $5, created_at = NOW()
+                WHERE id = $6`,
+              [ub.qty, ub.barcode, match.friendly_name, match.color || 'n/a',
+               req.user ? req.user.email : 'system', existing.rows[0].id]
+            );
+          } else {
+            await pool.query(
+              `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+              [match.sku, ub.barcode, match.friendly_name, match.color || 'n/a',
+               ub.qty, ub.org_id, req.user ? req.user.email : 'system']
+            );
+          }
+          await pool.query(
+            `UPDATE unmatched_barcodes
+                SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW()
+              WHERE id = $2`,
+            [match.sku, ub.id]
+          );
+          resolved.push({ barcode: ub.barcode, sku: match.sku, qty: ub.qty, source: match.source });
+        } else {
+          skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'no_match_in_any_source' });
+        }
+      } catch (rowErr) {
+        console.error('[AUTO-RESOLVE] row failed', ub.barcode, rowErr.message);
+        skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'error: ' + rowErr.message });
+      }
+    }
+    logActivity(req.user, 'UNMATCHED_AUTO_RESOLVE', null,
+      { resolved_count: resolved.length, skipped_count: skipped.length });
+    res.json({
+      success: true,
+      resolved_count: resolved.length,
+      skipped_count: skipped.length,
+      resolved,
+      skipped
+    });
+  } catch (err) {
+    console.error('Error in auto-resolve unmatched barcodes:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/scan/resolve-unknown — at-scan-time link: attach a scanned-but-unknown barcode
 // to a SKU the user reads from the item tag, the PO, or the D-drive item master.
 // Looks up SKU in item_master first, then falls back to poBarcodeIndex + itemMasterLive.
