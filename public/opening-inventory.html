@@ -100,7 +100,7 @@
         <div class="scanner-box" id="scannerBox">
             <h3>📷 Scan Barcode</h3>
             <p style="color:#888; font-size:12px; margin-bottom:15px;">Click below and scan with your USB/Bluetooth scanner, or type barcode + Enter</p>
-            <input type="text" id="barcodeInput" placeholder="Scan or type barcode..." autofocus onkeydown="onBarcodeKey(event)">
+            <input type="text" id="barcodeInput" placeholder="Scan or type barcode / SKU code..." autofocus onkeydown="onBarcodeKey(event)">
             <div id="scanFeedback" class="scan-feedback"></div>
         </div>
 
@@ -341,6 +341,13 @@
                         const item = allItems.find(i => String(i.barcode || '').trim() === String(barcode).trim());
                         if (item) {
                             handleItemFound(feedback, item, barcode);
+                            return;
+                        }
+                        // SKU-code fallback (case-insensitive) — scanner accepts barcode OR SKU
+                        const skuUp = String(barcode).trim().toUpperCase();
+                        const bySku = allItems.find(i => String(i.sku || '').trim().toUpperCase() === skuUp);
+                        if (bySku) {
+                            handleItemFound(feedback, bySku, barcode);
                             return;
                         }
                     }
