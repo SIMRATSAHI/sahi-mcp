@@ -723,7 +723,7 @@ async function ensureSchema() {
     console.error('unmatched_barcodes table migration warning:', err.message);
   }
 }
-ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcodes()).catch(() => {});
+ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcodes()).then(() => canonicalizeOpeningInventoryBarcodes()).then((r) => { if (r) console.log(`[OI-CANONICALIZE] Startup self-heal: ${r.fixed.length} fixed, ${r.already.length} already correct, ${r.unresolved.length} unresolved`); }).catch(() => {});
 
 // Record an action in the audit trail. Never lets a logging failure break the
 // actual request - logging is best-effort.
@@ -3845,7 +3845,18 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
       [cleanSku]
     );
     if (skuRow.rows.length > 0) {
-      return res.json({ ...skuRow.rows[0], source: 'sku_lookup' });
+      const row = { ...skuRow.rows[0] };
+      // SOP: barcode column is always the EAN. If item_master.barcode is empty,
+      // use the EAN registry's primary EAN so the scanner saves a real barcode
+      // (not the scanned SKU text).
+      const regEan = ((eanRegistry.sku_to_barcodes || {})[cleanSku] || [])[0] || null;
+      if ((!row.barcode || !String(row.barcode).trim()) && regEan) {
+        row.barcode = regEan;
+        try {
+          await pool.query('UPDATE item_master SET barcode = $1 WHERE sku = $2', [regEan, row.sku]);
+        } catch (e) { /* non-fatal */ }
+      }
+      return res.json({ ...row, source: 'sku_lookup' });
     }
     // SKU known to the EAN registry or live catalog but not yet in item_master — auto-create it
     const eanForSku = ((eanRegistry.sku_to_barcodes || {})[cleanSku] || [])[0] || null;
@@ -4029,6 +4040,24 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
     let totalQty = 0;
 
     for (const item of items) {
+      // Canonical barcode (SOP: barcode column is always the EAN, never the SKU text).
+      // Priority: EAN registry primary → item_master.barcode → client value (unless
+      // the client value is the SKU text itself, in which case drop it).
+      const skuUp = String(item.sku || '').trim().toUpperCase();
+      let barcode = item.barcode ? String(item.barcode).trim() : null;
+      const regEan = ((eanRegistry.sku_to_barcodes || {})[skuUp] || [])[0] || null;
+      if (regEan) {
+        barcode = regEan;
+      } else if (!barcode || barcode.toUpperCase() === skuUp) {
+        const im = await pool.query(
+          `SELECT barcode FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+          [skuUp]
+        );
+        barcode = (im.rows.length > 0 && im.rows[0].barcode)
+          ? im.rows[0].barcode.toString().trim()
+          : null;
+      }
+
       const existing = await pool.query(
         'SELECT id, qty FROM opening_inventory WHERE sku = $1 AND org_id = $2',
         [item.sku, targetOrg]
@@ -4039,13 +4068,13 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
         // user counts in multiple sittings, each batch adds to what was saved.
         await pool.query(
           'UPDATE opening_inventory SET qty = qty + $1, barcode = COALESCE($2, barcode), friendly_name = COALESCE($3, friendly_name), color = COALESCE($4, color), created_by = $5, created_at = NOW() WHERE id = $6',
-          [item.qty, item.barcode || null, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id]
+          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id]
         );
       } else {
         await pool.query(
           `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [item.sku, item.barcode || null, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy]
+          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy]
         );
       }
       saved++;
@@ -4373,6 +4402,48 @@ app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER
   }
 });
 
+// Canonicalize opening_inventory.barcode to the real EAN. Per SOP: barcode is
+// always the EAN on the item — never the SKU text. Runs (a) at startup as a
+// self-heal, (b) via the /canonicalize-barcodes endpoint. Idempotent.
+async function canonicalizeOpeningInventoryBarcodes() {
+  const rows = await pool.query(
+    `SELECT id, sku, barcode, org_id FROM opening_inventory ORDER BY id`
+  );
+  const fixed = [];
+  const already = [];
+  const unresolved = [];
+  for (const oi of rows.rows) {
+    const sku = (oi.sku || '').trim().toUpperCase();
+    // Look up canonical barcode: EAN registry primary EAN, else item_master barcode
+    const eanFromReg = ((eanRegistry.sku_to_barcodes || {})[sku] || [])[0] || null;
+    let canonical = eanFromReg;
+    if (!canonical) {
+      const im = await pool.query(
+        `SELECT barcode FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+        [sku]
+      );
+      if (im.rows.length > 0 && im.rows[0].barcode) canonical = im.rows[0].barcode.toString().trim();
+    }
+    if (!canonical) {
+      unresolved.push({ id: oi.id, sku, current: oi.barcode });
+      continue;
+    }
+    const current = (oi.barcode || '').toString().trim();
+    if (current === canonical) {
+      already.push({ id: oi.id, sku, barcode: canonical });
+    } else {
+      await pool.query(`UPDATE opening_inventory SET barcode = $1 WHERE id = $2`, [canonical, oi.id]);
+      // Also align item_master.barcode (only if empty)
+      await pool.query(
+        `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE TRIM(UPPER(sku)) = $2`,
+        [canonical, sku]
+      );
+      fixed.push({ id: oi.id, sku, from: current, to: canonical });
+    }
+  }
+  return { fixed, already, unresolved };
+}
+
 // POST /api/opening-inventory/canonicalize-barcodes — one-off fixup that rewrites
 // opening_inventory.barcode to the canonical EAN (from registry or item_master).
 // Used to clean up rows that were saved with a SKU code as the barcode (before the
@@ -4380,41 +4451,7 @@ app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER
 // already matches.
 app.post('/api/opening-inventory/canonicalize-barcodes', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
-    const rows = await pool.query(
-      `SELECT id, sku, barcode, org_id FROM opening_inventory ORDER BY id`
-    );
-    const fixed = [];
-    const already = [];
-    const unresolved = [];
-    for (const oi of rows.rows) {
-      const sku = (oi.sku || '').trim().toUpperCase();
-      // Look up canonical barcode: EAN registry primary EAN, else item_master barcode
-      const eanFromReg = ((eanRegistry.sku_to_barcodes || {})[sku] || [])[0] || null;
-      let canonical = eanFromReg;
-      if (!canonical) {
-        const im = await pool.query(
-          `SELECT barcode FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
-          [sku]
-        );
-        if (im.rows.length > 0 && im.rows[0].barcode) canonical = im.rows[0].barcode.toString().trim();
-      }
-      if (!canonical) {
-        unresolved.push({ id: oi.id, sku, current: oi.barcode });
-        continue;
-      }
-      const current = (oi.barcode || '').toString().trim();
-      if (current === canonical) {
-        already.push({ id: oi.id, sku, barcode: canonical });
-      } else {
-        await pool.query(`UPDATE opening_inventory SET barcode = $1 WHERE id = $2`, [canonical, oi.id]);
-        // Also align item_master.barcode (only if empty)
-        await pool.query(
-          `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE TRIM(UPPER(sku)) = $2`,
-          [canonical, sku]
-        );
-        fixed.push({ id: oi.id, sku, from: current, to: canonical });
-      }
-    }
+    const { fixed, already, unresolved } = await canonicalizeOpeningInventoryBarcodes();
     logActivity(req.user, 'OI_CANONICALIZE_BARCODES', null,
       { fixed: fixed.length, already: already.length, unresolved: unresolved.length });
     res.json({
