@@ -125,10 +125,10 @@
 
         <div id="unknownSessionBox" style="display:none; margin-top:20px;">
             <h3 style="color:#d32f2f; font-size:16px;">❓ Unmatched Barcodes (this session) <span id="unknownSessionCount" style="background:#d32f2f; color:white; border-radius:10px; padding:2px 10px; font-size:13px;">0</span></h3>
-            <p style="color:#888; font-size:12px;">Physical items whose barcode isn't in the system yet. They'll be saved with your opening inventory — match them to SKUs later below.</p>
+            <p style="color:#888; font-size:12px;">Type the SKU in the box and press <b>Link</b> (or Enter) to attach the barcode to that item now. SKU can come from the item tag, the PO, or the D-drive item master. <b>Save Opening Inventory</b> below still saves them as unmatched if you skip.</p>
             <table>
                 <thead>
-                    <tr><th>Barcode</th><th>Qty</th><th>Action</th></tr>
+                    <tr><th>Barcode</th><th>Qty</th><th>SKU (from tag / PO / item master)</th><th>Action</th></tr>
                 </thead>
                 <tbody id="unknownSessionTableBody"></tbody>
             </table>
@@ -183,21 +183,29 @@
     <div class="item-popup" id="unknownPopup">
         <div class="item-popup-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3 style="margin:0; color:#d32f2f;">Unknown Barcode</h3>
+                <h3 style="margin:0; color:#d32f2f;">Unknown Barcode — Link to SKU</h3>
                 <button onclick="closeUnknownPopup()" style="background:#FFB7C5; padding:4px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Close</button>
             </div>
-            <div style="text-align:center; margin-bottom:20px;">
-                <p style="font-size:48px; margin:0 0 10px 0;">❓</p>
+            <div style="text-align:center; margin-bottom:15px;">
+                <p style="font-size:36px; margin:0 0 8px 0;">🔗</p>
                 <p style="font-family:monospace; font-size:22px; font-weight:bold; margin:5px 0;" id="unknownBarcodeText"></p>
-                <p style="color:#666; font-size:13px;">Not in Item Master. Check the item tag for its SKU — you can match it later in the Unmatched Barcodes list below.</p>
+                <p style="color:#666; font-size:12px; margin:4px 0;">This barcode isn't in the system yet. Type the SKU from the item tag, PO, or item master to link it now.</p>
+            </div>
+            <div style="text-align:center; margin-bottom:12px;">
+                <label style="font-weight:bold; display:block; margin-bottom:6px; font-size:13px;">SKU Code (from item tag / PO / D-drive item master):</label>
+                <input type="text" id="unknownSku" placeholder="e.g. JW22SSBC301T" style="font-family:monospace; font-size:18px; padding:10px; width:240px; text-align:center; border:2px solid #FFB7C5; border-radius:6px; text-transform:uppercase;" maxlength="20" onkeydown="if(event.key==='Enter') linkUnknownToSku();">
+            </div>
+            <div style="text-align:center; margin-bottom:14px;">
+                <label style="font-weight:bold; display:block; margin-bottom:6px; font-size:13px;">Quantity:</label>
+                <input type="number" id="unknownQty" class="qty-input" value="1" min="1" max="9999" maxlength="4" onkeydown="if(event.key==='Enter') linkUnknownToSku(); else if(event.key==='Escape') closeUnknownPopup();">
             </div>
             <div style="text-align:center;">
-                <label style="font-weight:bold; display:block; margin-bottom:10px;">Enter Quantity:</label>
-                <input type="number" id="unknownQty" class="qty-input" value="1" min="1" max="9999" maxlength="4" autofocus onkeydown="if(event.key==='Enter') confirmUnknownQty(); else if(event.key==='Escape') closeUnknownPopup();">
-                <div style="margin-top:15px; display:flex; gap:10px; justify-content:center;">
-                    <button class="btn btn-green" onclick="confirmUnknownQty()" style="font-size:16px; padding:10px 24px;">➕ Add to Unmatched</button>
-                    <button class="btn" onclick="closeUnknownPopup()" style="font-size:16px; padding:10px 24px;">Skip</button>
+                <div style="margin-top:8px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+                    <button class="btn btn-green" onclick="linkUnknownToSku()" style="font-size:15px; padding:10px 20px;">🔗 Link to SKU</button>
+                    <button class="btn" onclick="saveUnknownAsOrphan()" style="font-size:14px; padding:10px 18px; background:#FFA726; color:white;">📥 Save as Unmatched</button>
+                    <button class="btn" onclick="closeUnknownPopup()" style="font-size:14px; padding:10px 18px;">Skip</button>
                 </div>
+                <p style="color:#999; font-size:11px; margin-top:10px;">Enter / Esc — Link · Save as Unmatched — keep for later</p>
             </div>
         </div>
     </div>
@@ -389,32 +397,18 @@
         }
 
         function handleUnknownBarcode(feedback, barcode) {
-            if (rapidMode) {
-                // Auto-save to unmatched with qty=1, no popup
-                const existing = sessionUnmatched.find(i => i.barcode === barcode);
-                if (existing) {
-                    existing.qty += 1;
-                    feedback.className = 'scan-feedback scan-error';
-                    feedback.textContent = `? Unknown saved: ${barcode}  qty: ${existing.qty}`;
-                } else {
-                    sessionUnmatched.push({ barcode: barcode, qty: 1 });
-                    feedback.className = 'scan-feedback scan-error';
-                    feedback.textContent = `? Unknown saved: ${barcode}  (match SKU later)`;
-                }
-                setTimeout(() => { feedback.textContent = ''; }, 2000);
-                renderSession();
-                document.getElementById('barcodeInput').focus();
-            } else {
-                // Confirm mode — show popup
-                feedback.className = 'scan-feedback scan-error';
-                feedback.textContent = `Unknown barcode: ${barcode} — added check below`;
-                currentUnknownBarcode = barcode;
-                document.getElementById('unknownBarcodeText').textContent = barcode;
-                document.getElementById('unknownQty').value = '1';
-                document.getElementById('unknownPopup').style.display = 'flex';
-                document.getElementById('unknownQty').focus();
-                document.getElementById('unknownQty').select();
-            }
+            // Always prompt the user to link to SKU at scan time — faster than fixing later.
+            // They can still pick "Save as Unmatched" if they don't know the SKU right now.
+            feedback.className = 'scan-feedback scan-error';
+            feedback.textContent = `Unknown: ${barcode} — enter SKU to link`;
+            currentUnknownBarcode = barcode;
+            document.getElementById('unknownBarcodeText').textContent = barcode;
+            document.getElementById('unknownSku').value = '';
+            document.getElementById('unknownQty').value = '1';
+            document.getElementById('unknownPopup').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('unknownSku').focus();
+            }, 50);
         }
 
         function showItemFound(feedback, item) {
@@ -492,11 +486,99 @@
             }
         }
 
-        function confirmUnknownQty() {
+        async function linkUnknownToSku() {
+            if (!currentUnknownBarcode) return;
+            const sku = (document.getElementById('unknownSku').value || '').trim().toUpperCase();
+            const rawQty = String(document.getElementById('unknownQty').value).trim();
+
+            // Scanner-bleed guard: if SKU field got a barcode scan (digits, >4 chars), re-route it
+            if (/^\d{8,}$/.test(sku)) {
+                closeUnknownPopup();
+                document.getElementById('barcodeInput').value = '';
+                lookupBarcode(sku);
+                return;
+            }
+            if (!sku) {
+                alert('Type the SKU from the item tag, PO, or D-drive item master first.');
+                document.getElementById('unknownSku').focus();
+                return;
+            }
+            if (rawQty.length > 4) {
+                closeUnknownPopup();
+                document.getElementById('barcodeInput').value = '';
+                lookupBarcode(rawQty);
+                return;
+            }
+            const qty = Math.max(1, Math.min(9999, parseInt(rawQty) || 1));
+            const barcode = currentUnknownBarcode;
+            const orgId = document.getElementById('orgSelect') ? document.getElementById('orgSelect').value : 1;
+
+            // Disable buttons + show in-progress
+            const popup = document.getElementById('unknownPopup');
+            const buttons = popup.querySelectorAll('button');
+            buttons.forEach(b => b.disabled = true);
+            const feedback = document.getElementById('scanFeedback');
+            feedback.className = 'scan-feedback scan-found';
+            feedback.textContent = `Linking ${barcode} → ${sku}...`;
+
+            try {
+                const res = await fetch('/api/scan/resolve-unknown', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ barcode, sku, qty, org_id: orgId })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    // Add directly to the matched-items list (skip the save button)
+                    const existing = sessionItems.find(i => i.sku === data.sku);
+                    if (existing) {
+                        existing.qty += qty;
+                    } else {
+                        sessionItems.push({
+                            sku: data.sku,
+                            friendly_name: data.friendly_name || '',
+                            color: data.color || 'n/a',
+                            barcode: data.barcode,
+                            qty: qty
+                        });
+                    }
+                    // Pull this barcode OUT of sessionUnmatched (if it was auto-saved)
+                    const orphanIdx = sessionUnmatched.findIndex(i => i.barcode === barcode);
+                    if (orphanIdx >= 0) sessionUnmatched.splice(orphanIdx, 1);
+
+                    currentUnknownBarcode = null;
+                    closeUnknownPopup();
+                    renderSession();
+
+                    feedback.className = 'scan-feedback scan-success';
+                    feedback.textContent = `✓ Linked ${barcode} → ${data.sku} (${data.friendly_name || 'item'}) +${qty}` + (data.auto_created ? ' • auto-created' : '');
+                    setTimeout(() => { feedback.textContent = ''; }, 2500);
+                } else if (data.not_found) {
+                    // SKU not in any source — let the user save as unmatched instead
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `SKU ${sku} not found anywhere. Try again or save as unmatched.`;
+                    alert(`❌ ${data.error}\n\nDouble-check the SKU — it should match exactly what's on the tag / PO / item master.`);
+                    document.getElementById('unknownSku').focus();
+                    document.getElementById('unknownSku').select();
+                } else {
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `Link failed: ${data.error || 'unknown error'}`;
+                    alert('❌ ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `Error: ${err.message}`;
+                alert('❌ Connection error: ' + err.message);
+            } finally {
+                buttons.forEach(b => b.disabled = false);
+            }
+        }
+
+        function saveUnknownAsOrphan() {
             if (!currentUnknownBarcode) return;
             const rawVal = String(document.getElementById('unknownQty').value).trim();
             if (!rawVal) return;
-            // Scanner bleed guard: if the qty field got a barcode scan (>4 digits), re-route it
             if (rawVal.length > 4) {
                 closeUnknownPopup();
                 document.getElementById('barcodeInput').value = '';
@@ -513,7 +595,6 @@
             currentUnknownBarcode = null;
             closeUnknownPopup();
             renderSession();
-            // Re-focus barcode input for rapid scanning
             setTimeout(() => document.getElementById('barcodeInput').focus(), 0);
         }
 
@@ -525,6 +606,65 @@
         function updateUnknownQty(idx, val) {
             const q = Math.max(1, Math.min(9999, parseInt(String(val).trim()) || 1));
             sessionUnmatched[idx].qty = q;
+        }
+
+        async function linkInlineUnknown(idx) {
+            const u = sessionUnmatched[idx];
+            if (!u) return;
+            const skuEl = document.getElementById(`inlineSku_${idx}`);
+            const sku = (skuEl ? skuEl.value : '').trim().toUpperCase();
+            if (!sku) {
+                alert('Type the SKU first (from item tag / PO / D-drive item master).');
+                skuEl && skuEl.focus();
+                return;
+            }
+            const orgId = document.getElementById('orgSelect') ? document.getElementById('orgSelect').value : 1;
+            const feedback = document.getElementById('scanFeedback');
+            feedback.className = 'scan-feedback scan-found';
+            feedback.textContent = `Linking ${u.barcode} → ${sku}...`;
+
+            try {
+                const res = await fetch('/api/scan/resolve-unknown', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ barcode: u.barcode, sku, qty: u.qty, org_id: orgId })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    // Move from sessionUnmatched → sessionItems
+                    const existing = sessionItems.find(i => i.sku === data.sku);
+                    if (existing) {
+                        existing.qty += u.qty;
+                    } else {
+                        sessionItems.push({
+                            sku: data.sku,
+                            friendly_name: data.friendly_name || '',
+                            color: data.color || 'n/a',
+                            barcode: data.barcode,
+                            qty: u.qty
+                        });
+                    }
+                    sessionUnmatched.splice(idx, 1);
+                    renderSession();
+                    feedback.className = 'scan-feedback scan-success';
+                    feedback.textContent = `✓ Linked ${u.barcode} → ${data.sku} (${data.friendly_name || 'item'})` + (data.auto_created ? ' • auto-created' : '');
+                    setTimeout(() => { feedback.textContent = ''; }, 2500);
+                } else if (data.not_found) {
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `SKU ${sku} not found anywhere.`;
+                    alert('❌ ' + data.error);
+                    skuEl && skuEl.focus();
+                } else {
+                    feedback.className = 'scan-feedback scan-error';
+                    feedback.textContent = `Link failed: ${data.error || 'unknown error'}`;
+                    alert('❌ ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                feedback.className = 'scan-feedback scan-error';
+                feedback.textContent = `Error: ${err.message}`;
+                alert('❌ Connection error: ' + err.message);
+            }
         }
 
         function renderSession() {
@@ -547,9 +687,15 @@
                             <input type="number" min="1" max="9999" maxlength="4"
                                    value="${u.qty > 9999 ? 1 : u.qty}"
                                    onchange="updateUnknownQty(${idx}, this.value)"
-                                   style="width:80px; font-size:14px; padding:4px; text-align:center; border:1px solid #ddd; border-radius:4px;">
+                                   style="width:70px; font-size:14px; padding:4px; text-align:center; border:1px solid #ddd; border-radius:4px;">
                         </td>
-                        <td><button class="btn btn-red" onclick="removeUnknown(${idx})" style="padding:2px 8px;">🗑</button></td>
+                        <td>
+                            <input type="text" id="inlineSku_${idx}" placeholder="SKU..." style="font-family:monospace; padding:4px 6px; width:140px; font-size:12px; text-transform:uppercase;" onkeydown="if(event.key==='Enter') linkInlineUnknown(${idx})">
+                        </td>
+                        <td style="white-space:nowrap;">
+                            <button class="btn btn-green" onclick="linkInlineUnknown(${idx})" style="padding:2px 8px; font-size:12px;" title="Link this barcode to the SKU typed in the box">🔗 Link</button>
+                            <button class="btn btn-red" onclick="removeUnknown(${idx})" style="padding:2px 8px; font-size:12px;" title="Remove from session">🗑</button>
+                        </td>
                     </tr>
                 `).join('');
             } else {
