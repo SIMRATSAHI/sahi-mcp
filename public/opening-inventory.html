@@ -152,8 +152,12 @@
         <div id="savedEmpty" style="color:#999; text-align:center; padding:20px;">No saved opening inventory yet.</div>
 
         <h3 style="color:#333; margin-top:30px;">❓ Unmatched Barcodes — Match to SKU</h3>
-        <p style="color:#666; font-size:13px;">Scanned barcodes not yet in the system. Check the physical item's tag for its SKU, type it below, and click Match — the barcode gets attached to the item and counted as opening stock.</p>
-        <button class="btn btn-pink" onclick="loadUnmatched()" style="margin-bottom:10px;">🔄 Refresh</button>
+        <p style="color:#666; font-size:13px;">Scanned barcodes not yet in the system. <b>SOP:</b> barcode → SKU is always known (via the EAN registry / item master). SKU → barcode only resolves when the PO allocated it, or the EAN registry lists it — click <b>Auto-Match from Registry</b> below to apply both rules automatically and skip the manual typing. Anything still unmatched needs the SKU from the item tag / PO / D-drive master.</p>
+        <div style="margin-bottom:10px;">
+            <button class="btn btn-pink" onclick="loadUnmatched()" style="margin-right:6px;">🔄 Refresh</button>
+            <button class="btn btn-green" id="autoResolveBtn" onclick="autoResolveUnmatched()" style="background:#4caf50;">🤖 Auto-Match from Registry</button>
+            <span id="autoResolveStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
+        </div>
         <table id="unmatchedTable" style="display:none;">
             <thead>
                 <tr><th>Barcode</th><th>Qty</th><th>Scanned</th><th>Match SKU</th><th>Action</th></tr>
@@ -1002,8 +1006,51 @@
             try {
                 await fetch(`/api/unmatched-barcodes/${id}`, { method: 'DELETE', credentials: 'same-origin' });
                 loadUnmatched();
+            } catch (err) { alert('❌ Connection error.'); }
+        }
+
+        async function autoResolveUnmatched() {
+            const btn = document.getElementById('autoResolveBtn');
+            const status = document.getElementById('autoResolveStatus');
+            if (btn.disabled) return;
+            if (!confirm('Auto-match every PENDING unmatched barcode against the lookup chain (item master → PO archive → EAN registry → SKU fallback)?\n\nAnything that resolves will be attached to its SKU and counted as opening stock.')) return;
+            btn.disabled = true;
+            btn.textContent = '⏳ Matching...';
+            status.textContent = '';
+            try {
+                const res = await fetch('/api/unmatched-barcodes/auto-resolve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    status.innerHTML = `<span style="color:#d32f2f;">✗ ${data.error || 'failed'}</span>`;
+                    return;
+                }
+                const lines = [];
+                if (data.resolved_count > 0) {
+                    lines.push(`<span style="color:#2e7d32;">✓ Resolved ${data.resolved_count}</span>`);
+                    const preview = data.resolved.slice(0, 5).map(r => `${r.barcode} → <b>${r.sku}</b> <span style="color:#888;">(${r.source})</span>`).join('<br>');
+                    if (preview) lines.push(`<div style="font-size:11px; color:#555; margin-top:4px;">${preview}${data.resolved.length > 5 ? `<br>…and ${data.resolved.length - 5} more` : ''}</div>`);
+                }
+                if (data.skipped_count > 0) {
+                    lines.push(`<span style="color:#d32f2f;">${data.skipped_count} still need a manual SKU</span>`);
+                    const preview = data.skipped.slice(0, 3).map(s => `<span style="font-family:monospace;">${s.barcode}</span>`).join(', ');
+                    if (preview) lines.push(`<div style="font-size:11px; color:#555; margin-top:4px;">still unmatched: ${preview}${data.skipped.length > 3 ? `, +${data.skipped.length - 3}` : ''}</div>`);
+                }
+                if (data.resolved_count === 0 && data.skipped_count === 0) {
+                    lines.push('<span style="color:#888;">Nothing to match — the list is empty.</span>');
+                }
+                status.innerHTML = lines.join(' &nbsp;|&nbsp; ');
+                loadUnmatched();
+                loadSavedInventory();
             } catch (err) {
-                alert('❌ Connection error.');
+                status.innerHTML = `<span style="color:#d32f2f;">✗ ${err.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🤖 Auto-Match from Registry';
             }
         }
 
