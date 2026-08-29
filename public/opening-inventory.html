@@ -142,7 +142,11 @@
         <hr style="margin:30px 0; border:none; border-top:2px solid #eee;">
 
         <h3 style="color:#333;">Saved Opening Inventory</h3>
-        <button class="btn btn-pink" onclick="loadSavedInventory()" style="margin-bottom:10px;">🔄 Refresh</button>
+        <div style="margin-bottom:10px;">
+            <button class="btn btn-pink" onclick="loadSavedInventory()" style="margin-right:6px;">🔄 Refresh</button>
+            <button class="btn btn-blue" id="canonicalizeBtn" onclick="canonicalizeBarcodes()" style="background:#1976d2;">🔧 Fix Barcodes (use canonical EAN)</button>
+            <span id="canonicalizeStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
+        </div>
         <table id="savedTable" style="display:none;">
             <thead>
                 <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Warehouse</th><th>Created By</th></tr>
@@ -933,6 +937,51 @@
                 `).join('');
             } catch (err) {
                 console.error('Error loading saved inventory:', err);
+            }
+        }
+
+        async function canonicalizeBarcodes() {
+            const btn = document.getElementById('canonicalizeBtn');
+            const status = document.getElementById('canonicalizeStatus');
+            if (btn.disabled) return;
+            if (!confirm('Fix every Saved Opening Inventory row\'s barcode to the canonical EAN (from registry / item master)?\n\nRows where the barcode is already the EAN will be left alone. This is idempotent and safe to re-run.')) return;
+            btn.disabled = true;
+            btn.textContent = '⏳ Fixing...';
+            status.textContent = '';
+            try {
+                const res = await fetch('/api/opening-inventory/canonicalize-barcodes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    status.innerHTML = `<span style="color:#d32f2f;">✗ ${data.error || 'failed'}</span>`;
+                    return;
+                }
+                const lines = [];
+                if (data.fixed_count > 0) {
+                    lines.push(`<span style="color:#2e7d32;">✓ Fixed ${data.fixed_count}</span>`);
+                    const preview = data.fixed.slice(0, 8).map(f => `<span style="font-family:monospace;">${f.sku}</span>: <span style="color:#d32f2f;">${f.from || '(empty)'}</span> → <b>${f.to}</b>`).join('<br>');
+                    if (preview) lines.push(`<div style="font-size:11px; color:#555; margin-top:4px;">${preview}${data.fixed.length > 8 ? `<br>…and ${data.fixed.length - 8} more` : ''}</div>`);
+                }
+                if (data.already_count > 0) {
+                    lines.push(`<span style="color:#888;">${data.already_count} already correct</span>`);
+                }
+                if (data.unresolved_count > 0) {
+                    lines.push(`<span style="color:#d32f2f;">${data.unresolved_count} SKUs have no canonical EAN anywhere</span>`);
+                }
+                if (data.fixed_count === 0 && data.already_count === 0) {
+                    lines.push('<span style="color:#888;">Nothing to fix.</span>');
+                }
+                status.innerHTML = lines.join(' &nbsp;|&nbsp; ');
+                loadSavedInventory();
+            } catch (err) {
+                status.innerHTML = `<span style="color:#d32f2f;">✗ ${err.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔧 Fix Barcodes (use canonical EAN)';
             }
         }
 
