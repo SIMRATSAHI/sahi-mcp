@@ -725,13 +725,13 @@
             document.getElementById('totalQty').textContent = sessionItems.reduce((s, i) => s + i.qty, 0);
 
             tbody.innerHTML = sessionItems.map((item, idx) => {
-                const savedRow = savedInventory.find(s => s.sku === item.sku && String(s.org_id) === String(document.getElementById('orgSelect').value));
-                const savedQty = savedRow ? savedRow.qty : 0;
-                const willReplace = savedQty > 0;
-                const isShrinkage = willReplace && item.qty < savedQty;
-                const hint = willReplace
-                    ? `<div style="font-size:11px; color:#666; margin-top:2px;">saved: <b>${savedQty}</b> → will become <b style="color:#2e7d32;">${item.qty}</b>${isShrinkage ? ' <span style="color:#d32f2f;">(shrinks by ' + (savedQty - item.qty) + ')</span>' : ''}</div>`
-                    : `<div style="font-size:11px; color:#999; margin-top:2px;">new item</div>`;
+            const savedRow = savedInventory.find(s => s.sku === item.sku && String(s.org_id) === String(document.getElementById('orgSelect').value));
+            const savedQty = savedRow ? savedRow.qty : 0;
+            const willAdd = savedQty > 0;
+            const afterQty = savedQty + item.qty;
+            const hint = willAdd
+                ? `<div style="font-size:11px; color:#666; margin-top:2px;">saved: <b>${savedQty}</b> + session <b>${item.qty}</b> → will become <b style="color:#2e7d32;">${afterQty}</b></div>`
+                : `<div style="font-size:11px; color:#999; margin-top:2px;">new item</div>`;
                 return `
                 <tr>
                     <td><strong>${item.sku}</strong></td>
@@ -806,20 +806,22 @@
             const orgId = parseInt(document.getElementById('orgSelect').value);
             const totalUnits = sessionItems.reduce((s,i)=>s+i.qty,0);
             const msg = sessionItems.length > 0 && sessionUnmatched.length > 0
-                ? `Save ${sessionItems.length} known items (${totalUnits} units) + ${sessionUnmatched.length} unmatched barcodes?\n\n(Existing saved counts for these SKUs will be REPLACED — opening inventory is a physical count.)`
+                ? `Save ${sessionItems.length} known items (${totalUnits} units added) + ${sessionUnmatched.length} unmatched barcodes?\n\n(Existing saved counts will be ADDED to — each batch accumulates.)`
                 : sessionUnmatched.length > 0
                 ? `Save ${sessionUnmatched.length} unmatched barcodes?`
-                : `Save ${sessionItems.length} items with ${totalUnits} total units as opening inventory?\n\n(Existing saved counts for these SKUs will be REPLACED — opening inventory is a physical count.)`;
+                : `Save ${sessionItems.length} items with ${totalUnits} total units as opening inventory?\n\n(Existing saved counts will be ADDED to — each batch accumulates.)`;
             if (!confirm(msg)) return;
 
-            // Detect destructive updates (shrinking) and warn
-            const shrinkages = sessionItems.map(i => {
+            // Detect overwrites (session qty seems suspiciously high vs saved) and warn
+            // (now ADD semantics, so no destructive shrink — but a "are you sure" if any
+            // single session item is more than 2x the existing saved qty)
+            const suspicious = sessionItems.map(i => {
                 const savedRow = savedInventory.find(s => s.sku === i.sku && String(s.org_id) === String(orgId));
-                return savedRow && i.qty < savedRow.qty ? { sku: i.sku, from: savedRow.qty, to: i.qty } : null;
+                return savedRow && i.qty > savedRow.qty * 2 ? { sku: i.sku, saved: savedRow.qty, adding: i.qty } : null;
             }).filter(Boolean);
-            if (shrinkages.length > 0) {
-                const lines = shrinkages.map(s => `  ${s.sku}: ${s.from} → ${s.to}  (loses ${s.from - s.to})`).join('\n');
-                if (!confirm(`⚠️ The following SKUs will SHRINK:\n${lines}\n\nThis replaces the saved count with your session count (no add).\n\nContinue?`)) return;
+            if (suspicious.length > 0) {
+                const lines = suspicious.map(s => `  ${s.sku}: saved ${s.saved} + adding ${s.adding} = ${s.saved + s.adding}`).join('\n');
+                if (!confirm(`⚠️ Heads up — these are large adds:\n${lines}\n\nAre you sure?`)) return;
             }
 
             try {
