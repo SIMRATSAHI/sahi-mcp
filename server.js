@@ -3836,6 +3836,53 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
       }
     }
 
+    // Fallback 3: input is a SKU code (typed/scanned the SKU instead of the barcode)
+    const cleanSku = barcode.toUpperCase().replace(/\s+/g, '');
+    const skuRow = await pool.query(
+      `SELECT sku, friendly_name, barcode, collection, category, status,
+              color_code AS color, material, vendor_item_number
+       FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+      [cleanSku]
+    );
+    if (skuRow.rows.length > 0) {
+      return res.json({ ...skuRow.rows[0], source: 'sku_lookup' });
+    }
+    // SKU known to the EAN registry or live catalog but not yet in item_master — auto-create it
+    const eanForSku = ((eanRegistry.sku_to_barcodes || {})[cleanSku] || [])[0] || null;
+    const liveSkuHit = (itemMasterLive.items || {})[cleanSku];
+    if (eanForSku || liveSkuHit) {
+      try {
+        const department = deriveCategory(cleanSku);
+        const realName = (liveSkuHit && liveSkuHit.item_name) ? liveSkuHit.item_name : `${department || 'ITEM'} ${cleanSku}`;
+        await pool.query(
+          `INSERT INTO item_master (sku, barcode, friendly_name, status,
+             category_code, year_code, collection_code, department_code, color_code,
+             material, hs_code, description, category, created_by)
+           VALUES ($1, $2, $3, 'PENDING_IMAGE',
+             'SKU', 'A', 'IMP', '1', 'n/a',
+             'Unknown', '9505100090', 'Auto-created from SKU scan', $4, 'system')
+           ON CONFLICT (sku) DO NOTHING`,
+          [cleanSku, eanForSku, realName, department || null]
+        );
+        await pool.query(
+          `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
+          [cleanSku]
+        );
+        const newSkuRow = await pool.query(
+          `SELECT sku, friendly_name, barcode, status,
+                  color_code AS color, material, vendor_item_number
+           FROM item_master WHERE TRIM(UPPER(sku)) = $1`,
+          [cleanSku]
+        );
+        if (newSkuRow.rows.length > 0) {
+          console.log(`[SKU-LOOKUP] Auto-created ${cleanSku} from SKU scan (ean: ${eanForSku})`);
+          return res.json({ ...newSkuRow.rows[0], source: 'sku_lookup' });
+        }
+      } catch (skuErr) {
+        console.error('[SKU-LOOKUP] Auto-create failed:', skuErr.message);
+      }
+    }
+
     return res.status(404).json({ error: 'Item not found', barcode });
   } catch (err) {
     console.error('Error looking up barcode:', err);
