@@ -3873,9 +3873,11 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
       );
 
       if (existing.rows.length > 0) {
+        // SET semantics: opening inventory is a physical count — the new scan
+        // count IS the truth, so it replaces the prior saved qty.
         await pool.query(
-          'UPDATE opening_inventory SET qty = qty + $1, created_by = $2, created_at = NOW() WHERE id = $3',
-          [item.qty, createdBy, existing.rows[0].id]
+          'UPDATE opening_inventory SET qty = $1, barcode = COALESCE($2, barcode), friendly_name = COALESCE($3, friendly_name), color = COALESCE($4, color), created_by = $5, created_at = NOW() WHERE id = $6',
+          [item.qty, item.barcode || null, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id]
         );
       } else {
         await pool.query(
