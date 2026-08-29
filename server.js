@@ -723,7 +723,7 @@ async function ensureSchema() {
     console.error('unmatched_barcodes table migration warning:', err.message);
   }
 }
-ensureSchema().then(() => backfillItemCategories()).catch(() => {});
+ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcodes()).catch(() => {});
 
 // Record an action in the audit trail. Never lets a logging failure break the
 // actual request - logging is best-effort.
@@ -3571,6 +3571,24 @@ try {
   console.error('[ITEM-MASTER-LIVE] Failed to load:', e);
 }
 
+// Load official EAN barcode registry (from 15-7-2026 EAN Excel export, brand=SAHI).
+// Used to: (1) backfill item_master.barcode at startup, (2) resolve scanned
+// EANs that aren't the primary barcode on an item (size variants).
+let eanRegistry = { barcode_to_sku: {}, sku_to_barcodes: {} };
+try {
+  const fs3 = require('fs');
+  const path3 = require('path');
+  const eanPath = path3.join(__dirname, 'ean_barcodes.json');
+  if (fs3.existsSync(eanPath)) {
+    eanRegistry = JSON.parse(fs3.readFileSync(eanPath, 'utf8'));
+    console.log(`[EAN-REGISTRY] Loaded ${Object.keys(eanRegistry.barcode_to_sku || {}).length} barcodes / ${Object.keys(eanRegistry.sku_to_barcodes || {}).length} SKUs from EAN registry`);
+  } else {
+    console.log('[EAN-REGISTRY] No ean_barcodes.json found — EAN fallback disabled');
+  }
+} catch (e) {
+  console.error('[EAN-REGISTRY] Failed to load:', e);
+}
+
 // Derive product department (EARRING, NECKLACE, HANDBAG, ...) from a SKU.
 // 1. Exact match in the live item master, else 2. prefix + style-number rules:
 //    JW 1xx=BRACELET 2xx=BROOCH 3xx=EARRING 4xx=NECKLACE 5xx=RING 6xx=CHARM
@@ -3621,6 +3639,28 @@ async function backfillItemCategories() {
     console.log(`[ITEM-MASTER-LIVE] Backfill done: ${catUpdates} categories, ${nameUpdates} names updated`);
   } catch (e) {
     console.error('[ITEM-MASTER-LIVE] Backfill failed:', e.message);
+  }
+}
+
+// One-time backfill: assign official EAN barcodes to item_master rows that
+// have no barcode, using the EAN registry (first EAN per SKU)
+async function backfillEanBarcodes() {
+  try {
+    const rows = await pool.query(
+      `SELECT sku FROM item_master WHERE barcode IS NULL OR TRIM(barcode::text) = ''`
+    );
+    let updated = 0;
+    for (const r of rows.rows) {
+      const sku = String(r.sku).trim().toUpperCase();
+      const eans = (eanRegistry.sku_to_barcodes || {})[sku];
+      if (eans && eans.length > 0) {
+        await pool.query(`UPDATE item_master SET barcode = $1 WHERE sku = $2`, [eans[0], r.sku]);
+        updated++;
+      }
+    }
+    console.log(`[EAN-REGISTRY] Backfill done: ${updated} barcodes assigned (of ${rows.rows.length} items missing one)`);
+  } catch (e) {
+    console.error('[EAN-REGISTRY] Backfill failed:', e.message);
   }
 }
 
@@ -3718,6 +3758,81 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
         }
       } catch (autoErr) {
         console.error('[PO-FALLBACK] Auto-create failed:', autoErr.message);
+      }
+    }
+
+    // Fallback 2: official EAN registry (15-7-2026 EAN Excel export).
+    // Covers size-variant EANs on existing items + old SKUs not yet imported.
+    const eanSku = (eanRegistry.barcode_to_sku || {})[barcode];
+    if (eanSku) {
+      try {
+        const existing = await pool.query(
+          `SELECT sku, friendly_name, barcode, collection, category, status,
+                  color_code AS color, material, vendor_item_number
+           FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`,
+          [eanSku]
+        );
+        if (existing.rows.length > 0) {
+          // Item exists (backfill may have assigned a different/first EAN) —
+          // this scanned EAN still resolves to it via the registry
+          return res.json({ ...existing.rows[0], barcode, source: 'ean_index' });
+        }
+        // Not in item_master at all — auto-create so the scan resolves cleanly
+        const department = deriveCategory(eanSku);
+        const liveHit = (itemMasterLive.items || {})[eanSku];
+        const realName = (liveHit && liveHit.item_name) ? liveHit.item_name : `${department || 'ITEM'} ${eanSku}`;
+        await pool.query(
+          `INSERT INTO item_master (sku, barcode, friendly_name, status,
+             category_code, year_code, collection_code, department_code, color_code,
+             material, hs_code, description, category, created_by)
+           VALUES ($1, $2, $3, 'PENDING_IMAGE',
+             'EAN', 'A', 'IMP', '1', 'n/a',
+             'Unknown', '9505100090', 'Auto-created from EAN registry', $4, 'system')
+           ON CONFLICT (sku) DO NOTHING`,
+          [eanSku, barcode, realName, department || null]
+        );
+        await pool.query(
+          `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
+          [eanSku]
+        );
+        // Auto-resolve any PENDING unmatched entries for this barcode
+        const pendingEan = await pool.query(
+          `SELECT id, qty, org_id FROM unmatched_barcodes
+             WHERE TRIM(barcode::text) = $1 AND status = 'PENDING'`,
+          [barcode]
+        );
+        for (const ub of pendingEan.rows) {
+          const existingOI = await pool.query(
+            'SELECT id FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+            [eanSku, ub.org_id]
+          );
+          if (existingOI.rows.length > 0) {
+            await pool.query('UPDATE opening_inventory SET qty = qty + $1, barcode = $2 WHERE id = $3',
+              [ub.qty, barcode, existingOI.rows[0].id]);
+          } else {
+            await pool.query(
+              `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+               VALUES ($1, $2, $3, 'n/a', $4, $5, 'system')`,
+              [eanSku, barcode, realName, ub.qty, ub.org_id]
+            );
+          }
+          await pool.query(
+            `UPDATE unmatched_barcodes SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW() WHERE id = $2`,
+            [eanSku, ub.id]
+          );
+        }
+        const newRow = await pool.query(
+          `SELECT sku, friendly_name, barcode, status,
+                  color_code AS color, material, vendor_item_number
+           FROM item_master WHERE TRIM(UPPER(sku)) = $1`,
+          [eanSku]
+        );
+        if (newRow.rows.length > 0) {
+          console.log(`[EAN-FALLBACK] Auto-created ${eanSku} from barcode ${barcode}`);
+          return res.json({ ...newRow.rows[0], source: 'ean_fallback' });
+        }
+      } catch (eanErr) {
+        console.error('[EAN-FALLBACK] Lookup failed:', eanErr.message);
       }
     }
 
@@ -4051,6 +4166,7 @@ app.post('/api/scan/resolve-unknown', requireAuthApi(['ADMIN', 'BUYER']), async 
     } else {
       // 2. Fallback: derive from poBarcodeIndex + itemMasterLive (PO / D-drive import)
       const liveHit = (itemMasterLive.items || {})[cleanSku];
+      const eanHit = ((eanRegistry.sku_to_barcodes || {})[cleanSku] || [])[0] || null;
       const poHit = (() => {
         // poBarcodeIndex is keyed by barcode, not sku — search for this SKU across all POs
         for (const bc of Object.keys(poBarcodeIndex || {})) {
@@ -4061,9 +4177,9 @@ app.post('/api/scan/resolve-unknown', requireAuthApi(['ADMIN', 'BUYER']), async 
         return null;
       })();
 
-      if (!liveHit && !poHit) {
+      if (!liveHit && !poHit && !eanHit) {
         return res.status(404).json({
-          error: `SKU ${cleanSku} not found in Item Master, PO archive, or live catalog. Try a different SKU or save as unmatched.`,
+          error: `SKU ${cleanSku} not found in Item Master, PO archive, EAN registry, or live catalog. Try a different SKU or save as unmatched.`,
           not_found: true
         });
       }
