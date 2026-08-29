@@ -4020,6 +4020,130 @@ app.delete('/api/unmatched-barcodes/:id', requireAuthApi(['ADMIN', 'BUYER']), as
   }
 });
 
+// POST /api/scan/resolve-unknown — at-scan-time link: attach a scanned-but-unknown barcode
+// to a SKU the user reads from the item tag, the PO, or the D-drive item master.
+// Looks up SKU in item_master first, then falls back to poBarcodeIndex + itemMasterLive.
+// On success: writes item_master.barcode (only if empty), upserts opening_inventory row.
+// On miss: 404 with hint to save as unmatched instead.
+app.post('/api/scan/resolve-unknown', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { barcode, sku, qty, org_id } = req.body || {};
+  if (!barcode || !sku) {
+    return res.status(400).json({ error: 'barcode and sku are required' });
+  }
+  const cleanBarcode = String(barcode).trim();
+  const cleanSku = String(sku).trim().toUpperCase();
+  const cleanQty = Math.max(1, Math.min(9999, parseInt(qty) || 1));
+  const orgId = parseInt(org_id) || 1;
+
+  try {
+    // 1. Look up SKU in item_master
+    const itemRow = await pool.query(
+      `SELECT sku, friendly_name, barcode, color_code AS color, status
+       FROM item_master WHERE TRIM(sku) = $1 LIMIT 1`,
+      [cleanSku]
+    );
+
+    let item;
+    if (itemRow.rows.length > 0) {
+      item = itemRow.rows[0];
+    } else {
+      // 2. Fallback: derive from poBarcodeIndex + itemMasterLive (PO / D-drive import)
+      const liveHit = (itemMasterLive.items || {})[cleanSku];
+      const poHit = (() => {
+        // poBarcodeIndex is keyed by barcode, not sku — search for this SKU across all POs
+        for (const bc of Object.keys(poBarcodeIndex || {})) {
+          if (poBarcodeIndex[bc] && poBarcodeIndex[bc].sku === cleanSku) {
+            return poBarcodeIndex[bc];
+          }
+        }
+        return null;
+      })();
+
+      if (!liveHit && !poHit) {
+        return res.status(404).json({
+          error: `SKU ${cleanSku} not found in Item Master, PO archive, or live catalog. Try a different SKU or save as unmatched.`,
+          not_found: true
+        });
+      }
+
+      const skuMatch = cleanSku.match(/^[A-Z]{2}\d{2}[A-Z]{2}([A-Z]{1,4})/);
+      const collectionCode = (skuMatch && skuMatch[1]) ? skuMatch[1].substring(0, 10) : 'IMP';
+      const department = deriveCategory(cleanSku);
+      const realName = (liveHit && liveHit.item_name)
+        ? liveHit.item_name
+        : (poHit && poHit.item_name)
+          ? poHit.item_name
+          : `${department || 'ITEM'} ${cleanSku}`;
+
+      // Auto-create item_master row so the barcode can attach
+      await pool.query(
+        `INSERT INTO item_master (sku, barcode, friendly_name, status,
+           category_code, year_code, collection_code, department_code, color_code,
+           material, hs_code, description, category, created_by)
+         VALUES ($1, $2, $3, 'PENDING_IMAGE',
+           'JW', 'A', $4, '1', 'n/a',
+           'Unknown', '9505100090', 'Auto-created via at-scan SKU link', $5, $6)
+         ON CONFLICT (sku) DO NOTHING`,
+        [cleanSku, cleanBarcode, realName, collectionCode, department || null, req.user ? req.user.email : 'system']
+      );
+      // Make sure an inventory row exists
+      await pool.query(
+        `INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING`,
+        [cleanSku]
+      );
+      const reread = await pool.query(
+        `SELECT sku, friendly_name, barcode, color_code AS color, status
+         FROM item_master WHERE sku = $1`,
+        [cleanSku]
+      );
+      item = reread.rows[0];
+      console.log(`[SCAN-RESOLVE] Auto-created ${cleanSku} from at-scan link (barcode ${cleanBarcode})`);
+    }
+
+    // 3. Attach the scanned barcode to the item (only if item has no barcode yet,
+    //    so we don't overwrite a known good barcode with a wrong scan)
+    const currentBc = (item.barcode || '').toString().trim();
+    if (!currentBc) {
+      await pool.query('UPDATE item_master SET barcode = $1 WHERE sku = $2', [cleanBarcode, cleanSku]);
+    } else if (currentBc !== cleanBarcode) {
+      // Different barcode already attached — log but still allow opening inventory row to use scanned value
+      console.log(`[SCAN-RESOLVE] ${cleanSku} already has barcode ${currentBc}, scanned ${cleanBarcode} (will use scanned for OI row)`);
+    }
+
+    // 4. Upsert opening_inventory row
+    const existing = await pool.query(
+      'SELECT id, qty FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+      [cleanSku, orgId]
+    );
+    if (existing.rows.length > 0) {
+      await pool.query(
+        'UPDATE opening_inventory SET qty = qty + $1, barcode = $2 WHERE id = $3',
+        [cleanQty, cleanBarcode, existing.rows[0].id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [cleanSku, cleanBarcode, item.friendly_name, item.color, cleanQty, orgId, req.user ? req.user.email : 'system']
+      );
+    }
+
+    logActivity(req.user, 'SCAN_RESOLVE_UNKNOWN', cleanSku, { barcode: cleanBarcode, qty: cleanQty, org_id: orgId });
+    res.json({
+      success: true,
+      sku: cleanSku,
+      barcode: cleanBarcode,
+      qty: cleanQty,
+      friendly_name: item.friendly_name,
+      color: item.color,
+      auto_created: !itemRow.rows.length
+    });
+  } catch (err) {
+    console.error('Error in /api/scan/resolve-unknown:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT /api/items/:sku/barcode — update barcode for existing item
 app.put('/api/items/:sku/barcode', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { sku } = req.params;
