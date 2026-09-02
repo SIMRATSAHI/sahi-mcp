@@ -703,6 +703,16 @@ async function ensureSchema() {
     console.error('inventory unique index migration warning:', err.message);
   }
 
+  // item_master.sku must be unique for every ON CONFLICT (sku) auto-create
+  // (PO / EAN / SKU fallback). If the index is missing, those inserts throw
+  // 'no unique or exclusion constraint matching the ON CONFLICT specification'
+  // and new scanned items silently never get created.
+  try {
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_item_master_sku ON item_master(sku)`);
+  } catch (err) {
+    console.error('item_master sku unique index migration warning:', err.message);
+  }
+
   // Unmatched barcodes — physical items scanned during opening inventory
   // whose barcode isn't in item_master yet. Resolved later by matching SKU.
   try {
@@ -3946,6 +3956,35 @@ app.get('/api/diag/barcode/:code', async (req, res) => {
     const skuTextBc = await pool.query(
       `SELECT COUNT(*)::int AS n FROM opening_inventory WHERE barcode ~ '[A-Za-z]'`);
     out.opening_inventory_rows_with_sku_text_barcode = skuTextBc.rows[0].n;
+    // Optional transactional insert test: executes the exact EAN-tier auto-create
+    // INSERT (with ON CONFLICT) and rolls back, so nothing persists. Confirms
+    // whether the unique index on item_master.sku exists / insert would succeed.
+    if (req.query.test_insert === '1' && skuFromB2S) {
+      const client = await pool.connect();
+      try {
+        const department = deriveCategory(skuFromB2S);
+        await client.query('BEGIN');
+        try {
+          await client.query(
+            `INSERT INTO item_master (sku, barcode, friendly_name, status,
+               category_code, year_code, collection_code, department_code, color_code,
+               material, hs_code, description, category, created_by)
+             VALUES ($1, $2, $3, 'PENDING_IMAGE',
+               'EAN', 'A', 'IMP', '1', 'n/a',
+               'Unknown', '9505100090', 'Diag insert test', $4, 'system')
+             ON CONFLICT (sku) DO NOTHING`,
+            [skuFromB2S, code, `${department || 'ITEM'} ${skuFromB2S}`, department || null]
+          );
+          await client.query('ROLLBACK');
+          out.insert_test = { ok: true };
+        } catch (insErr) {
+          await client.query('ROLLBACK');
+          out.insert_test = { ok: false, error: insErr.message };
+        }
+      } finally {
+        client.release();
+      }
+    }
     res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
