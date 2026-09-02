@@ -3906,6 +3906,52 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
   }
 });
 
+// PUBLIC diagnostic (read-only, no auth): explains why a scan of :code would
+// resolve or fail — registry state, item_master state, PENDING unmatched rows.
+// Reveals nothing sensitive: only data for a code the caller already knows.
+app.get('/api/diag/barcode/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim();
+    const regB2S = (eanRegistry.barcode_to_sku || {});
+    const regS2B = (eanRegistry.sku_to_barcodes || {});
+    const skuFromB2S = regB2S[code] || null;
+    const out = {
+      code,
+      registry: {
+        barcode_count: Object.keys(regB2S).length,
+        sku_count: Object.keys(regS2B).length,
+        in_barcode_to_sku: !!skuFromB2S,
+        sku: skuFromB2S,
+        eans_for_sku: skuFromB2S ? (regS2B[skuFromB2S] || []) : []
+      }
+    };
+    const byBc = await pool.query(
+      `SELECT sku, friendly_name, barcode, status FROM item_master WHERE TRIM(barcode::text) = $1 LIMIT 1`, [code]);
+    out.item_by_barcode = byBc.rows[0] || null;
+    const skuForMaster = skuFromB2S || code.toUpperCase();
+    const bySku = await pool.query(
+      `SELECT sku, friendly_name, barcode, status FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`, [skuForMaster]);
+    out.item_by_sku = bySku.rows[0] || null;
+    const pend = await pool.query(
+      `SELECT id, barcode, qty, org_id, status, matched_sku, created_at FROM unmatched_barcodes
+        WHERE TRIM(barcode::text) = $1 ORDER BY id DESC LIMIT 5`, [code]);
+    out.unmatched_rows = pend.rows;
+    const pendTotal = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM unmatched_barcodes WHERE status = 'PENDING'`);
+    out.pending_total = pendTotal.rows[0].n;
+    const recentPend = await pool.query(
+      `SELECT id, barcode, qty, org_id, status, created_at FROM unmatched_barcodes
+        WHERE status = 'PENDING' ORDER BY created_at DESC LIMIT 15`);
+    out.recent_pending = recentPend.rows;
+    const skuTextBc = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM opening_inventory WHERE barcode ~ '[A-Za-z]'`);
+    out.opening_inventory_rows_with_sku_text_barcode = skuTextBc.rows[0].n;
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/items/bulk — bulk create items from Excel
 app.post('/api/items/bulk', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { items } = req.body;
