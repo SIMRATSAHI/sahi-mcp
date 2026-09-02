@@ -723,7 +723,12 @@ async function ensureSchema() {
     console.error('unmatched_barcodes table migration warning:', err.message);
   }
 }
-ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcodes()).then(() => canonicalizeOpeningInventoryBarcodes()).then((r) => { if (r) console.log(`[OI-CANONICALIZE] Startup self-heal: ${r.fixed.length} fixed, ${r.already.length} already correct, ${r.unresolved.length} unresolved`); }).catch(() => {});
+ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcodes()).then(() => canonicalizeOpeningInventoryBarcodes()).then((r) => {
+  if (r) console.log(`[OI-CANONICALIZE] Startup self-heal: ${r.fixed.length} fixed, ${r.already.length} already correct, ${r.unresolved.length} unresolved`);
+  return autoResolvePendingUnmatched(null, 'startup');
+}).then((r) => {
+  if (r) console.log(`[AUTO-RESOLVE] Startup self-heal: ${r.resolved.length} resolved, ${r.skipped.length} still need manual SKU`);
+}).catch((e) => console.error('[STARTUP] self-heal chain error:', e.message));
 
 // Record an action in the audit trail. Never lets a logging failure break the
 // actual request - logging is best-effort.
@@ -4322,71 +4327,81 @@ async function tryAutoResolveOneBarcode(barcode) {
   return null;
 }
 
+// Reusable: run the full lookup chain against every PENDING unmatched barcode.
+// Marks matches RESOLVED and flows their qty into opening_inventory (ADD
+// semantics). Called (a) by POST /api/unmatched-barcodes/auto-resolve and
+// (b) at startup so leftovers self-heal on every deploy. Idempotent.
+async function autoResolvePendingUnmatched(orgId, actor) {
+  const orgFilter = orgId ? `AND org_id = ${parseInt(orgId, 10)}` : '';
+  const rows = await pool.query(
+    `SELECT * FROM unmatched_barcodes
+      WHERE status = 'PENDING' ${orgFilter}
+      ORDER BY created_at ASC`
+  );
+  const resolved = [];
+  const skipped = [];
+  for (const ub of rows.rows) {
+    try {
+      const match = await tryAutoResolveOneBarcode(ub.barcode);
+      if (match && match.sku) {
+        // Per SOP: barcode is the EAN, not the SKU text. When the scanner was fed
+        // a SKU (e.g. JW22SSFN303C) we resolve to the canonical EAN from the
+        // registry; when it was fed an EAN we keep that EAN. match.barcode is the
+        // canonical value to write everywhere.
+        const canonicalBarcode = match.barcode || ub.barcode;
+        // Attach the canonical barcode to the SKU (only when item_master.barcode is empty —
+        // barcode lookup chain already set a primary barcode; don't overwrite)
+        await pool.query(
+          `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE sku = $2`,
+          [canonicalBarcode, match.sku]
+        );
+        // Convert orphan → opening inventory (ADD semantics, matches scanner save flow)
+        const existing = await pool.query(
+          'SELECT id FROM opening_inventory WHERE sku = $1 AND org_id = $2',
+          [match.sku, ub.org_id]
+        );
+        if (existing.rows.length > 0) {
+          await pool.query(
+            `UPDATE opening_inventory
+                SET qty = qty + $1,
+                    barcode = COALESCE(NULLIF(barcode, ''), $2),
+                    friendly_name = COALESCE(NULLIF(friendly_name, ''), $3),
+                    color = COALESCE(NULLIF(color, ''), $4),
+                    created_by = $5, created_at = NOW()
+              WHERE id = $6`,
+            [ub.qty, canonicalBarcode, match.friendly_name, match.color || 'n/a',
+             actor || 'system', existing.rows[0].id]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [match.sku, canonicalBarcode, match.friendly_name, match.color || 'n/a',
+             ub.qty, ub.org_id, actor || 'system']
+          );
+        }
+        await pool.query(
+          `UPDATE unmatched_barcodes
+              SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW()
+            WHERE id = $2`,
+          [match.sku, ub.id]
+        );
+        resolved.push({ barcode: canonicalBarcode, sku: match.sku, qty: ub.qty, source: match.source });
+      } else {
+        skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'no_match_in_any_source' });
+      }
+    } catch (rowErr) {
+      console.error('[AUTO-RESOLVE] row failed', ub.barcode, rowErr.message);
+      skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'error: ' + rowErr.message });
+    }
+  }
+  return { resolved, skipped };
+}
+
 app.post('/api/unmatched-barcodes/auto-resolve', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
-    const orgFilter = req.body && req.body.org_id ? `AND org_id = ${parseInt(req.body.org_id, 10)}` : '';
-    const rows = await pool.query(
-      `SELECT * FROM unmatched_barcodes
-        WHERE status = 'PENDING' ${orgFilter}
-        ORDER BY created_at ASC`
-    );
-    const resolved = [];
-    const skipped = [];
-    for (const ub of rows.rows) {
-      try {
-        const match = await tryAutoResolveOneBarcode(ub.barcode);
-        if (match && match.sku) {
-          // Per SOP: barcode is the EAN, not the SKU text. When the scanner was fed
-          // a SKU (e.g. JW22SSFN303C) we resolve to the canonical EAN from the
-          // registry; when it was fed an EAN we keep that EAN. match.barcode is the
-          // canonical value to write everywhere.
-          const canonicalBarcode = match.barcode || ub.barcode;
-          // Attach the canonical barcode to the SKU (only when item_master.barcode is empty —
-          // barcode lookup chain already set a primary barcode; don't overwrite)
-          await pool.query(
-            `UPDATE item_master SET barcode = COALESCE(NULLIF(barcode, ''), $1) WHERE sku = $2`,
-            [canonicalBarcode, match.sku]
-          );
-          // Convert orphan → opening inventory (ADD semantics, matches scanner save flow)
-          const existing = await pool.query(
-            'SELECT id FROM opening_inventory WHERE sku = $1 AND org_id = $2',
-            [match.sku, ub.org_id]
-          );
-          if (existing.rows.length > 0) {
-            await pool.query(
-              `UPDATE opening_inventory
-                  SET qty = qty + $1,
-                      barcode = COALESCE(NULLIF(barcode, ''), $2),
-                      friendly_name = COALESCE(NULLIF(friendly_name, ''), $3),
-                      color = COALESCE(NULLIF(color, ''), $4),
-                      created_by = $5, created_at = NOW()
-                WHERE id = $6`,
-              [ub.qty, canonicalBarcode, match.friendly_name, match.color || 'n/a',
-               req.user ? req.user.email : 'system', existing.rows[0].id]
-            );
-          } else {
-            await pool.query(
-              `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-              [match.sku, canonicalBarcode, match.friendly_name, match.color || 'n/a',
-               ub.qty, ub.org_id, req.user ? req.user.email : 'system']
-            );
-          }
-          await pool.query(
-            `UPDATE unmatched_barcodes
-                SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW()
-              WHERE id = $2`,
-            [match.sku, ub.id]
-          );
-          resolved.push({ barcode: canonicalBarcode, sku: match.sku, qty: ub.qty, source: match.source });
-        } else {
-          skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'no_match_in_any_source' });
-        }
-      } catch (rowErr) {
-        console.error('[AUTO-RESOLVE] row failed', ub.barcode, rowErr.message);
-        skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'error: ' + rowErr.message });
-      }
-    }
+    const orgId = req.body && req.body.org_id ? parseInt(req.body.org_id, 10) : null;
+    const { resolved, skipped } = await autoResolvePendingUnmatched(orgId, req.user ? req.user.email : null);
     logActivity(req.user, 'UNMATCHED_AUTO_RESOLVE', null,
       { resolved_count: resolved.length, skipped_count: skipped.length });
     res.json({
