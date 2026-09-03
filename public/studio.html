@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAHI Studio — Asset Drop Console · UI Concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   SAHI STUDIO · UI CONCEPT v1
+   Bold & modern · warm ink on paper · ember accent
+   Mobile-first responsive web · WCAG AA conscious
+   ============================================================ */
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  /* surfaces & neutrals — warm cast, never pure black/white/gray */
+  --paper:      oklch(96.2% 0.012 82);
+  --paper-deep: oklch(92.5% 0.014 82);
+  --surface:    oklch(99%  0.004 82);
+  --surface-2:  oklch(97%  0.010 82);
+  --ink:        oklch(19%  0.018 70);
+  --ink-2:      oklch(45%  0.020 70);
+  --ink-3:      oklch(42%  0.022 70);
+  --line:       oklch(86%  0.014 82);
+  --line-2:     oklch(78%  0.016 82);
+
+  /* accent — ember */
+  --ember:      oklch(56%  0.205 34);
+  --ember-deep: oklch(47%  0.185 34);
+  --ember-soft: oklch(94.5% 0.030 34);
+  --on-ember:   #FFF8F4;
+
+  /* status */
+  --live:       oklch(50%  0.13  155);
+  --live-soft:  oklch(94%  0.03  155);
+  --draft:      oklch(43%  0.018 70);
+  --draft-soft: oklch(93.5% 0.012 82);
+
+  /* channel monograms */
+  --meta:#0866FF; --shopify:#008060; --taobao:#FF5000; --ig:#C13584; --xhs:#FF2442;
+
+  /* type scale (fixed rem for app UI) */
+  --fs-xs:.72rem; --fs-sm:.84rem; --fs-base:1rem; --fs-lg:1.14rem;
+  --fs-xl:1.34rem; --fs-2xl:1.7rem; --fs-hero:clamp(2rem,9vw,2.6rem);
+  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --sh-sm:0 1px 2px oklch(30% 0.02 70 / .06);
+  --sh-md:0 14px 30px -18px oklch(30% 0.02 70 / .35);
+  --font:'Archivo',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font);
+  background:
+    radial-gradient(1100px 500px at 85% -10%, oklch(93% 0.02 34 / .55), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, oklch(94% 0.015 155 / .4), transparent 55%),
+    var(--paper);
+  color:var(--ink);
+  font-size:var(--fs-base); line-height:1.5;
+  -webkit-font-smoothing:antialiased; font-kerning:normal;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--ember);outline-offset:2px;border-radius:4px}
+svg{display:block}
+.sprite{display:none}
+
+/* ============ stage layout ============ */
+.stage{
+  width:100%;max-width:1240px;margin:0 auto;
+  display:grid;grid-template-columns:minmax(0,520px) 1fr;
+  gap:clamp(24px,4vw,56px);
+  padding:clamp(16px,3vw,40px) clamp(12px,3vw,32px) 20px;
+  align-items:start;
+}
+
+/* ============ app shell ============ */
+.app{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:calc(var(--r-lg) + 6px);
+  box-shadow:var(--sh-md);
+  min-height:min(880px,calc(100dvh - 32px));
+  position:relative;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.app-inner{flex:1;overflow:hidden;position:relative}
+main{padding:0 18px 108px;height:100%;overflow-y:auto;overscroll-behavior:contain}
+
+/* header */
+.app-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px 12px;border-bottom:1px solid var(--line);
+  position:relative;z-index:5;background:var(--surface);
+}
+.brand{display:flex;align-items:baseline;gap:8px;letter-spacing:.02em}
+.brand b{font-weight:900;font-size:1.06rem;letter-spacing:.04em}
+.brand span{font-size:.8rem;font-weight:600;color:var(--ink-2);letter-spacing:.22em;text-transform:uppercase}
+.brand i{font-style:normal;width:7px;height:7px;border-radius:99px;background:var(--ember);display:inline-block;margin-left:2px}
+.hd-right{display:flex;align-items:center;gap:10px}
+.sync{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;color:var(--live);background:var(--live-soft);padding:6px 10px;border-radius:99px;letter-spacing:.04em}
+.sync::before{content:"";width:6px;height:6px;border-radius:99px;background:currentColor}
+.avatar{width:34px;height:34px;border-radius:99px;background:var(--ink);color:var(--surface);display:grid;place-items:center;font-weight:800;font-size:.74rem;letter-spacing:.06em}
+
+/* ============ typographic helpers ============ */
+.kicker{font-size:var(--fs-xs);font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+.kicker.ember{color:var(--ember-deep)}
+h1.display{font-size:var(--fs-hero);font-weight:900;line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
+.lead{color:var(--ink-2);font-size:var(--fs-base);max-width:44ch}
+.num{font-variant-numeric:tabular-nums}
+
+/* rows & hairlines */
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.muted{color:var(--ink-2)}
+.tiny{font-size:var(--fs-xs);color:var(--ink-3)}
+.spread{justify-content:space-between}
+.stack-6{display:flex;flex-direction:column;gap:6px}
+.stack-10{display:flex;flex-direction:column;gap:10px}
+.stack-16{display:flex;flex-direction:column;gap:16px}
+.stack-22{display:flex;flex-direction:column;gap:22px}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  font-weight:700;border-radius:var(--r-md);
+  min-height:46px;padding:0 18px;transition:transform .18s cubic-bezier(.2,.8,.2,1),background .18s;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--ember);color:var(--on-ember);box-shadow:0 8px 20px -8px oklch(47% .2 34/.7)}
+.btn-primary:hover{background:var(--ember-deep)}
+.btn-dark{background:var(--ink);color:var(--surface)}
+.btn-dark:hover{background:oklch(30% .02 70)}
+.btn-ghost{border:1.5px solid var(--line-2);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-block{width:100%}
+.btn-lg{min-height:54px;font-size:var(--fs-lg);padding:0 22px;border-radius:var(--r-lg)}
+.btn .arr{margin-left:2px;transition:transform .2s}
+.btn:hover .arr{transform:translateX(3px)}
+
+/* ============ home ============ */
+.hero{margin:6px 0 0}
+.hero .greet{font-size:var(--fs-sm);font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+.mkswitch{
+  display:inline-flex;gap:4px;margin-top:14px;
+  background:var(--surface-2);border:1.5px solid var(--line);border-radius:99px;padding:4px;
+}
+.mkswitch .mk{
+  border:0;background:transparent;font:inherit;cursor:pointer;
+  font-size:.76rem;font-weight:800;letter-spacing:.02em;
+  padding:9px 14px;border-radius:99px;color:var(--ink-2);transition:all .15s;
+}
+.mkswitch .mk.on{background:var(--ink);color:var(--surface)}
+.mkswitch .mk:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
+.hero-cta{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+
+/* channels */
+.sec{display:flex;flex-direction:column;gap:14px}
+.sec-hd{display:flex;align-items:baseline;justify-content:space-between}
+.channel{
+  display:flex;align-items:center;gap:12px;padding:13px 6px;
+  border-bottom:1px solid var(--line);cursor:pointer;
+}
+.channel:last-child{border-bottom:0}
+.channel .mono{
+  width:40px;height:40px;border-radius:var(--r-sm);display:grid;place-items:center;
+  color:#fff;font-weight:900;font-size:.72rem;letter-spacing:.05em;flex:none
+}
+.mono.meta{background:var(--meta)} .mono.ig{background:var(--ig)}
+.mono.shop{background:var(--shopify)} .mono.tb{background:var(--taobao)} .mono.xhs{background:var(--xhs)}
+.channel .who{font-weight:800;font-size:.95rem}
+.channel .sub{font-size:var(--fs-xs);color:var(--ink-3);font-weight:500}
+.dot{width:7px;height:7px;border-radius:99px;background:var(--live);flex:none}
+.ch-st{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;color:var(--live);background:var(--live-soft);padding:4px 9px;border-radius:99px}
+.chev{color:var(--ink-3)}
+
+/* panel */
+.panel{
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:16px 16px 12px;
+}
+.panel.tight{padding:12px 14px}
+.panel.dark{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+
+/* up next rows */
+.next-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px dashed var(--line-2)}
+.next-item:last-child{border-bottom:0;padding-bottom:2px}
+.ratio-chip{
+  width:34px;height:34px;border-radius:8px;background:var(--surface);
+  border:1px solid var(--line-2);display:grid;place-items:center;flex:none;
+  font-size:.58rem;font-weight:800;color:var(--ink-2);letter-spacing:.02em;
+}
+.ratio-chip.small{width:26px;height:26px;border-radius:6px;font-size:.5rem}
+.pill{font-size:var(--fs-xs);font-weight:800;padding:3px 9px;border-radius:99px;letter-spacing:.04em}
+.pill.draft{background:var(--draft-soft);color:var(--draft)}
+.pill.live{background:var(--live-soft);color:var(--live)}
+.pill.sched{background:var(--ember-soft);color:var(--ember-deep)}
+
+/* library strip */
+.lib-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lib-tile{aspect-ratio:1;border-radius:var(--r-md);position:relative;overflow:hidden;border:1px solid var(--line)}
+.lib-tile .ph{position:absolute;inset:0}
+.lib-tile .over{position:absolute;left:6px;bottom:6px;right:6px;display:flex;justify-content:space-between;align-items:center}
+.lib-tile .over span{font-size:.6rem;font-weight:800;color:#fff;background:oklch(18% .02 70/.6);padding:3px 7px;border-radius:99px;letter-spacing:.03em}
+.mini-dot{width:8px;height:8px;border-radius:99px}
+
+/* ============ generic screen head ============ */
+.screen-hd{margin:14px 0 18px;display:flex;flex-direction:column;gap:6px}
+
+/* ============ queue ============ */
+.day{margin-bottom:20px}
+.day-hd{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.day-hd h3{font-size:.92rem;font-weight:800}
+.day-hd .cnt{font-size:var(--fs-xs);font-weight:700;color:var(--ink-3);background:var(--paper-deep);padding:2px 8px;border-radius:99px}
+.q-item{
+  display:flex;align-items:center;gap:12px;padding:12px 4px;
+  border-bottom:1px solid var(--line);
+}
+.q-item .when{font-size:var(--fs-sm);font-weight:800;color:var(--ink-2);min-width:44px;font-variant-numeric:tabular-nums}
+.q-item .tt{font-weight:700;font-size:.92rem;line-height:1.3}
+.q-item .chips{display:flex;gap:5px;margin-top:3px;flex-wrap:wrap}
+.cchip{font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:99px;border:1px solid var(--line-2);color:var(--ink-2);letter-spacing:.04em}
+
+/* ============ library ============ */
+.filters{display:flex;gap:6px;overflow-x:auto;padding:2px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.fchip{flex:none;font-size:var(--fs-xs);font-weight:800;padding:8px 13px;border-radius:99px;background:var(--surface);border:1px solid var(--line-2);color:var(--ink-2);letter-spacing:.03em}
+.fchip.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.lib-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.lib-card{border-radius:var(--r-lg);overflow:hidden;background:var(--surface-2);border:1px solid var(--line);padding-bottom:10px}
+.lib-card .ph{aspect-ratio:4/5}
+.lib-card .meta{padding:9px 11px 2px}
+.lib-card .nm{font-weight:800;font-size:.86rem;line-height:1.25}
+.lib-card .st{display:flex;align-items:center;gap:6px;margin-top:7px;padding:0 11px}
+.lib-card .st .pill{margin-left:auto}
+
+/* ============ bottom nav + fab ============ */
+.nav{
+  position:absolute;left:0;right:0;bottom:0;z-index:20;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  background:oklch(99% .004 82/.9);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);
+  padding:6px 4px calc(8px + env(safe-area-inset-bottom));
+}
+.nav button{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:8px 4px 6px;border-radius:12px;color:var(--ink-3);min-height:52px;
+  transition:color .18s;
+}
+.nav button.on{color:var(--ink)}
+.nav button.on svg{stroke:var(--ember)}
+.nav button .nl{font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.nav button svg{transition:transform .2s}
+.nav button:active svg{transform:scale(.9)}
+.fab{
+  position:absolute;right:16px;bottom:78px;z-index:21;
+  display:inline-flex;align-items:center;gap:9px;
+  background:var(--ember);color:var(--on-ember);font-weight:800;font-size:.9rem;
+  padding:15px 20px;border-radius:99px;box-shadow:0 14px 26px -10px oklch(47% .2 34/.8);
+  transition:transform .2s cubic-bezier(.2,.8,.2,1),background .18s;
+}
+.fab:hover{background:var(--ember-deep)}
+.fab:active{transform:scale(.95)}
+
+/* ============ screens ============ */
+.screen{display:none}
+.screen.active{display:flex;flex-direction:column;gap:24px;animation:fadeup .34s cubic-bezier(.2,.8,.2,1)}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+#s-home{margin-top:10px}
+
+/* ============ sheet (create flow) ============ */
+.sheet{
+  position:absolute;inset:0;z-index:30;display:none;
+  flex-direction:column;background:var(--surface);
+}
+.sheet.open{display:flex;animation:rise .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.sheet-hd{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.sheet-hd .ttl{font-weight:900;font-size:1.02rem}
+.iconbtn{width:38px;height:38px;border-radius:99px;display:grid;place-items:center;color:var(--ink-2);border:1px solid var(--line);flex:none}
+.iconbtn:hover{border-color:var(--ink-2);color:var(--ink)}
+.stepper{display:flex;align-items:center;gap:6px;margin-left:auto}
+.step{width:6px;height:6px;border-radius:99px;background:var(--line-2);transition:background .2s}
+.step.done{background:var(--ember)}
+.step.now{background:var(--ember);box-shadow:0 0 0 4px var(--ember-soft)}
+.sheet-body{flex:1;overflow-y:auto;padding:18px;overscroll-behavior:contain}
+.sheet-foot{border-top:1px solid var(--line);padding:12px 18px calc(12px + env(safe-area-inset-bottom));background:var(--surface)}
+.step-pane{display:none;flex-direction:column;gap:18px}
+.step-pane.now{display:flex}
+
+/* product picker */
+.search{
+  display:flex;align-items:center;gap:10px;border:1.5px solid var(--line-2);
+  border-radius:var(--r-md);padding:0 14px;min-height:50px;background:var(--surface);
+  transition:border-color .18s;
+}
+.search:focus-within{border-color:var(--ember)}
+.search input{flex:1;border:0;outline:0;background:none;font:inherit;font-size:.95rem;min-height:46px}
+.search input::placeholder{color:var(--ink-3)}
+.search svg{color:var(--ink-3)}
+.pick-list{display:flex;flex-direction:column;gap:8px}
+.pick{
+  display:flex;align-items:center;gap:12px;padding:10px;border:1.5px solid var(--line);
+  border-radius:var(--r-md);background:var(--surface);cursor:pointer;text-align:left;
+  transition:border-color .15s,background .15s;
+}
+.pick:hover{border-color:var(--line-2)}
+.pick.sel{border-color:var(--ember);background:var(--ember-soft)}
+.pick .thumb{width:52px;height:52px;border-radius:10px;flex:none;overflow:hidden;position:relative}
+.pick .pinfo .pn{font-weight:800;font-size:.93rem}
+.pick .pinfo .pl{font-size:var(--fs-xs);color:var(--ink-3);font-weight:500}
+.hero-chip{
+  display:inline-block;vertical-align:1.5px;margin-left:6px;
+  font-size:.5rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--surface);background:var(--ink);border-radius:99px;padding:2.5px 6px;
+}
+.pick .price{margin-left:auto;font-weight:800;font-size:.9rem}
+.radio{
+  width:22px;height:22px;border-radius:99px;border:2px solid var(--line-2);flex:none;
+  display:grid;place-items:center;color:transparent;transition:all .15s;
+}
+.pick.sel .radio{border-color:var(--ember);background:var(--ember);color:#fff}
+
+/* format options */
+.fmt{
+  display:flex;align-items:center;gap:14px;padding:12px;border:1.5px solid var(--line);
+  border-radius:var(--r-md);background:var(--surface);cursor:pointer;text-align:left;transition:border-color .15s;
+}
+.fmt:hover{border-color:var(--line-2)}
+.fmt.sel{border-color:var(--ember)}
+.fmt .frame{
+  width:44px;height:54px;border-radius:8px;border:1.5px solid var(--line-2);flex:none;
+  display:grid;place-items:center;background:var(--surface-2);color:var(--ink-3);
+  transition:all .15s;
+}
+.fmt.sel .frame{border-color:var(--ember);background:var(--ember-soft);color:var(--ember-deep)}
+.fmt .frame[data-ratio="1/1"]{height:44px}
+.fmt .frame[data-ratio="4/5"]{height:50px;width:40px}
+.fmt .frame[data-ratio="3/4"]{height:52px;width:39px}
+.fmt.locked{opacity:.62}
+.lock-note{
+  display:inline-block;vertical-align:1px;margin-left:5px;
+  font-size:.56rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ember-deep);background:var(--ember-soft);border-radius:99px;padding:2px 7px;
+}
+.fmt .fname{font-weight:800;font-size:.92rem}
+.fmt .fspec{font-size:var(--fs-xs);color:var(--ink-3)}
+.hnote{
+  display:inline-block;margin-top:3px;
+  font-size:.58rem;font-weight:800;letter-spacing:.04em;
+  color:var(--ember-deep);background:var(--ember-soft);
+  border-radius:99px;padding:2.5px 8px;
+}
+.hero-note{
+  border:1.5px dashed var(--line-2);border-radius:var(--r-md);
+  background:var(--surface-2);padding:12px 14px;
+}
+.hero-note p{margin:0;font-size:.85rem;font-weight:600;line-height:1.55;color:var(--ink)}
+.fmt .radio{margin-left:auto}
+.copy-note{
+  font-size:var(--fs-xs);font-weight:700;color:var(--ember-deep);background:var(--ember-soft);
+  border-radius:var(--r-sm);padding:9px 12px;display:flex;gap:8px;align-items:center;
+}
+
+/* template + look */
+.tpl-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tpl{
+  border:1.5px solid var(--line);border-radius:var(--r-md);overflow:hidden;cursor:pointer;text-align:left;
+  background:var(--surface);transition:border-color .15s;
+}
+.tpl:hover{border-color:var(--line-2)}
+.tpl.sel{border-color:var(--ember)}
+.tpl .sw{height:64px;display:grid;place-items:center;font-size:.62rem;font-weight:900;letter-spacing:.06em}
+.tpl .tl{padding:7px 8px;font-size:var(--fs-xs);font-weight:800;display:flex;align-items:center;gap:6px}
+.sw.t-a{background:var(--ink);color:var(--surface)}
+.sw.t-b{background:var(--paper-deep);color:var(--ink);border-bottom:1px solid var(--line)}
+.sw.t-c{background:linear-gradient(135deg,oklch(70% .17 45),oklch(55% .2 20));color:#fff}
+
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:var(--fs-xs);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.in{
+  border:1.5px solid var(--line-2);border-radius:var(--r-md);background:var(--surface);
+  padding:13px 14px;font:inherit;font-size:.95rem;color:var(--ink);resize:vertical;min-height:52px;
+}
+.in:focus{outline:0;border-color:var(--ember);box-shadow:0 0 0 3px var(--ember-soft)}
+textarea.in{line-height:1.5}
+.capcount{align-self:flex-end;font-size:var(--fs-xs);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.toggle-row{
+  display:flex;align-items:center;gap:12px;justify-content:space-between;
+  padding:13px 0;border-bottom:1px solid var(--line);
+}
+.toggle-row .tr-t{font-weight:700;font-size:.92rem}
+.toggle-row .tr-s{font-size:var(--fs-xs);color:var(--ink-3);margin-top:2px}
+.switch{position:relative;width:46px;height:28px;flex:none;border-radius:99px;background:var(--line-2);transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:99px;background:#fff;box-shadow:0 1px 3px oklch(20% .02 70/.3);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+button.switch[aria-checked="true"]{background:var(--ember)}
+button.switch[aria-checked="true"]::after{transform:translateX(18px)}
+
+/* preview canvas */
+.preview-wrap{position:sticky;top:0;z-index:2;background:var(--surface);padding-bottom:10px}
+.preview-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.preview-top .pt-l{font-weight:900;font-size:.9rem;display:flex;align-items:center;gap:8px}
+.canvas-frame{display:grid;place-items:center;min-height:120px;background:var(--paper-deep);border-radius:var(--r-lg);padding:14px}
+.cvs{
+  --r:1/1;
+  background:var(--ink);color:var(--surface);border-radius:12px;overflow:hidden;
+  width:auto;height:330px;max-width:100%;
+  position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:16px;
+  box-shadow:var(--sh-md);
+  transition:width .3s cubic-bezier(.2,.8,.2,1),height .3s cubic-bezier(.2,.8,.2,1),background .3s;
+}
+.cvs.tpl-light{background:var(--paper-deep);color:var(--ink)}
+.cvs.tpl-tone{background:linear-gradient(160deg,oklch(64% .16 40),oklch(50% .2 25));color:#fff}
+.cvs .c-top{display:flex;justify-content:space-between;align-items:center;font-size:.58rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;opacity:.85}
+.cvs .c-prod{align-self:center}
+.cvs .c-word{font-size:clamp(1.15rem,4.6vw,2rem);font-weight:900;line-height:.98;letter-spacing:-.02em;text-transform:uppercase;text-wrap:balance}
+.cvs .c-bot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.cvs .c-price{font-weight:900;font-size:clamp(.9rem,3vw,1.15rem)}
+.cvs .c-handle{font-size:.56rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.8;text-align:right;line-height:1.4}
+.cvs.tpl-light .c-price,.cvs.tpl-light .c-word{color:var(--ink)}
+.cvs.tpl-light .c-top,.cvs.tpl-light .c-handle{color:var(--ink-2)}
+.swatch{align-self:center;width:56%;aspect-ratio:1;border-radius:50% 50% 46% 46%;opacity:.92;box-shadow:inset 0 -14px 24px oklch(15% .05 30/.35),0 10px 24px oklch(15% .05 30/.25)}
+.safe{position:absolute;inset:0;border:2px dashed oklch(100% .0 0/.55);pointer-events:none;display:none}
+.cvs.tpl-light .safe{border-color:oklch(0% 0 0/.25)}
+.safe.show{display:block}
+.fmt-tag{font-size:var(--fs-xs);font-weight:800;color:var(--ink-2);text-align:center;margin-top:8px;letter-spacing:.04em}
+.caption-prev{font-size:var(--fs-xs);color:var(--ink-3);background:var(--surface-2);border:1px dashed var(--line-2);border-radius:var(--r-sm);padding:10px 12px;line-height:1.55}
+.plan-cap{font-size:var(--fs-xs);color:var(--ink-2);background:var(--surface-2);border-radius:var(--r-sm);padding:8px 10px;line-height:1.5;white-space:pre-line;flex-basis:100%;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pact{display:flex;gap:8px;flex-basis:100%}
+.pact .btn{flex:1;padding:9px 4px;font-size:.75rem;font-weight:800;border-radius:10px}
+.pact .btn-ghost{border:1px solid var(--line-2)}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex-basis:100%}
+.mcell{background:var(--surface-2);border-radius:var(--r-sm);padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.ml{font-size:.6rem;font-weight:700;color:var(--ink-3);letter-spacing:.03em;text-transform:uppercase}
+.mv{font-size:.92rem;font-weight:900;color:var(--ink);white-space:nowrap}
+.md{font-size:.62rem;font-weight:800}
+.md.up{color:var(--live)} .md.down{color:var(--ember-deep)}
+@media(max-width:430px){.mgrid{grid-template-columns:repeat(2,1fr)}}
+.adjust-note{flex-basis:100%;font-size:var(--fs-xs);color:var(--ink-2);line-height:1.55;border-left:3px solid var(--ember);padding:2px 0 2px 10px}
+
+/* toast */
+.toast{
+  position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:var(--surface);font-size:var(--fs-sm);font-weight:700;
+  padding:12px 18px;border-radius:99px;box-shadow:var(--sh-md);opacity:0;pointer-events:none;
+  transition:all .3s cubic-bezier(.2,.8,.2,1);z-index:60;display:flex;gap:8px;align-items:center;white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast svg{color:var(--ember)}
+
+/* ============ rationale panel (desktop) ============ */
+.notes{display:none;flex-direction:column;gap:16px;max-width:620px}
+@media(min-width:1020px){.notes{display:flex}}
+.note-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px}
+.note-card h2{font-size:1rem;font-weight:900;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.note-card h2 .idx{
+  font-size:.66rem;width:22px;height:22px;border-radius:7px;background:var(--ink);color:var(--surface);
+  display:grid;place-items:center;flex:none;
+}
+.note-card ul{list-style:none;display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.note-card li{display:flex;gap:10px;font-size:.9rem;color:var(--ink-2);line-height:1.5}
+.note-card li b{color:var(--ink);font-weight:700}
+.note-card li::before{content:"";flex:none;width:6px;height:6px;border-radius:99px;background:var(--ember);margin-top:8px}
+.note-card .hint{margin-top:10px;font-size:.8rem;color:var(--ink-3);line-height:1.5}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.tag{font-size:.66rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:5px 10px;border-radius:99px;background:var(--paper-deep);color:var(--ink-2);border:1px solid var(--line)}
+
+/* phone-shadow pill footer on desktop only */
+@media(max-width:1019px){.stage{grid-template-columns:1fr;max-width:560px}}
+
+/* reduced motion */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-studio" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 6h12M6 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".4"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="i-lib" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-arr" viewBox="0 0 24 24"><path d="M4 12h15m-6-7 7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m20 20-3.4-3.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.5.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.7 1.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 10a4.5 4.5 0 0 0-6.5-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.7-1.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 9h14M5 15h14M9 5v14M15 5v14" stroke="currentColor" stroke-width="1.2" opacity=".5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L11 21l8-10.5h-6Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="m14.5 5.5 4 4L8 20H4v-4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="stage">
+
+  <!-- ================= APP SHELL ================= -->
+  <section class="app" aria-label="SAHI Studio app concept">
+
+    <header class="app-hd">
+      <div class="brand" aria-hidden="true"><b>SAHI<i></i></b><span>Studio</span></div>
+      <div class="hd-right">
+        <span class="sync">Channels live</span>
+        <div class="avatar" aria-label="Simrat S.">SS</div>
+      </div>
+    </header>
+
+    <div class="app-inner">
+      <main id="scroller">
+
+        <!-- ============ HOME ============ -->
+        <section class="screen active" id="s-home">
+          <div class="hero">
+            <p class="greet">Thursday, Sep 3 · Shanghai</p>
+            <h1 class="display">New drop,<br>Simrat?</h1>
+            <div class="mkswitch" role="tablist" aria-label="Market">
+              <button class="mk on" data-mkt="cn" role="tab" aria-selected="true">China · 淘宝 / 小红书</button>
+              <button class="mk" data-mkt="intl" role="tab" aria-selected="false">Intl · Meta / Shopify</button>
+            </div>
+            <p class="lead" id="home-lead" style="margin-top:10px">China market — Taobao + Xiaohongshu. Jewelry only, exposure push, Chinese listing titles.</p>
+            <div class="hero-cta">
+              <button class="btn btn-primary btn-lg" id="btn-review">Review &amp; approve
+                <svg class="arr" width="18" height="18"><use href="#i-arr"/></svg>
+              </button>
+              <button class="btn btn-ghost" data-open="studio">Manual drop (rare)</button>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-hd">
+              <span class="kicker ember">Channels</span>
+              <span class="tiny">Tap to manage</span>
+            </div>
+            <div id="ch-list"></div>
+          </div>
+
+          <div class="sec" id="sec-report">
+            <div class="sec-hd">
+              <span class="kicker ember">Yesterday — moving right?</span>
+              <span class="tiny">Auto report · 09:00 every day</span>
+            </div>
+            <div class="panel" id="report-panel"></div>
+            <p class="tiny" style="margin-top:8px;color:var(--ink-3)">The loop: plan → post → measure → adjust → you approve. Every morning Studio reports yesterday's traffic and <b>sales</b> per market and re-tunes today's plan accordingly. No report, no guessing.</p>
+          </div>
+
+          <div class="sec" id="sec-plan">
+            <div class="sec-hd">
+              <span class="kicker ember">This week — pre-planned</span>
+              <span class="tiny">Studio drafts · you approve</span>
+            </div>
+            <div class="panel" id="plan-panel"></div>
+            <p class="tiny" style="margin-top:8px;color:var(--ink-3)">Every slot is drafted from traffic playbooks — XHS note formulas (种草 → 淘宝) and the IG 50/30/20 mix → Shopify. Captions, keywords, hashtags, posting times and UTM links come pre-filled. Approve, swap the copy, or skip — nothing to write.</p>
+          </div>
+
+          <div class="sec">
+            <div class="sec-hd">
+              <span class="kicker ember">Latest assets</span>
+              <button class="tiny" data-goto="library" style="text-decoration:underline;text-underline-offset:3px">Library</button>
+            </div>
+            <div class="lib-strip">
+              <button class="lib-tile" data-goto="library" aria-label="Open library">
+                <span class="ph" style="background:linear-gradient(160deg,#3d2a1e,#17140f 70%)"></span>
+                <span class="over"><span>IG · 4:5</span><span class="mini-dot" style="background:var(--live)"></span></span>
+              </button>
+              <button class="lib-tile" data-goto="library" aria-label="Open library">
+                <span class="ph" style="background:linear-gradient(160deg,#f4efe4,#e4d9c3)"></span>
+                <span class="over"><span>Shop 1:1</span><span class="mini-dot" style="background:var(--live)"></span></span>
+              </button>
+              <button class="lib-tile" data-goto="library" aria-label="Open library">
+                <span class="ph" style="background:linear-gradient(160deg,#a83a1e,#57180c)"></span>
+                <span class="over"><span>TB 1:1</span><span class="mini-dot" style="background:var(--ember)"></span></span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ STUDIO (hub) ============ -->
+        <section class="screen" id="s-studio">
+          <div class="screen-hd">
+            <span class="kicker ember">Studio</span>
+            <h1 class="display" style="font-size:var(--fs-2xl)">Start a drop</h1>
+            <p class="lead">Pick a source. Studio sizes, styles and links it per channel.</p>
+          </div>
+          <div class="stack-16">
+            <button class="panel tight" data-open="studio" style="text-align:left;display:flex;align-items:center;gap:14px;width:100%">
+              <span style="width:46px;height:46px;border-radius:12px;background:var(--ember);color:#fff;display:grid;place-items:center;flex:none">
+                <svg width="20" height="20"><use href="#i-plus"/></svg>
+              </span>
+                <span class="grow stack-6">
+                  <span style="font-weight:800">From a product</span>
+                  <span class="sub tiny">Synced catalog — copy, link &amp; keywords auto-drafted</span>
+                </span>
+              <svg class="chev" width="18" height="18"><use href="#i-chev"/></svg>
+            </button>
+            <button class="panel tight" data-open="studio" data-blank="1" style="text-align:left;display:flex;align-items:center;gap:14px;width:100%">
+              <span style="width:46px;height:46px;border-radius:12px;background:var(--ink);color:var(--surface);display:grid;place-items:center;flex:none">
+                <svg width="19" height="19"><use href="#i-pen"/></svg>
+              </span>
+              <span class="grow stack-6">
+                <span style="font-weight:800">From a template</span>
+                <span class="sub tiny">Editorial, light or tone — brand-safe starts</span>
+              </span>
+              <svg class="chev" width="18" height="18"><use href="#i-chev"/></svg>
+            </button>
+          </div>
+          <div class="sec">
+            <div class="sec-hd"><span class="kicker ember">Drafts</span><span class="tiny">Resume anytime</span></div>
+            <div class="panel">
+              <div class="next-item">
+                <span class="ratio-chip">1:1</span>
+                <span class="grow stack-6">
+                  <span class="who" style="font-weight:700;font-size:.9rem">Sling tote — soft launch</span>
+                  <span class="sub tiny">Step 2 of 3 · formats chosen</span>
+                </span>
+                <svg class="chev" width="18" height="18"><use href="#i-chev"/></svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ QUEUE ============ -->
+        <section class="screen" id="s-queue">
+          <div class="screen-hd">
+            <span class="kicker ember">Queue</span>
+            <h1 class="display" style="font-size:var(--fs-2xl)">Publishing plan</h1>
+            <p class="lead">Every drop lands on time, in the right size, with its link.</p>
+          </div>
+
+          <div class="day" id="day-today">
+            <div class="day-hd"><h3>Today</h3><span class="cnt" id="cnt-today">3</span></div>
+            <div id="today-list">
+              <div class="q-item">
+                <span class="when">18:00</span>
+                <span class="ratio-chip small">9:16</span>
+                <span class="grow">
+                  <div class="tt">Vermilion hoops — story teaser</div>
+                  <div class="chips"><span class="cchip">IG Story</span><span class="cchip">link auto</span></div>
+                </span>
+                <span class="pill sched">Scheduled</span>
+              </div>
+              <div class="q-item">
+                <span class="when">20:00</span>
+                <span class="ratio-chip small">3:4</span>
+                <span class="grow">
+                  <div class="tt">FN303T + BC404 — hero note cover</div>
+                  <div class="chips"><span class="cchip">XHS</span><span class="cchip">Jewelry only</span></div>
+                </span>
+                <span class="pill sched">Scheduled</span>
+              </div>
+              <div class="q-item">
+                <span class="when">21:30</span>
+                <span class="ratio-chip small">4:5</span>
+                <span class="grow">
+                  <div class="tt">Maya hoops — restock post</div>
+                  <div class="chips"><span class="cchip">IG Feed</span><span class="cchip">sahi_london</span></div>
+                </span>
+                <span class="pill draft">Draft</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="day">
+            <div class="day-hd"><h3>Tomorrow</h3><span class="cnt">3</span></div>
+            <div>
+              <div class="q-item">
+                <span class="when">09:00</span>
+                <span class="ratio-chip small">1:1</span>
+                <span class="grow">
+                  <div class="tt">PopArt tee — Week 1 PDP refresh</div>
+                  <div class="chips"><span class="cchip">Shopify</span><span class="cchip">sahilondon.com</span></div>
+                </span>
+                <span class="pill sched">Scheduled</span>
+              </div>
+              <div class="q-item">
+                <span class="when">10:00</span>
+                <span class="ratio-chip small">1:1</span>
+                <span class="grow">
+                  <div class="tt">FN303T + BC404 — Taobao hero listing set</div>
+                  <div class="chips"><span class="cchip">Taobao</span><span class="cchip">8 imgs</span></div>
+                </span>
+                <span class="pill sched">Scheduled</span>
+              </div>
+              <div class="q-item">
+                <span class="when">17:00</span>
+                <span class="ratio-chip small">9:16</span>
+                <span class="grow">
+                  <div class="tt">Reels — behind the drop</div>
+                  <div class="chips"><span class="cchip">IG Reels</span><span class="cchip">10 and 10 tag</span></div>
+                </span>
+                <span class="pill draft">Draft</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="day">
+            <div class="day-hd"><h3>Posted</h3><span class="cnt">4</span></div>
+            <div>
+              <div class="q-item">
+                <span class="when">Mon</span>
+                <span class="ratio-chip small">1:1</span>
+                <span class="grow">
+                  <div class="tt">Sweatshirt — 10 and 10 collab</div>
+                  <div class="chips"><span class="cchip">IG</span><span class="cchip">Shop</span></div>
+                </span>
+                <span class="pill live">Live</span>
+              </div>
+              <div class="q-item">
+                <span class="when">Sun</span>
+                <span class="ratio-chip small">4:5</span>
+                <span class="grow">
+                  <div class="tt">Earring edit — Vermilion pair</div>
+                  <div class="chips"><span class="cchip">IG Feed</span></div>
+                </span>
+                <span class="pill live">Live</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ LIBRARY ============ -->
+        <section class="screen" id="s-library">
+          <div class="screen-hd">
+            <span class="kicker ember">Library</span>
+            <h1 class="display" style="font-size:var(--fs-2xl)">Every asset, filed</h1>
+            <p class="lead">Reuse a look in seconds — formats and links travel with the file.</p>
+          </div>
+          <div class="filters" role="tablist" aria-label="Filter library">
+            <button class="fchip on">All</button>
+            <button class="fchip">Meta</button>
+            <button class="fchip">Shopify</button>
+            <button class="fchip">Taobao</button>
+            <button class="fchip">Video</button>
+          </div>
+          <div class="lib-grid">
+            <div class="lib-card">
+              <div class="ph" style="background:linear-gradient(160deg,#431f10,#19110b)"></div>
+              <div class="meta"><div class="nm">Vermilion hoops — launch</div></div>
+              <div class="st"><span class="cchip">4:5</span><span class="cchip">IG</span><span class="pill live">Live</span></div>
+            </div>
+            <div class="lib-card">
+              <div class="ph" style="background:linear-gradient(160deg,#f5f0e6,#dcd2bd)"></div>
+              <div class="meta"><div class="nm">PopArt tee — white</div></div>
+              <div class="st"><span class="cchip">1:1</span><span class="cchip">Shop</span><span class="pill live">Live</span></div>
+            </div>
+            <div class="lib-card">
+              <div class="ph" style="background:linear-gradient(160deg,#94351c,#4c1406)"></div>
+              <div class="meta"><div class="nm">Vermilion hoops — TB main</div></div>
+              <div class="st"><span class="cchip">1:1</span><span class="cchip">Taobao</span><span class="pill sched">Scheduled</span></div>
+            </div>
+            <div class="lib-card">
+              <div class="ph" style="background:linear-gradient(160deg,#2a231b,#0f0d0a)"></div>
+              <div class="meta"><div class="nm">JW22 earrings — note cover</div></div>
+              <div class="st"><span class="cchip">3:4</span><span class="cchip">XHS</span><span class="pill draft">Draft</span></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- ================= CREATE SHEET ================= -->
+      <section class="sheet" id="sheet" aria-modal="true" role="dialog" aria-label="Create a drop">
+        <div class="sheet-hd">
+          <button class="iconbtn" id="sheet-close" aria-label="Close"><svg width="18" height="18"><use href="#i-x"/></svg></button>
+          <span class="ttl" id="sheet-ttl">New drop</span>
+          <div class="stepper" id="stepper" aria-hidden="true">
+            <span class="step now"></span><span class="step"></span><span class="step"></span>
+          </div>
+        </div>
+
+        <div class="sheet-body">
+          <!-- step 1 : product -->
+          <div class="step-pane now" id="pane-1">
+            <div class="stack-16">
+              <div>
+                <span class="kicker ember">Step 1 · Source</span>
+                <h2 style="font-size:1.15rem;font-weight:900;margin-top:4px">Choose a product</h2>
+                <p class="tiny" id="src-note" style="margin-top:3px">Syncs from Shopify — its product link rides along automatically.</p>
+              </div>
+              <div class="search">
+                <svg width="18" height="18"><use href="#i-search"/></svg>
+                <input type="search" id="q-prod" placeholder="Search catalog… e.g. Maya hoops" aria-label="Search products">
+              </div>
+              <p class="tiny" id="cn-hint" style="color:var(--ember-deep);font-weight:700">
+                <svg width="13" height="13" style="vertical-align:-2px;margin-right:4px"><use href="#i-bolt"/></svg>
+                Taobao &amp; Xiaohongshu hero SKUs — FN303T · BC404 ship <b>only</b> to these two channels (kept on top)
+              </p>
+              <div class="pick-list" id="prod-list" role="radiogroup" aria-label="Products"></div>
+              <div class="hero-note" id="prod-detail" hidden>
+                <span class="kicker ember">Taobao listing title</span>
+                <p id="prod-detail-txt"></p>
+                <p class="tiny" id="prod-detail-meta" style="margin-top:4px"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- step 2 : formats -->
+          <div class="step-pane" id="pane-2">
+            <div class="stack-16">
+              <div>
+                <span class="kicker ember">Step 2 · Fit</span>
+                <h2 style="font-size:1.15rem;font-weight:900;margin-top:4px">Where does it go?</h2>
+                <p class="tiny" style="margin-top:3px">Studio auto-crops one source to each safe spec. Pick all that apply.</p>
+              </div>
+              <div class="stack-10" id="fmt-list" role="group" aria-label="Formats"></div>
+              <div class="copy-note" id="copy-note">
+                <svg width="15" height="15" style="flex:none"><use href="#i-bolt"/></svg>
+                <span id="copy-note-txt">Select a format to begin — copies are counted live.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- step 3 : look -->
+          <div class="step-pane" id="pane-3">
+            <div class="preview-wrap">
+              <div class="preview-top">
+                <span class="pt-l"><svg width="16" height="16" style="color:var(--ember)"><use href="#i-frame"/></svg>
+                  <span id="pv-name">Live preview</span></span>
+                <button class="iconbtn" id="btn-safe" style="width:auto;padding:0 12px;gap:6px;display:inline-flex;align-items:center;font-weight:800;font-size:.72rem;letter-spacing:.04em">
+                  <svg width="13" height="13"><use href="#i-frame"/></svg> Safe zones
+                </button>
+              </div>
+              <div class="canvas-frame">
+                <div class="cvs tpl-tone" id="cvs">
+                  <span class="safe" id="safe"></span>
+                  <div class="c-top"><span>SAHI</span><span id="c-fmt">1:1</span></div>
+                  <div class="c-prod swatch" id="c-swatch" style="background:radial-gradient(circle at 35% 30%,#f2b28c,#a83a1e 55%,#57180c)"></div>
+                  <div class="c-word" id="c-word">Fresh<br>drop</div>
+                  <div class="c-bot">
+                    <span class="c-price" id="c-price">CAD $48</span>
+                    <span class="c-handle">@sahi_london<br>link in post</span>
+                  </div>
+                </div>
+              </div>
+              <div class="fmt-tag" id="pv-spec">1:1 · Square · crops center</div>
+            </div>
+
+            <div class="stack-16">
+              <div>
+                <span class="kicker ember">Step 3 · Look</span>
+                <h2 style="font-size:1.15rem;font-weight:900;margin-top:4px">Style it</h2>
+              </div>
+              <div>
+                <label class="kicker" style="display:block;margin-bottom:8px">Template</label>
+                <div class="tpl-row" id="tpl-row" role="radiogroup" aria-label="Template">
+                  <button class="tpl sel" data-tpl="tone" role="radio" aria-checked="true">
+                    <span class="sw t-c">EMBER</span><span class="tl">Tone</span>
+                  </button>
+                  <button class="tpl" data-tpl="dark" role="radio" aria-checked="false">
+                    <span class="sw t-a">INK</span><span class="tl">Editorial</span>
+                  </button>
+                  <button class="tpl" data-tpl="light" role="radio" aria-checked="false">
+                    <span class="sw t-b">PAPER</span><span class="tl">Light</span>
+                  </button>
+                </div>
+              </div>
+              <div class="field">
+                <label for="in-hd">Headline</label>
+                <input class="in" id="in-hd" value="Fresh drop" maxlength="28" autocomplete="off">
+                <span class="capcount" id="hd-count">0/28</span>
+              </div>
+              <div class="field">
+                <label for="in-cap">Caption</label>
+                <textarea class="in" id="in-cap" rows="3" maxlength="2200" placeholder="Tell the story… handles, hashtags, collab tags."></textarea>
+                <span class="capcount" id="cap-count">0/2200</span>
+              </div>
+              <div>
+                <div class="toggle-row">
+                  <div><div class="tr-t">Auto product link</div><div class="tr-s">Adds the Shopify link to caption &amp; swipe-up</div></div>
+                  <button class="switch" role="switch" aria-checked="true" aria-label="Auto product link"></button>
+                </div>
+                <div class="toggle-row">
+                  <div><div class="tr-t">Show price</div><div class="tr-s">Overlay CAD price on the asset</div></div>
+                  <button class="switch" role="switch" aria-checked="true" aria-label="Show price"></button>
+                </div>
+                <div class="toggle-row" style="border-bottom:0">
+                  <div><div class="tr-t">Collab tag</div><div class="tr-s">Mention partner account, e.g. 10 and 10</div></div>
+                  <button class="switch" role="switch" aria-checked="false" aria-label="Collab tag"></button>
+                </div>
+              </div>
+              <div class="caption-prev" id="cap-prev">
+                <svg width="13" height="13" style="display:inline;vertical-align:-2px;margin-right:6px;color:var(--ink-3)"><use href="#i-link"/></svg>
+                <span>Caption + product link will be ready on publish.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <!-- step1/2 footer -->
+          <div class="row" id="foot-12">
+            <button class="btn btn-ghost" id="btn-back" style="visibility:hidden">Back</button>
+            <button class="btn btn-primary grow" id="btn-next">Continue
+              <svg class="arr" width="18" height="18"><use href="#i-arr"/></svg>
+            </button>
+          </div>
+          <!-- step3 footer -->
+          <div class="row" id="foot-3" style="display:none">
+            <button class="btn btn-ghost" id="btn-back3">Back</button>
+            <button class="btn btn-ghost grow" id="btn-draft">Save draft</button>
+            <button class="btn btn-primary grow" id="btn-pub">Publish now</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- toast -->
+      <div class="toast" id="toast" role="status"></div>
+
+      <!-- fab + nav -->
+      <button class="fab" data-open="studio" aria-label="Create a new drop">
+        <svg width="17" height="17"><use href="#i-plus"/></svg> New drop
+      </button>
+      <nav class="nav" aria-label="Primary">
+        <button class="on" data-goto="home"><svg width="21" height="21"><use href="#i-home"/></svg><span class="nl">Home</span></button>
+        <button data-goto="studio"><svg width="21" height="21"><use href="#i-studio"/></svg><span class="nl">Studio</span></button>
+        <button data-goto="queue"><svg width="21" height="21"><use href="#i-cal"/></svg><span class="nl">Queue</span></button>
+        <button data-goto="library"><svg width="21" height="21"><use href="#i-lib"/></svg><span class="nl">Library</span></button>
+      </nav>
+    </div><!-- /app-inner -->
+  </section>
+
+  <!-- ================= RATIONALE (desktop) ================= -->
+  <aside class="notes" aria-label="Design rationale">
+    <div class="note-card">
+      <h2><span class="idx">01</span> Concept — a "drop" is the unit</h2>
+      <ul>
+        <li><b>Two markets, zero mixing.</b> China (Taobao + Xiaohongshu — Jewelry only, exposure push, Chinese titles) and International (Meta sahi_london/sahi_london_in + Shopify sahilondon.com/.in) run as separate workspaces via the market switch. Products, formats and defaults re-scope on switch — a China drop can never carry an IG format and vice versa.</li>
+        <li><b>One source, every channel.</b> Create once; Studio re-sizes and re-crops to IG Story 9:16, IG Feed 4:5, Shopify 1:1, Taobao 1:1 and Xiaohongshu 3:4 — each with its safe spec.</li>
+        <li><b>Channel scoping is enforced, not just shown.</b> Taobao &amp; Xiaohongshu run Jewelry-only for now; pick a bag or tee and those destinations lock themselves out with a clear reason.</li>
+        <li><b>Hero SKUs drive the China channels — exclusively.</b> FN303T (forget-me-not studs) and BC404 (camellia bear enamel necklace) are the Taobao &amp; Xiaohongshu heroes: pinned on top of the product picker with real listing titles, and locked to those two channels — pick one and IG/Shopify formats drop themselves out with a reason.</li>
+        <li><b>Zero input, approval only.</b> The week is pre-planned from traffic playbooks — XHS note formulas (单品推荐 / 送礼场景 / 避坑干货), IG's 50/30/20 mix, Reels-first reach, Tue–Thu peak slots, first-comment hashtags and UTM-tagged links. Captions come pre-written; you approve, swap or skip.</li>
+        <li><b>Everything points at one goal: site traffic.</b> China: 种草 note → Taobao store. Intl: CTA → Shopify with utm_source on every link, so attribution is built in.</li>
+        <li><b>The product link is a first-class citizen.</b> It is attached at the source step, not pasted later — matching how every post must ship with a link.</li>
+        <li><b>Non-designer by design.</b> Templates, auto-crop and captions remove the "which size? which font? which file?" decisions.</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h2><span class="idx">02</span> Habits it follows</h2>
+      <ul>
+        <li><b>Primary action always reachable.</b> Floating "New drop" sits above the thumb on every screen — Instagram-style create affordance.</li>
+        <li><b>Bottom navigation</b> for the four jobs: decide (Home), make (Studio), schedule (Queue), reuse (Library).</li>
+        <li><b>Progress, not forms.</b> The 3-step sheet shows dots and Back/Continue so a half-made drop is a draft, never a loss.</li>
+        <li><b>Status language you already use:</b> Draft → Scheduled → Live.</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h2><span class="idx">03</span> Visual system</h2>
+      <ul>
+        <li><b>Warm paper + ink neutrals</b> (never pure black/white), one ember accent used at ~10% weight so it stays loud.</li>
+        <li><b>Single typeface, Archivo</b> 400–900 — contrast comes from weight and size, not font count. Tight, uppercase display for energy.</li>
+        <li><b>Channel colors reserved for channels</b> (IG pink, Shopify green, Taobao orange) so brand and destination never blur.</li>
+        <li><b>Hairline rules instead of stacked cards</b> for a calm, editorial rhythm on mobile.</li>
+      </ul>
+      <div class="tag-row">
+        <span class="tag">Bold modern</span><span class="tag">Mobile-first</span><span class="tag">1 type family</span><span class="tag">60·30·10 color</span>
+      </div>
+    </div>
+    <div class="note-card">
+      <h2><span class="idx">04</span> Accessibility &amp; craft</h2>
+      <ul>
+        <li><b>44px+ touch targets</b> on nav, buttons and list rows; visible focus rings.</li>
+        <li><b>Body 16px</b>, contrast ≥ 4.5:1 for text; ember darkened on light surfaces.</li>
+        <li><b>Safe-zone overlay</b> on preview mirrors real IG/Reels UI constraints.</li>
+        <li><b>Reduced-motion respected</b>; layout uses transforms + opacity only.</li>
+      </ul>
+      <p class="hint">Try the flow: <b>New drop → product → formats → style it</b>. The preview re-sizes live, and publishing adds a card to the Queue.</p>
+    </div>
+    <div class="note-card">
+      <h2><span class="idx">05</span> Next steps for v1</h2>
+      <ul>
+        <li>Hook real <b>Shopify catalog images</b> into the product picker (CDN URLs already synced).</li>
+        <li>Ship <b>template pack 1</b>: Tone / Editorial / Light with brand type lockups.</li>
+        <li>Wire <b>Meta, Taobao &amp; Xiaohongshu publishing</b> behind the Queue (currently status-only; Jewelry-only scoping already modeled in the UI).</li>
+        <li>Add <b>dark theme</b> and desktop two-pane layout review.</li>
+      </ul>
+      <p class="hint">Design QA is a separate pass — this prototype validates flow and feel first.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ================= data ================= */
+const PRODUCTS=[
+  {id:"p5",name:"FN303T",mkt:"cn",cat:"Jewelry",hero:true,sku:"FN303T",fullSku:"JW22SSFN303TC",only:["tb","xhs"],line:"Forget-me-not flower studs · 勿忘我花朵耳钉",price:"",url:"sahilondon.com/products/fn303t",
+   titleCn:"SAHI英国品牌勿忘我花朵耳钉简约百搭耳环耳夹设计感一年质保",
+   sw:"radial-gradient(circle at 35% 30%,#f2c79e,#b5491f 55%,#5c1809)",tone:["oklch(66% .17 42)","oklch(52% .2 27)"]},
+  {id:"p6",name:"BC404",mkt:"cn",cat:"Jewelry",hero:true,sku:"BC404",fullSku:"W22SSBC404",only:["tb","xhs"],line:"Camellia bear enamel necklace · 山茶花小熊珐琅项链",price:"",url:"sahilondon.com/products/bc404",
+   titleCn:"SAHI山茶花小熊珐琅项链锁骨链小众设计生日礼物送女友一年质保",
+   sw:"radial-gradient(circle at 35% 30%,#d9c3a2,#8a5a2e 55%,#33200e)",tone:["oklch(72% .11 65)","oklch(55% .12 48)"]},
+  {id:"p1",name:"Maya Hoops",mkt:"intl",cat:"Jewelry",line:"Jewelry · 18k vermeil",price:"CAD $48",url:"sahilondon.com/products/maya-hoops",
+   sw:"radial-gradient(circle at 35% 30%,#e8b98f,#a83a1e 52%,#52160a)",tone:["oklch(64% .16 40)","oklch(50% .2 25)"]},
+  {id:"p2",name:"PopArt Tee",mkt:"intl",cat:"T-Shirt",line:"T-Shirt · Week 1 drop",price:"CAD $39",url:"sahilondon.com/products/popart-tee",
+   sw:"radial-gradient(circle at 32% 28%,#f4f0e4,#c9b99a 60%,#8a7a5c)",tone:["oklch(80% .08 85)","oklch(62% .1 70)"]},
+  {id:"p3",name:"Sling Tote",mkt:"intl",cat:"Bags",line:"Bags · vegan leather",price:"CAD $78",url:"sahilondon.com/products/sling-tote",
+   sw:"radial-gradient(circle at 35% 30%,#c98d62,#6e3417 55%,#2c1106)",tone:["oklch(60% .13 50)","oklch(45% .14 35)"]}
+];
+const FORMATS=[
+  {id:"story", mkt:"intl",def:true,name:"IG Story & Reels",ch:"ig",spec:"9:16 · 1080×1920 · crops center + safe zones",ratio:"9/16",tile:"9:16"},
+  {id:"feed",  mkt:"intl",def:true,name:"Instagram Feed",  ch:"ig",spec:"4:5 · 1080×1350 · portrait crop",ratio:"4/5",tile:"4:5"},
+  {id:"shop",  mkt:"intl",name:"Shopify product", ch:"shop",spec:"1:1 · 2048×2048 · PDP + carousel (sahilondon.com + .in)",ratio:"1/1",tile:"1:1"},
+  {id:"xhs",   mkt:"cn",def:true,name:"Xiaohongshu note",ch:"xhs",spec:"3:4 · 1242×1656 · cover crop",ratio:"3/4",tile:"3:4",cats:["Jewelry"],hero:"FN303T · BC404"},
+  {id:"tb",    mkt:"cn",def:true,name:"Taobao listing",  ch:"tb",spec:"1:1 · 800×800 · main image set",ratio:"1/1",tile:"1:1",cats:["Jewelry"],hero:"FN303T · BC404"}
+];
+const CHANNELS=[
+  {mkt:"cn", cls:"tb",  mono:"TB", who:"Taobao",     sub:"China · Jewelry only · heroes FN303T + BC404 · just opened", st:"Live"},
+  {mkt:"cn", cls:"xhs", mono:"XHS",who:"Xiaohongshu",sub:"China · Jewelry only · heroes FN303T + BC404 · exposure push", st:"Live"},
+  {mkt:"intl", cls:"ig",  mono:"IG", who:"Instagram · Meta", sub:"sahi_london (Canada) + sahi_london_in (India) · Feed · Reels · Story", st:"Live"},
+  {mkt:"intl", cls:"shop",mono:"SH", who:"Shopify",          sub:"sahilondon.com (CAD) + sahilondon.in (INR) · 698 products synced", st:"Live"}
+];
+const TPLS={tone:{cls:"tpl-tone",bg1:"oklch(64% .16 40)",bg2:"oklch(50% .2 25)"},
+            dark:{cls:"tpl-dark",bg1:"#19140f",bg2:"#19140f"},
+            light:{cls:"tpl-light",bg1:"#f0ead9",bg2:"#e3d8bf"}};
+
+/* weekly plans — pre-drafted from traffic playbooks; Simrat only approves */
+const PLAN={
+  cn:[
+    {day:"Today",time:"19:00",tile:"3:4",prod:"p5",kind:"XHS note · 单品推荐",goal:"种草 → 淘宝店 FN303T",
+     caps:["约会戴这款🌸｜勿忘我小花耳钉，温柔到犯规\n\n设计感小众耳钉 · 日常百搭 · 送女友礼物\n搜索词已埋：小众耳钉设计感 / 勿忘我饰品 / 耳夹\n\n→ 点左下角进淘宝店看 FN303T",
+           "这只耳钉被同事追着要链接｜勿忘我花朵耳钉耳夹\n\n小众设计感 · 无耳洞也能戴 · 一年质保\n种草关键词：轻奢小众耳饰 · 日常通勤\n\n→ 宝贝链接在评论区，直达淘宝店"]},
+    {day:"Tomorrow",time:"12:30",tile:"3:4",prod:"p6",kind:"XHS note · 送礼场景",goal:"种草 → 淘宝店 BC404",
+     caps:["生日礼物天花板！小熊珐琅项链，拿下女朋友只需一步\n\n山茶花小熊项链 · 锁骨链 · 小众设计生日礼物\n搜索词已埋：送女友生日礼物 / 小众项链\n\n→ 同款在淘宝店，搜“SAHI 山茶花”",
+           "预算300内送女友，她戴了一整年｜山茶花小熊珐琅项链\n\n锁骨链 · 小众设计 · 一年质保\n送礼场景：生日 / 纪念日 / 七夕\n\n→ 淘宝店链接在评论区"]},
+    {day:"Wed",time:"20:00",tile:"1:1",prod:"p5",kind:"Taobao 主图轮换",goal:"主图点击率测试（A/B set B）",
+     caps:["Listing 主图 set B 上架 — 与 set A 对比点击率\n标题关键词：勿忘我 · 耳钉 · 设计感 · 一年质保",
+           "Listing 主图 set B（模特佩戴视角）— 3 天后看数据，赢的主图留下"]},
+    {day:"Thu",time:"19:00",tile:"3:4",prod:"p6",kind:"XHS note · 避坑干货",goal:"信任内容 → 涨粉 → 店铺导流",
+     caps:["珐琅饰品怎么保养？3 个避坑点，戴三年照样亮\n\n干货科普 + 对比实拍 · 文末挂商品链接\n搜索词已埋：珐琅项链保养 / 饰品避坑",
+           "别再用水冲珐琅了！小熊项链保养 3 步走\n\n避坑干货 · 实拍对比 · 耐心看完能省钱\n文末直达淘宝店 BC404"]}
+  ],
+  intl:[
+    {day:"Today",time:"18:00",tile:"9:16",prod:"p1",kind:"Story teaser (product 50%)",goal:"→ sahilondon.com · sticker tap · UTM tracked",
+     caps:["New in: Maya Hoops ✨ 18k vermeil, made to layer.\nTap the sticker to shop → sahilondon.com",
+           "Restock alert 🔔 Maya Hoops are back in gold.\nSwipe up before they're gone → sahilondon.com"]},
+    {day:"Tomorrow",time:"12:00",tile:"4:5",prod:"p2",kind:"Reel · Week 1 (reach play)",goal:"→ Shopify traffic · 55% non-follower reach",
+     caps:["POV: your weekend tee finally landed 🎬 3 ways to style the PopArt tee.\n\nShop now → link in bio\n#poparttee #sahilondon #torontostyle #ootdcanada",
+           "One tee, three fits. The PopArt tee does weekends right 🎬\n\nWhich look wins? Comment 1, 2 or 3 — shop via link in bio\n#sahilondon #poparttee #canadiansmallbusiness"]},
+    {day:"Wed",time:"19:30",tile:"1:1",prod:"p3",kind:"PDP refresh (product 50%)",goal:"→ sahilondon.com + .in PDP & carousel",
+     caps:["Sling tote — flat lay set for the PDP + carousel on sahilondon.com and .in. Auto-sized 2048×2048.",
+           "Sling tote — lifestyle-on-arm set replacing the current PDP lead image on both stores."]},
+    {day:"Thu",time:"12:30",tile:"4:5",prod:"p1",kind:"Carousel · education (30% value)",goal:"saves → reach → profile visits → Shopify",
+     caps:["How to clean vermeil — save this 📌\n3 steps, 2 minutes. Maya Hoops shown.\n\n#jewelrycare #vermeil #sahilondon #jewelrytips",
+           "Why your gold earrings dull (and the 2-minute fix) 📌\nEducational carousel — Maya Hoops demo.\n\n#vermeiljewelry #jewelrycare #sahilondon"]}
+  ]
+};
+
+/* next-day reports — auto-generated every morning; the loop ends in sales */
+const REPORT={
+  cn:{date:"Wed, Sep 2",verdict:"On track",good:true,
+      rows:[["XHS views","12,400","+18%"],["→ 淘宝 clicks","486","+31%"],["Taobao visits","352","+22%"],["Orders","3 · ¥684","3 sold"]],
+      note:"Best play: 送礼场景 note (BC404) drove 214 of the 486 clicks. Studio doubles down — today's 19:00 note switches to a second gift-scenario angle (already swapped in this week's plan). Sales target this week: 10 orders."},
+  intl:{date:"Wed, Sep 2",verdict:"Needs a nudge",good:false,
+      rows:[["IG reach","8,120","-6%"],["Profile visits","214","+9%"],["Shopify sessions","96","+12%"],["Orders","1 · CAD $48","flat"]],
+      note:"Reach dipped — yesterday's Reel underperformed. Studio adjusts: today's 12:00 Reel switches to the 'one tee, three fits' format (strongest reach pattern in the research). Sessions still climbing, so traffic quality is fine — it's a reach problem, not a link problem."}
+};
+
+/* ================= state ================= */
+let mkt="cn";
+let step=1, prod=PRODUCTS[0], chosen=new Set(["tb","xhs"]), tpl="tone";
+let linkOn=true, priceOn=true, collabOn=false;
+let lastCopyKey="";
+PLAN.cn.forEach(p=>{p.st="draft";p.vi=0;}); PLAN.intl.forEach(p=>{p.st="draft";p.vi=0;});
+
+/* ================= dom refs ================= */
+const $=s=>document.querySelector(s);
+const scroller=$("#scroller");
+const screens={home:$("#s-home"),studio:$("#s-studio"),queue:$("#s-queue"),library:$("#s-library")};
+const navBtns=[...document.querySelectorAll(".nav button")];
+const sheet=$("#sheet");
+
+/* ================= navigation ================= */
+function goto(name){
+  Object.values(screens).forEach(s=>s.classList.remove("active"));
+  screens[name].classList.add("active");
+  navBtns.forEach(b=>b.classList.toggle("on",b.dataset.goto===name));
+  scroller.scrollTop=0;
+}
+document.querySelectorAll("[data-goto]").forEach(b=>b.addEventListener("click",()=>goto(b.dataset.goto)));
+
+/* ================= market switch ================= */
+function setMarket(m){
+  mkt=m;
+  document.querySelectorAll(".mkswitch .mk").forEach(b=>{
+    const on=b.dataset.mkt===m;
+    b.classList.toggle("on",on); b.setAttribute("aria-selected",on?"true":"false");
+  });
+  $("#home-lead").textContent = m==="cn"
+    ? "Taobao + Xiaohongshu · Jewelry only. The week is pre-planned — notes, keywords, posting times. You just approve."
+    : "Meta (Canada + India) & Shopify. The week is pre-planned — captions, hashtags, slots. You just approve.";
+  const hint=$("#cn-hint"); if(hint) hint.hidden = m!=="cn";
+  $("#src-note").textContent = m==="cn"
+    ? "China catalog — Taobao listing title + 小红书 cover copy ride along automatically."
+    : "Syncs from Shopify — its product link rides along automatically.";
+  // re-scope state: products, formats, defaults — the two markets never mix
+  prod=PRODUCTS.find(p=>p.mkt===m)||PRODUCTS[0];
+  chosen=new Set(FORMATS.filter(f=>f.mkt===m&&f.def).map(f=>f.id));
+  curFmt=FORMATS.find(f=>chosen.has(f.id))||FORMATS[0];
+  renderCh(); renderProds(); renderFmts(); refreshProdDetail(); syncPreview(); renderPlan(); renderReport();
+}
+document.querySelectorAll(".mkswitch .mk").forEach(b=>b.addEventListener("click",()=>setMarket(b.dataset.mkt)));
+
+/* ================= weekly plan (approve-only) ================= */
+function renderPlan(){
+  const box=$("#plan-panel"); box.innerHTML="";
+  PLAN[mkt].forEach((it,idx)=>{
+    const prodP=PRODUCTS.find(p=>p.id===it.prod);
+    const el=document.createElement("div");
+    el.className="next-item"; el.style.flexWrap="wrap"; el.style.rowGap="8px";
+    el.innerHTML='<span class="ratio-chip">'+it.tile+'</span>'
+      +'<span class="grow stack-6"><span class="who" style="font-weight:700;font-size:.9rem">'+it.day+" · "+it.time+" · "+it.kind+'</span>'
+      +'<span class="sub tiny">'+prodP.name+" · "+it.goal+'</span></span>'
+      +'<span class="pill '+(it.st==="ok"?"sched":"draft")+'">'+(it.st==="ok"?"Approved":"To approve")+'</span>'
+      +'<div class="plan-cap">'+it.caps[it.vi].replace(/&/g,"&amp;").replace(/</g,"&lt;")+'</div>'
+      +(it.st==="ok"
+        ?'<div class="pact"><button class="btn btn-ghost" data-act="skip" data-i="'+idx+'">Undo approval</button></div>'
+        :'<div class="pact"><button class="btn btn-primary" data-act="ok" data-i="'+idx+'">Approve</button><button class="btn btn-ghost" data-act="swap" data-i="'+idx+'">Swap copy</button><button class="btn btn-ghost" data-act="skip" data-i="'+idx+'">Skip</button></div>');
+    box.appendChild(el);
+  });
+}
+$("#plan-panel").addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]"); if(!b) return;
+  const it=PLAN[mkt][Number(b.dataset.i)];
+  if(b.dataset.act==="ok"){ it.st="ok"; toast("Approved — "+it.day+" "+it.time+" goes live automatically."); }
+  else if(b.dataset.act==="swap"){ it.vi=(it.vi+1)%it.caps.length; toast("Copy swapped — alternative angle drafted for you."); }
+  else { it.st="draft"; toast("Skipped — Studio will backfill that slot with another play."); }
+  renderPlan();
+});
+$("#btn-review").addEventListener("click",()=>{$("#sec-plan").scrollIntoView({behavior:"smooth",block:"start"});});
+
+/* ================= next-day report (traffic → sales verdict) ================= */
+function renderReport(){
+  const r=REPORT[mkt], box=$("#report-panel");
+  const cells=r.rows.map(x=>{
+    const down=x[2].charAt(0)==="-";
+    return '<div class="mcell"><span class="ml">'+x[0]+'</span><span class="mv">'+x[1]+'</span>'
+      +'<span class="md '+(down?"down":"up")+'">'+x[2]+'</span></div>';
+  }).join("");
+  box.innerHTML='<div class="next-item" style="flex-wrap:wrap;rowGap:10px">'
+    +'<span class="pill '+(r.good?"live":"draft")+'">'+r.verdict+'</span>'
+    +'<span class="sub tiny" style="margin-left:auto">'+r.date+' · sample data until channels are wired</span>'
+    +'<div class="mgrid">'+cells+'</div>'
+    +'<p class="adjust-note"><b>Studio\'s adjustment for today:</b> '+r.note+'</p>'
+    +'</div>';
+}
+
+/* ================= home channels ================= */
+function renderCh(){
+  const box=$("#ch-list"); box.innerHTML="";
+  CHANNELS.filter(c=>c.mkt===mkt).forEach(c=>{
+    const el=document.createElement("button");
+    el.className="channel"; el.style.width="100%";
+    el.innerHTML='<span class="mono '+c.cls+'">'+c.mono+'</span>'
+      +'<span class="grow stack-6"><span class="who">'+c.who+'</span><span class="sub">'+c.sub+'</span></span>'
+      +'<span class="ch-st">'+c.st+'</span><svg class="chev" width="18" height="18"><use href="#i-chev"/></svg>';
+    box.appendChild(el);
+  });
+}
+
+/* ================= toast ================= */
+let toastT;
+function toast(msg){
+  const t=$("#toast");t.innerHTML='<svg width="16" height="16"><use href="#i-check"/></svg>'+msg;
+  t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2600);
+}
+
+/* ================= product list ================= */
+function renderProds(filter){
+  filter=(filter||"").toLowerCase();
+  const list=$("#prod-list");list.innerHTML="";
+  PRODUCTS.filter(p=>p.mkt===mkt&&(!filter||(p.name+" "+p.line+" "+p.url).toLowerCase().includes(filter))).forEach(p=>{
+    const el=document.createElement("button");
+    el.className="pick"+(p.id===prod.id?" sel":"");
+    el.setAttribute("role","radio");
+    el.setAttribute("aria-checked",p.id===prod.id);
+    el.innerHTML='<span class="thumb"><span class="ph" style="position:absolute;inset:0;background:'+p.sw+'"></span></span>'
+      +'<span class="pinfo"><span class="pn">'+p.name+(p.hero?' <span class="hero-chip">Hero</span>':"")+'</span><br><span class="pl">'+p.line+'</span></span>'
+      +(p.price?'<span class="price num">'+p.price+'</span>':"")+'<span class="radio"><svg width="12" height="12"><use href="#i-check"/></svg></span>';
+    el.addEventListener("click",()=>{chooseProduct(p);});
+    list.appendChild(el);
+  });
+}
+function chooseProduct(p){
+  prod=p;
+  // drop any channel this product cannot ship to:
+  //  - category lock (e.g. Bags on Jewelry-only Taobao/XHS)
+  //  - SKU lock (hero SKUs FN303T/BC404 ship to Taobao + Xiaohongshu ONLY)
+  const notAllowed=f=>(f.cats&&f.cats.indexOf(p.cat)===-1)||(p.only&&p.only.indexOf(f.id)===-1);
+  const dropped=FORMATS.filter(f=>chosen.has(f.id)&&notAllowed(f)).map(f=>f.id);
+  dropped.forEach(id=>chosen.delete(id));
+  if(dropped.length){
+    if(!chosen.size){ chosen.add(p.only?p.only[0]:"story"); }
+    if(!FORMATS.some(f=>chosen.has(f.id)&&f.id===curFmt.id)){
+      curFmt=FORMATS.find(f=>chosen.has(f.id))||FORMATS[1];
+    }
+    renderFmts();
+    toast(p.only
+      ? p.name+" is a Taobao & Xiaohongshu hero SKU — IG & Shopify formats were removed."
+      : p.name+" is "+p.cat+" — Taobao & Xiaohongshu are Jewelry-only right now, so those formats were removed.");
+  }
+  renderProds($("#q-prod").value);
+  refreshProdDetail();
+  syncPreview();
+}
+$("#q-prod").addEventListener("input",function(){renderProds(this.value);});
+
+/* ================= product detail (hero listing title) ================= */
+function refreshProdDetail(){
+  const d=$("#prod-detail");
+  if(!prod.hero||!prod.titleCn){ d.hidden=true; return; }
+  d.hidden=false;
+  $("#prod-detail-txt").textContent=prod.titleCn;
+  $("#prod-detail-meta").textContent=prod.fullSku+" · ships to Taobao + Xiaohongshu only";
+}
+
+/* ================= formats ================= */
+function renderFmts(){
+  const list=$("#fmt-list");list.innerHTML="";
+  FORMATS.filter(f=>f.mkt===mkt).forEach(f=>{
+    const on=chosen.has(f.id);
+    const catLock=!!(f.cats&&f.cats.indexOf(prod.cat)===-1);
+    const skuLock=!!(prod.only&&prod.only.indexOf(f.id)===-1);
+    const locked=catLock||skuLock;
+    const el=document.createElement("button");
+    el.className="fmt"+(on?" sel":"")+(locked?" locked":"");
+    el.setAttribute("aria-pressed",on?"true":"false");
+    if(locked)el.setAttribute("aria-disabled","true");
+    el.innerHTML='<span class="frame" data-ratio="'+f.ratio+'">'+f.tile+'</span>'
+      +'<span class="grow"><span class="fname">'+f.name+(locked?' <span class="lock-note">'+(catLock?"Jewelry only":"TB + XHS only")+'</span>':"")+'</span>'
+      +'<br><span class="fspec">'+f.spec+'</span>'
+      +(f.hero?' <span class="hnote">Hero SKUs — '+f.hero+'</span>':"")+'</span>'
+      +'<span class="radio" style="'+(on?'border-color:var(--ember);background:var(--ember);color:#fff':'')+'"><svg width="12" height="12"><use href="#i-check"/></svg></span>';
+    el.addEventListener("click",()=>{
+      if(locked){ toast(skuLock?prod.name+" ships to Taobao & Xiaohongshu only — this format is off-limits for this SKU.":"Taobao & Xiaohongshu are Jewelry-only for now — choose a Jewelry product first."); return; }
+      if(chosen.has(f.id)){ if(chosen.size===1) return; chosen.delete(f.id); }
+      else { chosen.add(f.id); curFmt=f; }
+      renderFmts();syncPreview();
+    });
+    list.appendChild(el);
+  });
+  updateCopyNote();
+}
+let curFmt=FORMATS[1];
+function updateCopyNote(){
+  const n=chosen.size;
+  $("#copy-note-txt").textContent = n===0 ? "Select a format — copies are counted live."
+    : n+" format"+(n>1?"s":"")+" selected · 1 source asset → "+n+" channel-ready cop"+(n>1?"ies":"y");
+}
+
+/* ================= templates ================= */
+$("#tpl-row").addEventListener("click",e=>{
+  const b=e.target.closest(".tpl"); if(!b) return;
+  document.querySelectorAll(".tpl").forEach(x=>{x.classList.remove("sel");x.setAttribute("aria-checked","false");});
+  b.classList.add("sel");b.setAttribute("aria-checked","true");
+  tpl=b.dataset.tpl; syncPreview();
+});
+
+/* ================= preview ================= */
+function sizeCanvas(){
+  const f=$(".canvas-frame"),c=$("#cvs");
+  const parts=curFmt.ratio.split("/").map(Number);
+  const availW=Math.max(120,f.clientWidth-28);
+  const maxH=Math.min(330,window.innerHeight*0.5);
+  const h=Math.min(maxH,availW*parts[1]/parts[0]);
+  c.style.height=h+"px";
+  c.style.width=Math.round(h*parts[0]/parts[1])+"px";
+}
+window.addEventListener("resize",sizeCanvas);
+function syncPreview(){
+  const cvs=$("#cvs"), f=curFmt;
+  cvs.style.setProperty("--r",f.ratio);
+  // retint background per template (keep product gradient tone overlay when tone)
+  cvs.classList.remove("tpl-tone","tpl-dark","tpl-light");
+  cvs.classList.add(TPLS[tpl].cls);
+  if(tpl==="tone"){ cvs.style.background="linear-gradient(160deg,"+prod.tone[0]+","+prod.tone[1]+")"; }
+  else if(tpl==="dark"){ cvs.style.background="linear-gradient(160deg,#211a13,#120e0a)"; }
+  else { cvs.style.background="linear-gradient(160deg,#f6f1e5,#e6dcc4)"; }
+  $("#c-swatch").style.background=prod.sw;
+  $("#c-fmt").textContent=f.tile;
+  $("#pv-name").textContent=prod.name+" · "+f.name;
+  $("#pv-spec").textContent=f.spec;
+  $("#c-price").textContent=(priceOn&&prod.price)?prod.price:"";
+  const hd=($("#in-hd").value.trim()||"Fresh drop");
+  $("#c-word").innerHTML="";
+  const br=hd.indexOf(" ");
+  if(br>-1){
+    $("#c-word").append(document.createTextNode(hd.slice(0,br)));
+    $("#c-word").append(document.createElement("br"));
+    $("#c-word").append(document.createTextNode(hd.slice(br+1)));
+  } else { $("#c-word").textContent=hd; }
+  // handle tag
+  const handle=collabOn?"@10and10 collab":"@sahi_london";
+  $("#cvs .c-handle").innerHTML=handle+"<br>"+(linkOn?"link in post":"");
+  sizeCanvas();
+  updateCaptionPrev();
+}
+$("#btn-safe").addEventListener("click",()=>{$("#safe").classList.toggle("show");});
+$("#in-hd").addEventListener("input",function(){
+  $("#hd-count").textContent=this.value.length+"/28";syncPreview();
+});
+$("#in-cap").addEventListener("input",function(){
+  $("#cap-count").textContent=this.value.length+"/2200";updateCaptionPrev();
+});
+function updateCaptionPrev(){
+  let t=$("#in-cap").value.trim();
+  let out=t?t:"Caption will read naturally over the product story.";
+  if(linkOn){out+='\n'+"Shop the look: "+prod.url+(mkt==="intl"?"?utm_source=instagram&utm_campaign=studio":"");}
+  $("#cap-prev").innerHTML='<svg width="13" height="13" style="display:inline;vertical-align:-2px;margin-right:6px;color:var(--ink-3)"><use href="#i-link"/></svg><span style="white-space:pre-line">'+out+"</span>";
+}
+document.querySelectorAll(".switch").forEach(s=>s.addEventListener("click",function(){
+  const on=this.getAttribute("aria-checked")==="true";
+  this.setAttribute("aria-checked",String(!on));
+  const label=this.closest(".toggle-row").querySelector(".tr-t").textContent;
+  if(label.includes("Auto product"))linkOn=!on;
+  if(label.includes("Show price"))priceOn=!on;
+  if(label.includes("Collab"))collabOn=!on;
+  syncPreview();
+}));
+
+/* ================= sheet steps ================= */
+function openSheet(blank){
+  sheet.classList.add("open");step=1;
+  document.body.style.overflow="hidden";
+  if(blank){ gotoStep(2); } else { gotoStep(1); }
+  scroller.style.overflow="hidden";
+}
+function closeSheet(){sheet.classList.remove("open");document.body.style.overflow="";scroller.style.overflow="";}
+document.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openSheet(!!b.dataset.blank)));
+$("#sheet-close").addEventListener("click",closeSheet);
+sheet.addEventListener("click",e=>{ if(e.target===sheet) closeSheet(); });
+
+function setStepDots(s){[...$("#stepper").children].forEach((d,i)=>{d.className="step"+(i+1<=s?" done":"")+(i+1===s?" now":"");});}
+function gotoStep(s){
+  step=s;
+  document.querySelectorAll(".step-pane").forEach(p=>p.classList.remove("now"));
+  $("#pane-"+s).classList.add("now");
+  setStepDots(s);
+  $("#sheet-ttl").textContent=s===1?"New drop · Source":s===2?"New drop · Fit":"New drop · Look";
+  const f1=$("#foot-12"),f3=$("#foot-3");
+  f1.style.display=s<3?"flex":"none"; f3.style.display=s===3?"flex":"none";
+  $("#btn-back").style.visibility=s>1?"visible":"hidden";
+  if(s===2){ renderFmts(); }
+  if(s===3){ syncPreview(); }
+}
+$("#btn-next").addEventListener("click",()=>gotoStep(step+1));
+$("#btn-back").addEventListener("click",()=>gotoStep(step-1));
+$("#btn-back3").addEventListener("click",()=>gotoStep(2));
+$("#btn-pub").addEventListener("click",()=>{finishDrop(true);});
+$("#btn-draft").addEventListener("click",()=>{finishDrop(false);});
+
+/* ================= finish drop → queue ================= */
+function finishDrop(pub){
+  const title=$("#in-hd").value.trim()||prod.name;
+  const fmtNames=[...chosen].map(id=>FORMATS.find(f=>f.id===id).tile).join(" · ");
+  const li=document.createElement("div");
+  li.className="q-item";
+  li.style.animation="fadeup .3s ease";
+  li.innerHTML='<span class="when">Now</span>'
+    +'<span class="ratio-chip small">'+ (curFmt?curFmt.tile:"1:1") +'</span>'
+    +'<span class="grow"><div class="tt">'+title+'</div><div class="chips"><span class="cchip">'+(mkt==="cn"?"China":"Intl")+'</span><span class="cchip">'+fmtNames+'</span></div></span>'
+    +'<span class="pill '+(pub?"live":"draft")+'">'+(pub?"Live":"Draft")+'</span>';
+  $("#today-list").prepend(li);
+  const c=$("#cnt-today");c.textContent=Number(c.textContent)+1;
+  closeSheet();
+  goto("queue");
+  toast(pub?"Published — check your channels":"Draft saved to today's queue");
+}
+
+/* ================= kick off ================= */
+setMarket("cn"); gotoStep(1); closeSheet();
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet();});
+</script>
+</body>
+</html>
