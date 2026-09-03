@@ -1119,11 +1119,27 @@ const POSTED={
 };
 
 /* ================= state ================= */
-let mkt="cn";
+const STORE_KEY="sahi-studio-v1";
+function loadSaved(){
+  try{ return JSON.parse(localStorage.getItem(STORE_KEY))||{}; }catch(e){ return {}; }
+}
+function saveState(){
+  const plan={};
+  Object.keys(PLAN).forEach(k=>plan[k]=PLAN[k].map(p=>({st:p.st,vi:p.vi})));
+  try{ localStorage.setItem(STORE_KEY,JSON.stringify({plan,mkt})); }catch(e){}
+}
+/* restore approvals/swap choices across refreshes; reset line below only runs for first-ever visit */
+Object.keys(PLAN).forEach(k=>PLAN[k].forEach(p=>{p.st="draft";p.vi=0;}));
+(function restore(){
+  const saved=loadSaved();
+  if(saved.plan) Object.keys(saved.plan).forEach(k=>{
+    if(PLAN[k]) saved.plan[k].forEach((s,i)=>{ if(PLAN[k][i]){ PLAN[k][i].st=s.st; PLAN[k][i].vi=s.vi||0; } });
+  });
+})();
+let mkt=(loadSaved().mkt)||"cn";
 let step=1, prod=PRODUCTS[0], chosen=new Set(["tb","xhs"]), tpl="tone";
 let linkOn=true, priceOn=true, collabOn=false;
 let lastCopyKey="";
-Object.keys(PLAN).forEach(k=>PLAN[k].forEach(p=>{p.st="draft";p.vi=0;}));
 
 /* ================= dom refs ================= */
 const $=s=>document.querySelector(s);
@@ -1162,6 +1178,7 @@ function setMarket(m){
   chosen=new Set(FORMATS.filter(f=>f.mkt===m&&f.def).map(f=>f.id));
   curFmt=FORMATS.find(f=>chosen.has(f.id))||FORMATS[0];
   renderCh(); renderProds(); renderFmts(); refreshProdDetail(); syncPreview(); renderPlan(); renderReport(); renderPosted();
+  saveState();
 }
 document.querySelectorAll(".mkswitch .mk").forEach(b=>b.addEventListener("click",()=>setMarket(b.dataset.mkt)));
 
@@ -1189,6 +1206,7 @@ $("#plan-panel").addEventListener("click",e=>{
   if(b.dataset.act==="ok"){ it.st="ok"; toast("Approved — "+it.day+" "+it.time+" goes live automatically."); }
   else if(b.dataset.act==="swap"){ it.vi=(it.vi+1)%it.caps.length; toast("Copy swapped — alternative angle drafted for you."); }
   else { it.st="draft"; toast("Skipped — Studio will backfill that slot with another play."); }
+  saveState();
   renderPlan();
 });
 $("#btn-review").addEventListener("click",()=>{$("#sec-plan").scrollIntoView({behavior:"smooth",block:"start"});});
@@ -1447,7 +1465,7 @@ function finishDrop(pub){
 }
 
 /* ================= kick off ================= */
-setMarket("cn"); gotoStep(1); closeSheet();
+setMarket(mkt); gotoStep(1); closeSheet();
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet();});
 </script>
 </body>
