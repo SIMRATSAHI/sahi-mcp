@@ -146,13 +146,13 @@ h1.display{font-size:var(--fs-hero);font-weight:900;line-height:1.02;letter-spac
 .hero{margin:6px 0 0}
 .hero .greet{font-size:var(--fs-sm);font-weight:600;color:var(--ink-3);letter-spacing:.02em}
 .mkswitch{
-  display:inline-flex;gap:4px;margin-top:14px;
-  background:var(--surface-2);border:1.5px solid var(--line);border-radius:99px;padding:4px;
+  display:inline-flex;flex-wrap:wrap;gap:4px;margin-top:14px;max-width:100%;
+  background:var(--surface-2);border:1.5px solid var(--line);border-radius:18px;padding:4px;
 }
 .mkswitch .mk{
   border:0;background:transparent;font:inherit;cursor:pointer;
-  font-size:.76rem;font-weight:800;letter-spacing:.02em;
-  padding:9px 14px;border-radius:99px;color:var(--ink-2);transition:all .15s;
+  font-size:.74rem;font-weight:800;letter-spacing:.02em;
+  padding:9px 12px;border-radius:99px;color:var(--ink-2);transition:all .15s;
 }
 .mkswitch .mk.on{background:var(--ink);color:var(--surface)}
 .mkswitch .mk:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
@@ -521,7 +521,8 @@ button.switch[aria-checked="true"]::after{transform:translateX(18px)}
             <h1 class="display">New drop,<br>Simrat?</h1>
             <div class="mkswitch" role="tablist" aria-label="Market">
               <button class="mk on" data-mkt="cn" role="tab" aria-selected="true">China · 淘宝 / 小红书</button>
-              <button class="mk" data-mkt="intl" role="tab" aria-selected="false">Intl · Meta / Shopify</button>
+              <button class="mk" data-mkt="ca" role="tab" aria-selected="false">Canada · .com + sahi_london</button>
+              <button class="mk" data-mkt="in" role="tab" aria-selected="false">India · .in + sahi_london_in</button>
             </div>
             <p class="lead" id="home-lead" style="margin-top:10px">China market — Taobao + Xiaohongshu. Jewelry only, exposure push, Chinese listing titles.</p>
             <div class="hero-cta">
@@ -547,6 +548,15 @@ button.switch[aria-checked="true"]::after{transform:translateX(18px)}
             </div>
             <div class="panel" id="report-panel"></div>
             <p class="tiny" style="margin-top:8px;color:var(--ink-3)">The loop: plan → post → measure → adjust → you approve. Every morning Studio reports yesterday's traffic and <b>sales</b> per market and re-tunes today's plan accordingly. No report, no guessing.</p>
+          </div>
+
+          <div class="sec" id="sec-posted">
+            <div class="sec-hd">
+              <span class="kicker ember" id="posted-kicker">Posted so far — China</span>
+              <span class="tiny">Running log · per market</span>
+            </div>
+            <div class="panel" id="posted-panel"></div>
+            <p class="tiny" style="margin-top:8px;color:var(--ink-3)">Everything already published in <b>this market</b> — newest first, each with its result. Flip the market switch to see another market's log.</p>
           </div>
 
           <div class="sec" id="sec-plan">
@@ -991,26 +1001,38 @@ const PRODUCTS=[
   {id:"p6",name:"BC404",mkt:"cn",cat:"Jewelry",hero:true,sku:"BC404",fullSku:"W22SSBC404",only:["tb","xhs"],line:"Camellia bear enamel necklace · 山茶花小熊珐琅项链",price:"",url:"sahilondon.com/products/bc404",
    titleCn:"SAHI山茶花小熊珐琅项链锁骨链小众设计生日礼物送女友一年质保",
    sw:"radial-gradient(circle at 35% 30%,#d9c3a2,#8a5a2e 55%,#33200e)",tone:["oklch(72% .11 65)","oklch(55% .12 48)"]},
-  {id:"p1",name:"Maya Hoops",mkt:"intl",cat:"Jewelry",line:"Jewelry · 18k vermeil",price:"CAD $48",url:"sahilondon.com/products/maya-hoops",
+  {id:"p1",name:"Maya Hoops",mkt:"ca",cat:"Jewelry",line:"Jewelry · 18k vermeil",price:"CAD $48",url:"sahilondon.com/products/maya-hoops",
    sw:"radial-gradient(circle at 35% 30%,#e8b98f,#a83a1e 52%,#52160a)",tone:["oklch(64% .16 40)","oklch(50% .2 25)"]},
-  {id:"p2",name:"PopArt Tee",mkt:"intl",cat:"T-Shirt",line:"T-Shirt · Week 1 drop",price:"CAD $39",url:"sahilondon.com/products/popart-tee",
+  {id:"p2",name:"PopArt Tee",mkt:"ca",cat:"T-Shirt",line:"T-Shirt · Week 1 drop",price:"CAD $39",url:"sahilondon.com/products/popart-tee",
    sw:"radial-gradient(circle at 32% 28%,#f4f0e4,#c9b99a 60%,#8a7a5c)",tone:["oklch(80% .08 85)","oklch(62% .1 70)"]},
-  {id:"p3",name:"Sling Tote",mkt:"intl",cat:"Bags",line:"Bags · vegan leather",price:"CAD $78",url:"sahilondon.com/products/sling-tote",
+  {id:"p3",name:"Sling Tote",mkt:"ca",cat:"Bags",line:"Bags · vegan leather",price:"CAD $78",url:"sahilondon.com/products/sling-tote",
+   sw:"radial-gradient(circle at 35% 30%,#c98d62,#6e3417 55%,#2c1106)",tone:["oklch(60% .13 50)","oklch(45% .14 35)"]},
+  {id:"p7",name:"Maya Hoops",mkt:"in",cat:"Jewelry",line:"Jewelry · 18k vermeil",price:"₹2,899",url:"sahilondon.in/products/maya-hoops",
+   sw:"radial-gradient(circle at 35% 30%,#e8b98f,#a83a1e 52%,#52160a)",tone:["oklch(64% .16 40)","oklch(50% .2 25)"]},
+  {id:"p8",name:"PopArt Tee",mkt:"in",cat:"T-Shirt",line:"T-Shirt · new season",price:"₹2,199",url:"sahilondon.in/products/popart-tee",
+   sw:"radial-gradient(circle at 32% 28%,#f4f0e4,#c9b99a 60%,#8a7a5c)",tone:["oklch(80% .08 85)","oklch(62% .1 70)"]},
+  {id:"p9",name:"Sling Tote",mkt:"in",cat:"Bags",line:"Bags · vegan leather",price:"₹4,499",url:"sahilondon.in/products/sling-tote",
    sw:"radial-gradient(circle at 35% 30%,#c98d62,#6e3417 55%,#2c1106)",tone:["oklch(60% .13 50)","oklch(45% .14 35)"]}
 ];
 const FORMATS=[
-  {id:"story", mkt:"intl",def:true,name:"IG Story & Reels",ch:"ig",spec:"9:16 · 1080×1920 · crops center + safe zones",ratio:"9/16",tile:"9:16"},
-  {id:"feed",  mkt:"intl",def:true,name:"Instagram Feed",  ch:"ig",spec:"4:5 · 1080×1350 · portrait crop",ratio:"4/5",tile:"4:5"},
-  {id:"shop",  mkt:"intl",name:"Shopify product", ch:"shop",spec:"1:1 · 2048×2048 · PDP + carousel (sahilondon.com + .in)",ratio:"1/1",tile:"1:1"},
+  {id:"story-ca", mkt:"ca",def:true,name:"IG Story & Reels · sahi_london",ch:"ig",spec:"9:16 · 1080×1920 · crops center + safe zones",ratio:"9/16",tile:"9:16"},
+  {id:"feed-ca",  mkt:"ca",def:true,name:"Instagram Feed · sahi_london",  ch:"ig",spec:"4:5 · 1080×1350 · portrait crop",ratio:"4/5",tile:"4:5"},
+  {id:"shop-ca",  mkt:"ca",name:"Shopify · sahilondon.com (CAD)", ch:"shop",spec:"1:1 · 2048×2048 · PDP + carousel",ratio:"1/1",tile:"1:1"},
+  {id:"story-in", mkt:"in",def:true,name:"IG Story & Reels · sahi_london_in",ch:"ig",spec:"9:16 · 1080×1920 · crops center + safe zones",ratio:"9/16",tile:"9:16"},
+  {id:"feed-in",  mkt:"in",def:true,name:"Instagram Feed · sahi_london_in",  ch:"ig",spec:"4:5 · 1080×1350 · portrait crop",ratio:"4/5",tile:"4:5"},
+  {id:"shop-in",  mkt:"in",name:"Shopify · sahilondon.in (INR)", ch:"shop",spec:"1:1 · 2048×2048 · PDP + carousel",ratio:"1/1",tile:"1:1"},
   {id:"xhs",   mkt:"cn",def:true,name:"Xiaohongshu note",ch:"xhs",spec:"3:4 · 1242×1656 · cover crop",ratio:"3/4",tile:"3:4",cats:["Jewelry"],hero:"FN303T · BC404"},
   {id:"tb",    mkt:"cn",def:true,name:"Taobao listing",  ch:"tb",spec:"1:1 · 800×800 · main image set",ratio:"1/1",tile:"1:1",cats:["Jewelry"],hero:"FN303T · BC404"}
 ];
 const CHANNELS=[
   {mkt:"cn", cls:"tb",  mono:"TB", who:"Taobao",     sub:"China · Jewelry only · heroes FN303T + BC404 · just opened", st:"Live"},
   {mkt:"cn", cls:"xhs", mono:"XHS",who:"Xiaohongshu",sub:"China · Jewelry only · heroes FN303T + BC404 · exposure push", st:"Live"},
-  {mkt:"intl", cls:"ig",  mono:"IG", who:"Instagram · Meta", sub:"sahi_london (Canada) + sahi_london_in (India) · Feed · Reels · Story", st:"Live"},
-  {mkt:"intl", cls:"shop",mono:"SH", who:"Shopify",          sub:"sahilondon.com (CAD) + sahilondon.in (INR) · 698 products synced", st:"Live"}
+  {mkt:"ca", cls:"ig",  mono:"IG", who:"Instagram · sahi_london", sub:"Canada · Feed · Reels · Story · product tags + link sticker", st:"Live"},
+  {mkt:"ca", cls:"shop",mono:"SH", who:"Shopify · sahilondon.com", sub:"Canada store · CAD · 698 products synced · UTM tracked", st:"Live"},
+  {mkt:"in", cls:"ig",  mono:"IG", who:"Instagram · sahi_london_in", sub:"India · Feed · Reels · Story · product tags + link sticker", st:"Live"},
+  {mkt:"in", cls:"shop",mono:"SH", who:"Shopify · sahilondon.in", sub:"India store · INR · 698 products synced · UTM tracked", st:"Live"}
 ];
+const MKT_LABEL={cn:"China",ca:"Canada",in:"India"};
 const TPLS={tone:{cls:"tpl-tone",bg1:"oklch(64% .16 40)",bg2:"oklch(50% .2 25)"},
             dark:{cls:"tpl-dark",bg1:"#19140f",bg2:"#19140f"},
             light:{cls:"tpl-light",bg1:"#f0ead9",bg2:"#e3d8bf"}};
@@ -1031,19 +1053,33 @@ const PLAN={
      caps:["珐琅饰品怎么保养？3 个避坑点，戴三年照样亮\n\n干货科普 + 对比实拍 · 文末挂商品链接\n搜索词已埋：珐琅项链保养 / 饰品避坑",
            "别再用水冲珐琅了！小熊项链保养 3 步走\n\n避坑干货 · 实拍对比 · 耐心看完能省钱\n文末直达淘宝店 BC404"]}
   ],
-  intl:[
+  ca:[
     {day:"Today",time:"18:00",tile:"9:16",prod:"p1",kind:"Story teaser (product 50%)",goal:"→ sahilondon.com · sticker tap · UTM tracked",
      caps:["New in: Maya Hoops ✨ 18k vermeil, made to layer.\nTap the sticker to shop → sahilondon.com",
            "Restock alert 🔔 Maya Hoops are back in gold.\nSwipe up before they're gone → sahilondon.com"]},
     {day:"Tomorrow",time:"12:00",tile:"4:5",prod:"p2",kind:"Reel · Week 1 (reach play)",goal:"→ Shopify traffic · 55% non-follower reach",
      caps:["POV: your weekend tee finally landed 🎬 3 ways to style the PopArt tee.\n\nShop now → link in bio\n#poparttee #sahilondon #torontostyle #ootdcanada",
            "One tee, three fits. The PopArt tee does weekends right 🎬\n\nWhich look wins? Comment 1, 2 or 3 — shop via link in bio\n#sahilondon #poparttee #canadiansmallbusiness"]},
-    {day:"Wed",time:"19:30",tile:"1:1",prod:"p3",kind:"PDP refresh (product 50%)",goal:"→ sahilondon.com + .in PDP & carousel",
-     caps:["Sling tote — flat lay set for the PDP + carousel on sahilondon.com and .in. Auto-sized 2048×2048.",
-           "Sling tote — lifestyle-on-arm set replacing the current PDP lead image on both stores."]},
+    {day:"Wed",time:"19:30",tile:"1:1",prod:"p3",kind:"PDP refresh (product 50%)",goal:"→ sahilondon.com PDP & carousel (CAD)",
+     caps:["Sling tote — flat lay set for the PDP + carousel on sahilondon.com. Auto-sized 2048×2048.",
+           "Sling tote — lifestyle-on-arm set replacing the current PDP lead image on the Canada store."]},
     {day:"Thu",time:"12:30",tile:"4:5",prod:"p1",kind:"Carousel · education (30% value)",goal:"saves → reach → profile visits → Shopify",
      caps:["How to clean vermeil — save this 📌\n3 steps, 2 minutes. Maya Hoops shown.\n\n#jewelrycare #vermeil #sahilondon #jewelrytips",
            "Why your gold earrings dull (and the 2-minute fix) 📌\nEducational carousel — Maya Hoops demo.\n\n#vermeiljewelry #jewelrycare #sahilondon"]}
+  ],
+  in:[
+    {day:"Today",time:"18:30",tile:"9:16",prod:"p7",kind:"Story teaser (product 50%)",goal:"→ sahilondon.in · sticker tap · UTM tracked",
+     caps:["New in: Maya Hoops ✨ 18k vermeil, made to layer. ₹2,899.\nTap the sticker to shop → sahilondon.in",
+           "Restock alert 🔔 Maya Hoops are back in gold — now shipping across India.\nSwipe up → sahilondon.in"]},
+    {day:"Tomorrow",time:"12:00",tile:"4:5",prod:"p8",kind:"Reel · reach play",goal:"→ Shopify India traffic · 55% non-follower reach",
+     caps:["POV: your weekend tee finally landed 🎬 3 ways to style the PopArt tee.\n\nShop now → link in bio\n#poparttee #sahilondonin #indianfashion #ootdindia",
+           "One tee, three fits. The PopArt tee does weekends right 🎬\n\nWhich look wins? Comment 1, 2 or 3 — shop via link in bio\n#sahilondonin #indiansmallbusiness #mumbaistyle"]},
+    {day:"Wed",time:"19:30",tile:"1:1",prod:"p9",kind:"PDP refresh (product 50%)",goal:"→ sahilondon.in PDP & carousel (INR)",
+     caps:["Sling tote — flat lay set for the PDP + carousel on sahilondon.in. Auto-sized 2048×2048.",
+           "Sling tote — lifestyle-on-arm set replacing the current PDP lead image on the India store."]},
+    {day:"Thu",time:"12:30",tile:"4:5",prod:"p7",kind:"Carousel · education (30% value)",goal:"saves → reach → profile visits → Shopify",
+     caps:["How to clean vermeil — save this 📌\n3 steps, 2 minutes. Maya Hoops shown.\n\n#jewelrycare #vermeil #sahilondonin #jewelrytipsindia",
+           "Why your gold earrings dull (and the 2-minute fix) 📌\nEducational carousel — Maya Hoops demo.\n\n#vermeiljewelry #jewelrycare #sahilondonin"]}
   ]
 };
 
@@ -1052,9 +1088,34 @@ const REPORT={
   cn:{date:"Wed, Sep 2",verdict:"On track",good:true,
       rows:[["XHS views","12,400","+18%"],["→ 淘宝 clicks","486","+31%"],["Taobao visits","352","+22%"],["Orders","3 · ¥684","3 sold"]],
       note:"Best play: 送礼场景 note (BC404) drove 214 of the 486 clicks. Studio doubles down — today's 19:00 note switches to a second gift-scenario angle (already swapped in this week's plan). Sales target this week: 10 orders."},
-  intl:{date:"Wed, Sep 2",verdict:"Needs a nudge",good:false,
-      rows:[["IG reach","8,120","-6%"],["Profile visits","214","+9%"],["Shopify sessions","96","+12%"],["Orders","1 · CAD $48","flat"]],
-      note:"Reach dipped — yesterday's Reel underperformed. Studio adjusts: today's 12:00 Reel switches to the 'one tee, three fits' format (strongest reach pattern in the research). Sessions still climbing, so traffic quality is fine — it's a reach problem, not a link problem."}
+  ca:{date:"Wed, Sep 2",verdict:"Needs a nudge",good:false,
+      rows:[["IG reach · sahi_london","5,860","-6%"],["Profile visits","152","+9%"],["sahilondon.com sessions","68","+12%"],["Orders","1 · CAD $48","flat"]],
+      note:"Reach dipped — yesterday's Reel underperformed. Studio adjusts: today's 12:00 Reel switches to the 'one tee, three fits' format (strongest reach pattern in the research). Sessions still climbing, so traffic quality is fine — it's a reach problem, not a link problem."},
+  in:{date:"Wed, Sep 2",verdict:"On track",good:true,
+      rows:[["IG reach · sahi_london_in","3,240","+14%"],["Profile visits","88","+21%"],["sahilondon.in sessions","34","+18%"],["Orders","1 · ₹3,499","first sale 🎉"]],
+      note:"India is warming up — first order came from a Story tap. Studio doubles down: today's 18:30 Story repeats the exact winning format (product + price in frame). Week target: 3 orders."}
+};
+
+/* posted so far — the running log of everything published, per market */
+const POSTED={
+  cn:[
+    {when:"Sep 2 · 20:00",ch:"TB",what:"FN303T 主图 set A 上架",result:"CTR 4.2% · baseline set",st:"Live"},
+    {when:"Sep 2 · 19:00",ch:"XHS",what:"送礼场景 note · BC404",result:"214 clicks → 淘宝 · 2 orders ¥456",st:"Live"},
+    {when:"Sep 1 · 19:00",ch:"XHS",what:"单品推荐 note · FN303T",result:"1,980 views · 1 order ¥228",st:"Live"},
+    {when:"Aug 31 · 19:00",ch:"XHS",what:"单品推荐 note · BC404",result:"1,410 views · 9 profile taps",st:"Live"}
+  ],
+  ca:[
+    {when:"Sep 2 · 12:00",ch:"IG",what:"Reel · PopArt tee — sahi_london",result:"3,120 reach · 41 Shopify sessions",st:"Live"},
+    {when:"Sep 1 · 18:00",ch:"IG",what:"Story · Maya Hoops restock",result:"890 taps · 1 order CAD $48",st:"Live"},
+    {when:"Aug 30 · 12:30",ch:"IG",what:"Feed carousel · vermeil care",result:"142 saves · 2,240 reach",st:"Live"},
+    {when:"Aug 29 · 19:30",ch:"Shop",what:"PDP refresh · Sling tote (.com)",result:"Lead image live · +9% PDP CTR",st:"Live"}
+  ],
+  in:[
+    {when:"Sep 2 · 18:30",ch:"IG",what:"Story · Maya Hoops — sahi_london_in",result:"640 reach · 12 .in sessions · 1 order ₹3,499",st:"Live"},
+    {when:"Sep 1 · 12:00",ch:"IG",what:"Reel · jewelry styling — sahi_london_in",result:"1,540 reach · 2 PDP clicks",st:"Live"},
+    {when:"Aug 30 · 18:30",ch:"IG",what:"Story · PopArt tee India",result:"410 reach · 6 .in sessions",st:"Live"},
+    {when:"Aug 28 · 19:30",ch:"Shop",what:"Store launch · sahilondon.in INR",result:"698 products synced · currency live",st:"Live"}
+  ]
 };
 
 /* ================= state ================= */
@@ -1062,7 +1123,7 @@ let mkt="cn";
 let step=1, prod=PRODUCTS[0], chosen=new Set(["tb","xhs"]), tpl="tone";
 let linkOn=true, priceOn=true, collabOn=false;
 let lastCopyKey="";
-PLAN.cn.forEach(p=>{p.st="draft";p.vi=0;}); PLAN.intl.forEach(p=>{p.st="draft";p.vi=0;});
+Object.keys(PLAN).forEach(k=>PLAN[k].forEach(p=>{p.st="draft";p.vi=0;}));
 
 /* ================= dom refs ================= */
 const $=s=>document.querySelector(s);
@@ -1089,7 +1150,9 @@ function setMarket(m){
   });
   $("#home-lead").textContent = m==="cn"
     ? "Taobao + Xiaohongshu · Jewelry only. The week is pre-planned — notes, keywords, posting times. You just approve."
-    : "Meta (Canada + India) & Shopify. The week is pre-planned — captions, hashtags, slots. You just approve.";
+    : m==="ca"
+    ? "sahi_london + sahilondon.com (CAD). The week is pre-planned — captions, hashtags, slots. You just approve."
+    : "sahi_london_in + sahilondon.in (INR). The week is pre-planned — captions, hashtags, slots. You just approve.";
   const hint=$("#cn-hint"); if(hint) hint.hidden = m!=="cn";
   $("#src-note").textContent = m==="cn"
     ? "China catalog — Taobao listing title + 小红书 cover copy ride along automatically."
@@ -1098,7 +1161,7 @@ function setMarket(m){
   prod=PRODUCTS.find(p=>p.mkt===m)||PRODUCTS[0];
   chosen=new Set(FORMATS.filter(f=>f.mkt===m&&f.def).map(f=>f.id));
   curFmt=FORMATS.find(f=>chosen.has(f.id))||FORMATS[0];
-  renderCh(); renderProds(); renderFmts(); refreshProdDetail(); syncPreview(); renderPlan(); renderReport();
+  renderCh(); renderProds(); renderFmts(); refreshProdDetail(); syncPreview(); renderPlan(); renderReport(); renderPosted();
 }
 document.querySelectorAll(".mkswitch .mk").forEach(b=>b.addEventListener("click",()=>setMarket(b.dataset.mkt)));
 
@@ -1144,6 +1207,21 @@ function renderReport(){
     +'<div class="mgrid">'+cells+'</div>'
     +'<p class="adjust-note"><b>Studio\'s adjustment for today:</b> '+r.note+'</p>'
     +'</div>';
+}
+
+/* ================= posted so far (per-market running log) ================= */
+function renderPosted(){
+  $("#posted-kicker").textContent="Posted so far — "+MKT_LABEL[mkt];
+  const box=$("#posted-panel"); box.innerHTML="";
+  POSTED[mkt].forEach(p=>{
+    const el=document.createElement("div");
+    el.className="next-item"; el.style.flexWrap="wrap"; el.style.rowGap="6px";
+    el.innerHTML='<span class="cchip">'+p.ch+'</span>'
+      +'<span class="grow stack-6"><span class="who" style="font-weight:700;font-size:.9rem">'+p.what+'</span>'
+      +'<span class="sub tiny">'+p.when+' · '+p.result+'</span></span>'
+      +'<span class="pill live">'+p.st+'</span>';
+    box.appendChild(el);
+  });
 }
 
 /* ================= home channels ================= */
@@ -1306,7 +1384,7 @@ $("#in-cap").addEventListener("input",function(){
 function updateCaptionPrev(){
   let t=$("#in-cap").value.trim();
   let out=t?t:"Caption will read naturally over the product story.";
-  if(linkOn){out+='\n'+"Shop the look: "+prod.url+(mkt==="intl"?"?utm_source=instagram&utm_campaign=studio":"");}
+  if(linkOn){out+='\n'+"Shop the look: "+prod.url+(mkt==="cn"?"":"?utm_source=instagram&utm_campaign=studio_"+mkt);}
   $("#cap-prev").innerHTML='<svg width="13" height="13" style="display:inline;vertical-align:-2px;margin-right:6px;color:var(--ink-3)"><use href="#i-link"/></svg><span style="white-space:pre-line">'+out+"</span>";
 }
 document.querySelectorAll(".switch").forEach(s=>s.addEventListener("click",function(){
@@ -1359,7 +1437,7 @@ function finishDrop(pub){
   li.style.animation="fadeup .3s ease";
   li.innerHTML='<span class="when">Now</span>'
     +'<span class="ratio-chip small">'+ (curFmt?curFmt.tile:"1:1") +'</span>'
-    +'<span class="grow"><div class="tt">'+title+'</div><div class="chips"><span class="cchip">'+(mkt==="cn"?"China":"Intl")+'</span><span class="cchip">'+fmtNames+'</span></div></span>'
+    +'<span class="grow"><div class="tt">'+title+'</div><div class="chips"><span class="cchip">'+MKT_LABEL[mkt]+'</span><span class="cchip">'+fmtNames+'</span></div></span>'
     +'<span class="pill '+(pub?"live":"draft")+'">'+(pub?"Live":"Draft")+'</span>';
   $("#today-list").prepend(li);
   const c=$("#cnt-today");c.textContent=Number(c.textContent)+1;
