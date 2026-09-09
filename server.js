@@ -749,6 +749,9 @@ ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcod
   return autoResolvePendingUnmatched(null, 'startup');
 }).then((r) => {
   if (r) console.log(`[AUTO-RESOLVE] Startup self-heal: ${r.resolved.length} resolved, ${r.skipped.length} still need manual SKU`);
+  return backfillPricesFromItemPrices();
+}).then(() => {
+  console.log('[PRICE-REGISTRY] Startup self-heal done');
 }).catch((e) => console.error('[STARTUP] self-heal chain error:', e.message));
 
 // Record an action in the audit trail. Never lets a logging failure break the
@@ -3615,6 +3618,38 @@ try {
   console.error('[EAN-REGISTRY] Failed to load:', e);
 }
 
+// Price registry (RMB): SKU -> { cost_rmb (buying price), rsp_rmb (retail/MRP) },
+// extracted from 'Item Master-Live-V2.xlsx > Item-Details'. Exact SKU first, then
+// the core SKU (trailing -N variant stripped) as fallback.
+let itemPriceRegistry = { sku_prices: {}, core_prices: {} };
+try {
+  const fsP = require('fs');
+  const pathP = require('path');
+  const pp = pathP.join(__dirname, 'item_prices.json');
+  if (fsP.existsSync(pp)) {
+    itemPriceRegistry = JSON.parse(fsP.readFileSync(pp, 'utf8'));
+    console.log(`[PRICE-REGISTRY] Loaded ${Object.keys(itemPriceRegistry.sku_prices || {}).length} exact / ${Object.keys(itemPriceRegistry.core_prices || {}).length} core SKU prices (RMB)`);
+  } else {
+    console.log('[PRICE-REGISTRY] No item_prices.json found — price fallback disabled');
+  }
+} catch (e) {
+  console.error('[PRICE-REGISTRY] Failed to load:', e.message);
+}
+
+// Look up RMB cost/retail for a SKU: exact match first, then core variant.
+function lookupItemPrices(sku) {
+  const s = String(sku || '').trim().toUpperCase();
+  if (!s) return null;
+  const sp = itemPriceRegistry.sku_prices || {};
+  if (sp[s]) return sp[s];
+  const core = s.replace(/[-/ ]\d+$/, '');
+  if (core && core !== s) {
+    const cp = itemPriceRegistry.core_prices || {};
+    if (cp[core]) return cp[core];
+  }
+  return null;
+}
+
 // Derive product department (EARRING, NECKLACE, HANDBAG, ...) from a SKU.
 // 1. Exact match in the live item master, else 2. prefix + style-number rules:
 //    JW 1xx=BRACELET 2xx=BROOCH 3xx=EARRING 4xx=NECKLACE 5xx=RING 6xx=CHARM
@@ -3687,6 +3722,37 @@ async function backfillEanBarcodes() {
     console.log(`[EAN-REGISTRY] Backfill done: ${updated} barcodes assigned (of ${rows.rows.length} items missing one)`);
   } catch (e) {
     console.error('[EAN-REGISTRY] Backfill failed:', e.message);
+  }
+}
+
+// One-time backfill: fill purchase_price / mrp on opening_inventory rows from the
+// RMB price registry (item_prices.json) where the column is still blank / 0.
+async function backfillPricesFromItemPrices() {
+  try {
+    const rows = await pool.query(
+      `SELECT id, sku, purchase_price, mrp FROM opening_inventory
+        WHERE purchase_price IS NULL OR purchase_price = 0 OR mrp IS NULL OR mrp = 0`
+    );
+    let pp = 0, mp = 0;
+    for (const r of rows.rows) {
+      const pr = lookupItemPrices(r.sku);
+      if (!pr) continue;
+      const sets = [];
+      const params = [];
+      if ((r.purchase_price === null || parseFloat(r.purchase_price) === 0) && pr.cost_rmb != null) {
+        params.push(pr.cost_rmb); sets.push(`purchase_price = $${params.length}`); pp++;
+      }
+      if ((r.mrp === null || parseFloat(r.mrp) === 0) && pr.rsp_rmb != null) {
+        params.push(pr.rsp_rmb); sets.push(`mrp = $${params.length}`); mp++;
+      }
+      if (sets.length > 0) {
+        params.push(r.id);
+        await pool.query(`UPDATE opening_inventory SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+      }
+    }
+    console.log(`[PRICE-REGISTRY] Backfill done: ${pp} purchase_price, ${mp} mrp filled on opening inventory`);
+  } catch (e) {
+    console.error('[PRICE-REGISTRY] Backfill failed:', e.message);
   }
 }
 
@@ -3967,6 +4033,17 @@ app.get('/api/diag/barcode/:code', async (req, res) => {
     const skuTextBc = await pool.query(
       `SELECT COUNT(*)::int AS n FROM opening_inventory WHERE barcode ~ '[A-Za-z]'`);
     out.opening_inventory_rows_with_sku_text_barcode = skuTextBc.rows[0].n;
+    const prSku = skuFromB2S || (out.item_by_barcode && out.item_by_barcode.sku) || code.toUpperCase();
+    out.price_registry = {
+      exact_count: Object.keys(itemPriceRegistry.sku_prices || {}).length,
+      core_count: Object.keys(itemPriceRegistry.core_prices || {}).length,
+      lookup_for: prSku,
+      hit: lookupItemPrices(prSku)
+    };
+    const oiRows = await pool.query(
+      `SELECT sku, purchase_price, mrp, qty FROM opening_inventory
+        WHERE TRIM(UPPER(sku)) = $1 ORDER BY id DESC LIMIT 3`, [prSku]);
+    out.opening_inventory_prices = oiRows.rows;
     // Optional transactional insert test: executes the exact EAN-tier auto-create
     // INSERT (with ON CONFLICT) and rolls back, so nothing persists. Confirms
     // whether the unique index on item_master.sku exists / insert would succeed.
@@ -4168,9 +4245,14 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
       };
       const purchasePrice = toPrice(item.purchase_price);
       const mrp = toPrice(item.mrp);
-      // Purchase price fallback: the cost is already in item_master.std_cost_rmb,
-      // so a blank input still saves a real price instead of 0
+      // Price fallbacks so a blank input still saves real prices:
+      //   purchase = client input → item_prices.json cost_rmb → item_master.std_cost_rmb
+      //   mrp      = client input → item_prices.json rsp_rmb
+      const priceReg = lookupItemPrices(skuUp);
       let effectivePurchase = purchasePrice;
+      if (effectivePurchase === null && priceReg && priceReg.cost_rmb != null) {
+        effectivePurchase = priceReg.cost_rmb;
+      }
       if (effectivePurchase === null) {
         try {
           const imP = await pool.query(
@@ -4181,6 +4263,10 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
           );
           if (imP.rows.length > 0) effectivePurchase = parseFloat(imP.rows[0].std_cost_rmb);
         } catch (e) { /* non-fatal */ }
+      }
+      let effectiveMrp = mrp;
+      if (effectiveMrp === null && priceReg && priceReg.rsp_rmb != null) {
+        effectiveMrp = priceReg.rsp_rmb;
       }
 
       const existing = await pool.query(
@@ -4194,13 +4280,13 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
         // Prices fill-if-empty: a blank input never wipes a saved price.
         await pool.query(
           'UPDATE opening_inventory SET qty = qty + $1, barcode = COALESCE($2, barcode), friendly_name = COALESCE($3, friendly_name), color = COALESCE($4, color), purchase_price = COALESCE(NULLIF(purchase_price, 0), $7, purchase_price), mrp = COALESCE(NULLIF(mrp, 0), $8, mrp), created_by = $5, created_at = NOW() WHERE id = $6',
-          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id, effectivePurchase, mrp]
+          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id, effectivePurchase, effectiveMrp]
         );
       } else {
         await pool.query(
           `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by, purchase_price, mrp)
            VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0), COALESCE($9, 0))`,
-          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy, effectivePurchase, mrp]
+          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy, effectivePurchase, effectiveMrp]
         );
       }
       saved++;
