@@ -706,6 +706,15 @@ async function ensureSchema() {
     console.error('item_master defaults migration warning:', err.message);
   }
 
+  // Retail price (RMB) column on item_master — source: Item Master V2 'RSP RMB'.
+  // Keeps cost (std_cost_rmb) + retail (mrp_rmb) side by side on the master row.
+  try {
+    await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS mrp_rmb NUMERIC DEFAULT 0`);
+    await pool.query(`ALTER TABLE item_master ALTER COLUMN mrp_rmb DROP DEFAULT`);
+  } catch (err) {
+    console.error('item_master mrp_rmb migration warning:', err.message);
+  }
+
   // Ensure inventory table has a unique constraint on (sku, org_id) so
   // ON CONFLICT DO NOTHING works correctly for bulk import and other inserts
   try {
@@ -3725,10 +3734,12 @@ async function backfillEanBarcodes() {
   }
 }
 
-// One-time backfill: fill purchase_price / mrp on opening_inventory rows from the
-// RMB price registry (item_prices.json) where the column is still blank / 0.
+// One-time backfill: fill purchase_price / mrp on opening_inventory rows AND
+// std_cost_rmb / mrp_rmb on item_master rows from the RMB price registry
+// (item_prices.json) where the column is still blank / 0. Idempotent.
 async function backfillPricesFromItemPrices() {
   try {
+    // 1. opening_inventory rows (blank / zero purchase price or MRP)
     const rows = await pool.query(
       `SELECT id, sku, purchase_price, mrp FROM opening_inventory
         WHERE purchase_price IS NULL OR purchase_price = 0 OR mrp IS NULL OR mrp = 0`
@@ -3750,7 +3761,30 @@ async function backfillPricesFromItemPrices() {
         await pool.query(`UPDATE opening_inventory SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
       }
     }
-    console.log(`[PRICE-REGISTRY] Backfill done: ${pp} purchase_price, ${mp} mrp filled on opening inventory`);
+    // 2. item_master rows (blank / zero cost or retail) — enriches the master so
+    //    every future lookup / import carries both prices.
+    const imRows = await pool.query(
+      `SELECT sku, std_cost_rmb, mrp_rmb FROM item_master
+        WHERE std_cost_rmb IS NULL OR std_cost_rmb = 0 OR mrp_rmb IS NULL OR mrp_rmb = 0`
+    );
+    let imPp = 0, imMp = 0;
+    for (const r of imRows.rows) {
+      const pr = lookupItemPrices(r.sku);
+      if (!pr) continue;
+      const sets = [];
+      const params = [];
+      if ((r.std_cost_rmb === null || parseFloat(r.std_cost_rmb) === 0) && pr.cost_rmb != null) {
+        params.push(pr.cost_rmb); sets.push(`std_cost_rmb = $${params.length}`); imPp++;
+      }
+      if ((r.mrp_rmb === null || parseFloat(r.mrp_rmb) === 0) && pr.rsp_rmb != null) {
+        params.push(pr.rsp_rmb); sets.push(`mrp_rmb = $${params.length}`); imMp++;
+      }
+      if (sets.length > 0) {
+        params.push(r.sku);
+        await pool.query(`UPDATE item_master SET ${sets.join(', ')} WHERE sku = $${params.length}`, params);
+      }
+    }
+    console.log(`[PRICE-REGISTRY] Backfill done: opening_inventory ${pp} cost / ${mp} mrp filled; item_master ${imPp} cost / ${imMp} mrp filled`);
   } catch (e) {
     console.error('[PRICE-REGISTRY] Backfill failed:', e.message);
   }
@@ -4013,11 +4047,11 @@ app.get('/api/diag/barcode/:code', async (req, res) => {
       }
     };
     const byBc = await pool.query(
-      `SELECT sku, friendly_name, barcode, status FROM item_master WHERE TRIM(barcode::text) = $1 LIMIT 1`, [code]);
+      `SELECT sku, friendly_name, barcode, status, std_cost_rmb, mrp_rmb FROM item_master WHERE TRIM(barcode::text) = $1 LIMIT 1`, [code]);
     out.item_by_barcode = byBc.rows[0] || null;
     const skuForMaster = skuFromB2S || code.toUpperCase();
     const bySku = await pool.query(
-      `SELECT sku, friendly_name, barcode, status FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`, [skuForMaster]);
+      `SELECT sku, friendly_name, barcode, status, std_cost_rmb, mrp_rmb FROM item_master WHERE TRIM(UPPER(sku)) = $1 LIMIT 1`, [skuForMaster]);
     out.item_by_sku = bySku.rows[0] || null;
     const pend = await pool.query(
       `SELECT id, barcode, qty, org_id, status, matched_sku, created_at FROM unmatched_barcodes
@@ -4044,6 +4078,12 @@ app.get('/api/diag/barcode/:code', async (req, res) => {
       `SELECT sku, purchase_price, mrp, qty FROM opening_inventory
         WHERE TRIM(UPPER(sku)) = $1 ORDER BY id DESC LIMIT 3`, [prSku]);
     out.opening_inventory_prices = oiRows.rows;
+    const oiStats = await pool.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE purchase_price IS NOT NULL AND purchase_price > 0) AS with_cost,
+              COUNT(*) FILTER (WHERE mrp IS NOT NULL AND mrp > 0) AS with_mrp
+       FROM opening_inventory`);
+    out.oi_price_stats = oiStats.rows[0];
     // Optional transactional insert test: executes the exact EAN-tier auto-create
     // INSERT (with ON CONFLICT) and rolls back, so nothing persists. Confirms
     // whether the unique index on item_master.sku exists / insert would succeed.
