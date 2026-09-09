@@ -150,9 +150,12 @@
         <input type="text" id="savedSearchInput" placeholder="Search SKU / barcode / collection (FN, IB, BC, AI...) / warehouse / created by..."
                oninput="renderSavedTable()"
                style="width:100%; max-width:520px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:6px; margin-bottom:10px;">
+        <div id="savedMetaLine" style="display:none; margin-bottom:8px; font-size:13px; color:#555;">
+            <span id="savedMetaText"></span>
+        </div>
         <table id="savedTable" style="display:none;">
             <thead>
-                <tr><th>Date</th><th>Warehouse</th><th>Created By</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th></tr>
+                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th></tr>
             </thead>
             <tbody id="savedTableBody"></tbody>
         </table>
@@ -985,22 +988,32 @@
                 table.style.display = 'none';
                 empty.style.display = '';
                 empty.textContent = 'No saved opening inventory yet.';
+                document.getElementById('savedMetaLine').style.display = 'none';
                 return;
             }
             if (rows.length === 0) {
                 table.style.display = 'none';
                 empty.style.display = '';
                 empty.textContent = `No rows match "${term}".`;
+                document.getElementById('savedMetaLine').style.display = 'none';
                 return;
             }
 
             table.style.display = '';
             empty.style.display = 'none';
+
+            // Warehouse + Created By shown once, above the table (they repeat on
+            // every row otherwise). Dedupe across the full saved list.
+            const metaLine = document.getElementById('savedMetaLine');
+            const metaText = document.getElementById('savedMetaText');
+            const whs = [...new Set(savedInventory.map(r => orgNames[r.org_id] || String(r.org_id || '')))].filter(Boolean);
+            const who = [...new Set(savedInventory.map(r => (r.created_by || '').trim()).filter(Boolean))];
+            metaText.innerHTML = `<b>Warehouse:</b> ${whs.join(', ') || '—'} &nbsp;·&nbsp; <b>Created By:</b> ${who.join(', ') || '—'}`;
+            metaLine.style.display = '';
+
             tbody.innerHTML = rows.map(r => `
                     <tr>
                         <td>${new Date(r.created_at).toLocaleDateString('en-CA')}</td>
-                        <td style="white-space:nowrap;">${orgNames[r.org_id] || r.org_id}</td>
-                        <td style="white-space:nowrap;">${r.created_by || ''}</td>
                         <td><strong>${r.sku}</strong></td>
                         <td>${r.department || deriveDepartment(r.sku)}</td>
                         <td>${r.color || 'NA'}</td>
