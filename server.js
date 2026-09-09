@@ -4027,6 +4027,30 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
   }
 });
 
+// PUBLIC diagnostic (read-only, no auth): opening_inventory price coverage —
+// each row's saved purchase_price/mrp vs what the RMB price registry holds
+// for that SKU. Used to verify why a row shows 0/0.
+app.get('/api/diag/oi-prices', async (req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT sku, purchase_price, mrp, qty FROM opening_inventory ORDER BY created_at DESC`
+    );
+    const out = rows.rows.map(r => {
+      const pr = lookupItemPrices(r.sku);
+      return {
+        sku: String(r.sku || '').trim().toUpperCase(),
+        purchase_price: r.purchase_price,
+        mrp: r.mrp,
+        qty: r.qty,
+        registry: pr ? { cost_rmb: pr.cost_rmb, rsp_rmb: pr.rsp_rmb } : null
+      };
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // PUBLIC diagnostic (read-only, no auth): explains why a scan of :code would
 // resolve or fail — registry state, item_master state, PENDING unmatched rows.
 // Reveals nothing sensitive: only data for a code the caller already knows.
