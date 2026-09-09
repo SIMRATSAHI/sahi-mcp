@@ -1170,11 +1170,11 @@
   },
   "JWBFN401": {
    "cost_rmb": 75.5,
-   "rsp_rmb": null
+   "rsp_rmb": 289
   },
   "JWZBF401": {
    "cost_rmb": 87.14,
-   "rsp_rmb": null
+   "rsp_rmb": 289
   }
  },
  "core_prices": {
