@@ -3647,14 +3647,28 @@ try {
 
 // Look up RMB cost/retail for a SKU: exact match first, then core variant.
 function lookupItemPrices(sku) {
-  const s = String(sku || '').trim().toUpperCase();
+  let s = String(sku || '').trim().toUpperCase();
   if (!s) return null;
+  // Separator normalisation: item master prices size variants with '-S/-M/-L'
+  // while portal rows may hold '/S /M /L' (e.g. JW22SSBC503/S).
+  s = s.replace(/\//g, '-');
   const sp = itemPriceRegistry.sku_prices || {};
-  if (sp[s]) return sp[s];
-  const core = s.replace(/[-/ ]\d+$/, '');
-  if (core && core !== s) {
-    const cp = itemPriceRegistry.core_prices || {};
-    if (cp[core]) return cp[core];
+  const cp = itemPriceRegistry.core_prices || {};
+  const tryHit = (code) => {
+    if (!code) return null;
+    if (sp[code]) return sp[code];
+    const core = code.replace(/[-/ ]\d+$/, '');
+    if (core && core !== code && cp[core]) return cp[core];
+    return null;
+  };
+  let hit = tryHit(s);
+  if (hit) return hit;
+  // SKU alias: opening inventory holds legacy 'JW22SS…' codes for the same
+  // physical items the Item Master prices under 'JWVSS…' (JW22SSBC201 =
+  // JWVSSBC201). Retry the whole chain on the aliased code.
+  if (s.startsWith('JW22SS')) {
+    hit = tryHit('JWVSS' + s.slice(6));
+    if (hit) return hit;
   }
   return null;
 }
