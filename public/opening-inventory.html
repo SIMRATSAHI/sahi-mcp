@@ -152,7 +152,7 @@
                style="width:100%; max-width:520px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:6px; margin-bottom:10px;">
         <table id="savedTable" style="display:none;">
             <thead>
-                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th><th>Warehouse</th><th>Created By</th></tr>
+                <tr><th>Date</th><th>Warehouse</th><th>Created By</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th></tr>
             </thead>
             <tbody id="savedTableBody"></tbody>
         </table>
@@ -801,15 +801,21 @@
             persistScanSession();
         }
 
-        // Prefill prices for a SKU from what was already saved (so re-scans carry
-        // the known purchase price / MRP instead of asking again)
+        // Prefill prices for a SKU: saved price first, else the purchase cost
+        // already stored in item_master (std_cost_rmb, exposed via /api/items/all).
+        // MRP has no system source — stays manual until a price file is loaded.
         function priceForSku(sku) {
             const orgId = document.getElementById('orgSelect').value;
             const savedRow = savedInventory.find(s => s.sku === sku && String(s.org_id) === String(orgId));
-            return {
-                purchase_price: (savedRow && parseFloat(savedRow.purchase_price) > 0) ? parseFloat(savedRow.purchase_price) : 0,
-                mrp: (savedRow && parseFloat(savedRow.mrp) > 0) ? parseFloat(savedRow.mrp) : 0
-            };
+            if (savedRow && parseFloat(savedRow.purchase_price) > 0) {
+                return {
+                    purchase_price: parseFloat(savedRow.purchase_price),
+                    mrp: parseFloat(savedRow.mrp) > 0 ? parseFloat(savedRow.mrp) : 0
+                };
+            }
+            const it = allItems.find(i => i.sku === sku);
+            const cost = it && parseFloat(it.std_cost_rmb) > 0 ? parseFloat(it.std_cost_rmb) : 0;
+            return { purchase_price: cost, mrp: 0 };
         }
 
         function removeItem(idx) {
@@ -993,6 +999,8 @@
             tbody.innerHTML = rows.map(r => `
                     <tr>
                         <td>${new Date(r.created_at).toLocaleDateString('en-CA')}</td>
+                        <td style="white-space:nowrap;">${orgNames[r.org_id] || r.org_id}</td>
+                        <td style="white-space:nowrap;">${r.created_by || ''}</td>
                         <td><strong>${r.sku}</strong></td>
                         <td>${r.department || deriveDepartment(r.sku)}</td>
                         <td>${r.color || 'NA'}</td>
@@ -1000,8 +1008,6 @@
                         <td style="text-align:right;">${fmtPrice(r.purchase_price)}</td>
                         <td style="text-align:right;">${fmtPrice(r.mrp)}</td>
                         <td><strong>${r.qty}</strong></td>
-                        <td>${orgNames[r.org_id] || r.org_id}</td>
-                        <td>${r.created_by || ''}</td>
                     </tr>
                 `).join('');
         }
