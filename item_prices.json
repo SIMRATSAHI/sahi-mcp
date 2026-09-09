@@ -1,0 +1,1360 @@
+{
+"source": "Item Master-Live-V2.xlsx > Item-Details (Cost RMB / RSP RMB)",
+"currency": "RMB",
+"sku_prices": {
+"BGUSSAI201-1": {
+"cost_rmb": 329.0,
+"rsp_rmb": 1398.0
+},
+"BGUSSAI201-2": {
+"cost_rmb": 329.0,
+"rsp_rmb": 1398.0
+},
+"BGUSSAI201-3": {
+"cost_rmb": 329.0,
+"rsp_rmb": 1398.0
+},
+"BGUSSAI501-1": {
+"cost_rmb": 261.45,
+"rsp_rmb": 998.0
+},
+"BGUSSAI501-2": {
+"cost_rmb": 261.45,
+"rsp_rmb": 998.0
+},
+"BGUSSAI501-3": {
+"cost_rmb": 261.45,
+"rsp_rmb": 998.0
+},
+"BGUSSAI701-1": {
+"cost_rmb": 348.25,
+"rsp_rmb": 1498.0
+},
+"BGUSSAI701-2": {
+"cost_rmb": 348.25,
+"rsp_rmb": 1498.0
+},
+"JWUSSAI301C": {
+"cost_rmb": 55.0,
+"rsp_rmb": 550.0
+},
+"JWUSSAI301T": {
+"cost_rmb": 55.0,
+"rsp_rmb": 550.0
+},
+"JWUSSAI302T": {
+"cost_rmb": 55.0,
+"rsp_rmb": 550.0
+},
+"JWUSSAI303C-1": {
+"cost_rmb": 65.0,
+"rsp_rmb": 650.0
+},
+"JWUSSAI303C-2": {
+"cost_rmb": 65.0,
+"rsp_rmb": 650.0
+},
+"JWUSSAI303T-1": {
+"cost_rmb": 65.0,
+"rsp_rmb": 650.0
+},
+"JWUSSAI303T-2": {
+"cost_rmb": 65.0,
+"rsp_rmb": 650.0
+},
+"JWUSSAI304C-1": {
+"cost_rmb": 50.0,
+"rsp_rmb": 498.0
+},
+"JWUSSAI304T-1": {
+"cost_rmb": 50.0,
+"rsp_rmb": 498.0
+},
+"JWVSSBC101": {
+"cost_rmb": 88.0,
+"rsp_rmb": 894.0
+},
+"JWVSSBC201": {
+"cost_rmb": 70.0,
+"rsp_rmb": 694.0
+},
+"JWVSSBC301C": {
+"cost_rmb": 55.0,
+"rsp_rmb": 549.0
+},
+"JWVSSBC301T": {
+"cost_rmb": 55.0,
+"rsp_rmb": 549.0
+},
+"JWVSSBC302T": {
+"cost_rmb": 80.0,
+"rsp_rmb": 794.0
+},
+"JWVSSBC303C": {
+"cost_rmb": 145.0,
+"rsp_rmb": 1294.0
+},
+"JWVSSBC303T": {
+"cost_rmb": 145.0,
+"rsp_rmb": 1294.0
+},
+"JWVSSBC304": {
+"cost_rmb": 45.0,
+"rsp_rmb": 594.0
+},
+"JWVSSBC401": {
+"cost_rmb": 85.0,
+"rsp_rmb": 849.0
+},
+"JWVSSBC402": {
+"cost_rmb": 95.0,
+"rsp_rmb": 949.0
+},
+"JWVSSBC403": {
+"cost_rmb": 100.0,
+"rsp_rmb": 1099.0
+},
+"JWVSSBC404": {
+"cost_rmb": 42.0,
+"rsp_rmb": 494.0
+},
+"JWVSSBC501": {
+"cost_rmb": 48.0,
+"rsp_rmb": 649.0
+},
+"JWVSSBC502": {
+"cost_rmb": 48.0,
+"rsp_rmb": 549.0
+},
+"JWVSSBC503-L": {
+"cost_rmb": 40.0,
+"rsp_rmb": 449.0
+},
+"JWVSSBC503-M": {
+"cost_rmb": 40.0,
+"rsp_rmb": 449.0
+},
+"JWVSSBC503-S": {
+"cost_rmb": 40.0,
+"rsp_rmb": 449.0
+},
+"JWUSSCW401": {
+"cost_rmb": 45.0,
+"rsp_rmb": 550.0
+},
+"JWVSSTG201": {
+"cost_rmb": 83.0,
+"rsp_rmb": 950.0
+},
+"JWVAWFA101": {
+"cost_rmb": 68.2,
+"rsp_rmb": 494.0
+},
+"JWVAWFA301T": {
+"cost_rmb": 80.5,
+"rsp_rmb": 694.0
+},
+"JWVAWFA302C": {
+"cost_rmb": 80.9,
+"rsp_rmb": 594.0
+},
+"JWVAWFA302T": {
+"cost_rmb": 80.9,
+"rsp_rmb": 594.0
+},
+"JWVAWFA303D": {
+"cost_rmb": 61.3,
+"rsp_rmb": 494.0
+},
+"JWVAWFA401": {
+"cost_rmb": 67.5,
+"rsp_rmb": 594.0
+},
+"JWVAWFA501": {
+"cost_rmb": 55.9,
+"rsp_rmb": 449.0
+},
+"JWVSSFN101": {
+"cost_rmb": 80.0,
+"rsp_rmb": 794.0
+},
+"JWVSSFN301C": {
+"cost_rmb": 75.0,
+"rsp_rmb": 794.0
+},
+"JWVSSFN301T": {
+"cost_rmb": 75.0,
+"rsp_rmb": 794.0
+},
+"JWVSSFN302C": {
+"cost_rmb": 85.0,
+"rsp_rmb": 849.0
+},
+"JWVSSFN302T": {
+"cost_rmb": 85.0,
+"rsp_rmb": 849.0
+},
+"JWVSSFN303C": {
+"cost_rmb": 53.0,
+"rsp_rmb": 549.0
+},
+"JWVSSFN303T": {
+"cost_rmb": 53.0,
+"rsp_rmb": 549.0
+},
+"JWVSSFN401": {
+"cost_rmb": 72.0,
+"rsp_rmb": 720.0
+},
+"JWVSSFN402": {
+"cost_rmb": 90.0,
+"rsp_rmb": 994.0
+},
+"JWVSSFN501": {
+"cost_rmb": 48.0,
+"rsp_rmb": 594.0
+},
+"JWVSSIB101": {
+"cost_rmb": 60.0,
+"rsp_rmb": 694.0
+},
+"JWVSSIB201": {
+"cost_rmb": 25.0,
+"rsp_rmb": 349.0
+},
+"JWVSSIB301C": {
+"cost_rmb": 66.0,
+"rsp_rmb": 749.0
+},
+"JWVSSIB301T": {
+"cost_rmb": 66.0,
+"rsp_rmb": 749.0
+},
+"JWVSSIB302C": {
+"cost_rmb": 65.0,
+"rsp_rmb": 694.0
+},
+"JWVSSIB302T": {
+"cost_rmb": 65.0,
+"rsp_rmb": 694.0
+},
+"JWVSSIB303C": {
+"cost_rmb": 51.0,
+"rsp_rmb": 494.0
+},
+"JWVSSIB303T": {
+"cost_rmb": 51.0,
+"rsp_rmb": 494.0
+},
+"JWVSSIB304C": {
+"cost_rmb": 55.0,
+"rsp_rmb": 549.0
+},
+"JWVSSIB304T": {
+"cost_rmb": 55.0,
+"rsp_rmb": 549.0
+},
+"JWVSSIB402": {
+"cost_rmb": 55.0,
+"rsp_rmb": 594.0
+},
+"JWVSSIB501": {
+"cost_rmb": 40.0,
+"rsp_rmb": 494.0
+},
+"JWVSSIB502": {
+"cost_rmb": 65.0,
+"rsp_rmb": 694.0
+},
+"JWVSSIB503": {
+"cost_rmb": 35.0,
+"rsp_rmb": 394.0
+},
+"BGVSSLV501-1": {
+"cost_rmb": 229.24,
+"rsp_rmb": 768.0
+},
+"BGVSSLV501-2": {
+"cost_rmb": 229.24,
+"rsp_rmb": 768.0
+},
+"JWVSSLV201": {
+"cost_rmb": 85.0,
+"rsp_rmb": 694.0
+},
+"JWVSSLV401": {
+"cost_rmb": 90.0,
+"rsp_rmb": 794.0
+},
+"JWSAWPK101": {
+"cost_rmb": 50.0,
+"rsp_rmb": 650.0
+},
+"BGUAWRF201-1": {
+"cost_rmb": 289.4,
+"rsp_rmb": 1198.0
+},
+"BGUAWRF201-2": {
+"cost_rmb": 289.4,
+"rsp_rmb": 1198.0
+},
+"BGUAWRF501-1": {
+"cost_rmb": 222.4,
+"rsp_rmb": 998.0
+},
+"BGUAWRF501-3": {
+"cost_rmb": 222.4,
+"rsp_rmb": 998.0
+},
+"BGUAWRF501-4": {
+"cost_rmb": 222.4,
+"rsp_rmb": 998.0
+},
+"BGUAWRF701-2": {
+"cost_rmb": 343.7,
+"rsp_rmb": 1498.0
+},
+"BGUAWRF701-5": {
+"cost_rmb": 343.7,
+"rsp_rmb": 1498.0
+},
+"BGUAWRF801-5": {
+"cost_rmb": 394.7,
+"rsp_rmb": 1698.0
+},
+"JWUAWRF301T": {
+"cost_rmb": 57.0,
+"rsp_rmb": 650.0
+},
+"JWUAWRF302C": {
+"cost_rmb": 53.0,
+"rsp_rmb": 599.0
+},
+"JWUAWRF302T": {
+"cost_rmb": 53.0,
+"rsp_rmb": 599.0
+},
+"JWUAWRF303C": {
+"cost_rmb": 43.0,
+"rsp_rmb": 499.0
+},
+"JWUAWRF303H": {
+"cost_rmb": 43.0,
+"rsp_rmb": 499.0
+},
+"JWUAWRF304T": {
+"cost_rmb": 46.0,
+"rsp_rmb": 599.0
+},
+"JWUAWRF401": {
+"cost_rmb": 30.0,
+"rsp_rmb": 399.0
+},
+"JWUAWRF501": {
+"cost_rmb": 30.0,
+"rsp_rmb": 399.0
+},
+"JWUAWSH102": {
+"cost_rmb": 105.0,
+"rsp_rmb": 894.0
+},
+"JWUAWSH301C": {
+"cost_rmb": 35.8,
+"rsp_rmb": 394.0
+},
+"JWUAWSH301T": {
+"cost_rmb": 35.8,
+"rsp_rmb": 394.0
+},
+"JWUAWSH302C": {
+"cost_rmb": 125.0,
+"rsp_rmb": 994.0
+},
+"JWUAWSH302T": {
+"cost_rmb": 125.0,
+"rsp_rmb": 994.0
+},
+"JWUAWSH303C": {
+"cost_rmb": 120.0,
+"rsp_rmb": 994.0
+},
+"JWUAWSH303T": {
+"cost_rmb": 120.0,
+"rsp_rmb": 994.0
+},
+"JWUAWSH401": {
+"cost_rmb": 115.0,
+"rsp_rmb": 994.0
+},
+"JWVAWWL101": {
+"cost_rmb": 89.0,
+"rsp_rmb": 694.0
+},
+"JWVAWWL301C": {
+"cost_rmb": 165.0,
+"rsp_rmb": 1294.0
+},
+"JWVAWWL301T": {
+"cost_rmb": 165.0,
+"rsp_rmb": 1294.0
+},
+"JWVAWWL302H": {
+"cost_rmb": 78.0,
+"rsp_rmb": 594.0
+},
+"JWVAWWL303D": {
+"cost_rmb": 71.0,
+"rsp_rmb": 520.0
+},
+"JWVAWWL401": {
+"cost_rmb": 163.0,
+"rsp_rmb": 1294.0
+},
+"JWVAWWL402": {
+"cost_rmb": 96.0,
+"rsp_rmb": 749.0
+},
+"JWVAWWL501": {
+"cost_rmb": 33.5,
+"rsp_rmb": 294.0
+},
+"JWVAWWL502": {
+"cost_rmb": 83.0,
+"rsp_rmb": 649.0
+},
+"JWVAWEG101": {
+"cost_rmb": 65.5,
+"rsp_rmb": 494.0
+},
+"JWVAWEG301T": {
+"cost_rmb": 66.0,
+"rsp_rmb": 549.0
+},
+"JWVAWEG302T": {
+"cost_rmb": 78.0,
+"rsp_rmb": 594.0
+},
+"JWVAWEG303H": {
+"cost_rmb": 68.0,
+"rsp_rmb": 694.0
+},
+"JWVAWEG401": {
+"cost_rmb": 42.0,
+"rsp_rmb": 394.0
+},
+"JWVAWEG402": {
+"cost_rmb": 122.0,
+"rsp_rmb": 1194.0
+},
+"JWVAWEG501": {
+"cost_rmb": 43.2,
+"rsp_rmb": 494.0
+},
+"JWVAWEG502": {
+"cost_rmb": 44.5,
+"rsp_rmb": 449.0
+},
+"JWVAWEG503": {
+"cost_rmb": 43.0,
+"rsp_rmb": 394.0
+},
+"JWVAWEG304C": {
+"cost_rmb": 39.0,
+"rsp_rmb": 394.0
+},
+"JWVAWEG304T": {
+"cost_rmb": 39.0,
+"rsp_rmb": 394.0
+},
+"JWWSSRB301C": {
+"cost_rmb": 37.16,
+"rsp_rmb": 196.0
+},
+"JWWSSRB301T": {
+"cost_rmb": 37.16,
+"rsp_rmb": 196.0
+},
+"JWWSSRB401": {
+"cost_rmb": 47.78,
+"rsp_rmb": 249.0
+},
+"JWWSSMS301T-1": {
+"cost_rmb": 58.52,
+"rsp_rmb": 549.0
+},
+"JWWSSMS301C-1": {
+"cost_rmb": 58.52,
+"rsp_rmb": 549.0
+},
+"JWWSSMS301T-2": {
+"cost_rmb": 58.52,
+"rsp_rmb": 549.0
+},
+"JWWSSMS301C-2": {
+"cost_rmb": 58.52,
+"rsp_rmb": 549.0
+},
+"JWWSSMS303T": {
+"cost_rmb": 46.5,
+"rsp_rmb": 549.0
+},
+"JWWSSMS201": {
+"cost_rmb": 71.3,
+"rsp_rmb": 549.0
+},
+"JWWSSMS401": {
+"cost_rmb": 72.9,
+"rsp_rmb": 649.0
+},
+"JWWSSMS501": {
+"cost_rmb": 52.5,
+"rsp_rmb": 494.0
+},
+"JWVAWBQ301T": {
+"cost_rmb": 70.0
+},
+"JWVAWBQ302D": {
+"cost_rmb": 74.0
+},
+"JWVAWBQ303T": {
+"cost_rmb": 69.0
+},
+"JWVAWBQ304T": {
+"cost_rmb": 69.0
+},
+"JWXSSLA302": {
+"cost_rmb": 66.2
+},
+"JWXSSLA301": {
+"cost_rmb": 52.95
+},
+"JWXSSLA303": {
+"cost_rmb": 79.0
+},
+"JWXSSLA101": {
+"cost_rmb": 66.2
+},
+"JWXSSLA102": {
+"cost_rmb": 73.5
+},
+"JWXSSLA401": {
+"cost_rmb": 69.9
+},
+"JWXSSLA501": {
+"cost_rmb": 47.0
+},
+"JWXSSLA503": {
+"cost_rmb": 44.3
+},
+"JWXSSBC401-1": {
+"cost_rmb": 45.95
+},
+"JWXSSBC401-3": {
+"cost_rmb": 45.95
+},
+"JWXSSBC401-4": {
+"cost_rmb": 45.95
+},
+"JWXSSBC401-8": {
+"cost_rmb": 45.95
+},
+"JWXSSBC402": {
+"cost_rmb": 59.0
+},
+"JWXSSBC301T": {
+"cost_rmb": 49.0
+},
+"JWXSSBC302T": {
+"cost_rmb": 57.85
+},
+"JWXSSCM306": {
+"cost_rmb": 76.0
+},
+"JWXSSCM304": {
+"cost_rmb": 89.0
+},
+"JWXSSCM403": {
+"cost_rmb": 115.0
+},
+"JWXSSCM502": {
+"cost_rmb": 55.0
+},
+"JWXSSCM305": {
+"cost_rmb": 76.0
+},
+"JWXSSCM101": {
+"cost_rmb": 76.0
+},
+"JWXSSCM301": {
+"cost_rmb": 59.0,
+"rsp_rmb": 449.0
+},
+"JWXSSCM302": {
+"cost_rmb": 58.0,
+"rsp_rmb": 449.0
+},
+"JWXSSCM402": {
+"cost_rmb": 76.0
+},
+"JWXSSCM303": {
+"cost_rmb": 58.0
+},
+"JWXSSCM501": {
+"cost_rmb": 58.0
+},
+"JWXSSCM401": {
+"cost_rmb": 58.0
+},
+"BGXBM201-PNK": {
+"cost_rmb": 240.0,
+"rsp_rmb": 1194.0
+},
+"BGXBM201-SLV": {
+"cost_rmb": 240.0,
+"rsp_rmb": 1194.0
+},
+"BGXBM202-1": {
+"cost_rmb": 273.0
+},
+"BGXBM203-PNK": {
+"cost_rmb": 240.0,
+"rsp_rmb": 1194.0
+},
+"BGXBM204-PNK": {
+"cost_rmb": 230.0,
+"rsp_rmb": 1194.0
+},
+"BGXBM204-GRN": {
+"cost_rmb": 230.0,
+"rsp_rmb": 1194.0
+},
+"BGXBM205-PNK": {
+"cost_rmb": 230.0,
+"rsp_rmb": 1194.0
+},
+"JWXSSAI301": {
+"cost_rmb": 77.0,
+"rsp_rmb": 549.0
+},
+"JWXSSAI302": {
+"cost_rmb": 82.0,
+"rsp_rmb": 594.0
+},
+"JWXSSAI401": {
+"cost_rmb": 65.0,
+"rsp_rmb": 494.0
+},
+"JWXSSAI402": {
+"cost_rmb": 63.0,
+"rsp_rmb": 449.0
+},
+"JWXSSAI406": {
+"cost_rmb": 76.0,
+"rsp_rmb": 549.0
+},
+"JWXSSST101": {
+"cost_rmb": 79.0
+},
+"JWXSSST301": {
+"cost_rmb": 90.0
+},
+"JWXSSST302": {
+"cost_rmb": 95.0
+},
+"JWXSSST303": {
+"cost_rmb": 85.0
+},
+"JWXSSST304": {
+"cost_rmb": 120.0
+},
+"JWXSSST305": {
+"cost_rmb": 45.0
+},
+"JWXSSST306": {
+"cost_rmb": 85.0
+},
+"JWXSSST401": {
+"cost_rmb": 93.0
+},
+"JWXSSST402": {
+"cost_rmb": 100.0
+},
+"JWXSSST501": {
+"cost_rmb": 107.5
+},
+"BGZBM208-BLK": {
+"cost_rmb": 370.0,
+"rsp_rmb": 1849.0
+},
+"BGZBM208-GRY": {
+"cost_rmb": 370.0,
+"rsp_rmb": 1849.0
+},
+"BGZBM209-BLK-BLK": {
+"cost_rmb": 410.0,
+"rsp_rmb": 2049.0
+},
+"BGZBM209-BLK-CRYS": {
+"cost_rmb": 410.0,
+"rsp_rmb": 2049.0
+},
+"BGZBM210-SLV": {
+"cost_rmb": 285.0,
+"rsp_rmb": 1549.0
+},
+"BGZBM210-PNK": {
+"cost_rmb": 329.0,
+"rsp_rmb": 1549.0
+},
+"BGZBM211-BLK": {
+"cost_rmb": 490.0,
+"rsp_rmb": 2449.0
+},
+"BGZBM211-NLK": {
+"cost_rmb": 490.0,
+"rsp_rmb": 2449.0
+},
+"BGZBM212-SLV-SLV": {
+"cost_rmb": 111.17,
+"rsp_rmb": 1749.0
+},
+"BGZBM212-SLV-BLK": {
+"cost_rmb": 111.17,
+"rsp_rmb": 1749.0
+},
+"BGZBM213-PNK": {
+"cost_rmb": 298.0,
+"rsp_rmb": 1449.0
+},
+"BGZBM213-SLV-GRY": {
+"cost_rmb": 270.0,
+"rsp_rmb": 1449.0
+},
+"BGZBM214-BLK": {
+"cost_rmb": 450.0,
+"rsp_rmb": 2449.0
+},
+"BGZBM214-WHT": {
+"cost_rmb": 450.0,
+"rsp_rmb": 2449.0
+},
+"BGZBM215-PNK": {
+"cost_rmb": 690.0,
+"rsp_rmb": 3449.0
+},
+"BGZBM216-BLK": {
+"cost_rmb": 340.0,
+"rsp_rmb": 1749.0
+},
+"BGZBM216-BLK-SLV": {
+"cost_rmb": 330.0,
+"rsp_rmb": 549.0
+},
+"BGZBM216-SLV": {
+"cost_rmb": 360.0,
+"rsp_rmb": 1749.0
+},
+"BGZBM217-BLK-SLV": {
+"cost_rmb": 328.0,
+"rsp_rmb": 549.0
+},
+"BGZBM218-BLK": {
+"cost_rmb": 390.0,
+"rsp_rmb": 549.0
+},
+"BGZBM219-WHT": {
+"cost_rmb": 370.0,
+"rsp_rmb": 1849.0
+},
+"BGZBM220-WHT": {
+"cost_rmb": 345.0,
+"rsp_rmb": 1725.0
+},
+"APZPA401-MEG-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-MEG-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-MEG-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-PNK-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-PNK-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-PNK-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-OWT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-OWT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-OWT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-MEG-1": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-MEG-2": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-MEG-3": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-PNK-1": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-PNK-2": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-PNK-3": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-OWT-1": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-OWT-2": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-OWT-3": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-MEG-1": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-MEG-2": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-MEG-3": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-OWT-1": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-OWT-2": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-OWT-3": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-MEG-1": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-MEG-2": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-MEG-3": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-OWT-1": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-OWT-2": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-OWT-3": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-MEG-1": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-MEG-2": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-MEG-3": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-OWT-1": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-OWT-2": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-OWT-3": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-PNK-1": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-PNK-2": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-PNK-3": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-OWT-1": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-OWT-2": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-OWT-3": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA408-OWT-1": {
+"cost_rmb": 38.0,
+"rsp_rmb": 194.0
+},
+"APZPA408-OWT-2": {
+"cost_rmb": 38.0,
+"rsp_rmb": 194.0
+},
+"APZPA408-OWT-3": {
+"cost_rmb": 38.0,
+"rsp_rmb": 194.0
+},
+"APZPA411-OWT-1": {
+"cost_rmb": 37.0,
+"rsp_rmb": 194.0
+},
+"APZPA411-OWT-2": {
+"cost_rmb": 37.0,
+"rsp_rmb": 194.0
+},
+"APZPA411-OWT-3": {
+"cost_rmb": 37.0,
+"rsp_rmb": 194.0
+},
+"APZPA417-OWT-1": {
+"cost_rmb": 48.0,
+"rsp_rmb": 194.0
+},
+"APZPA417-OWT-2": {
+"cost_rmb": 48.0,
+"rsp_rmb": 194.0
+},
+"APZPA417-OWT-3": {
+"cost_rmb": 48.0,
+"rsp_rmb": 194.0
+},
+"JWZSM302T": {
+"cost_rmb": 38.0,
+"rsp_rmb": 194.0
+},
+"JWZSM303T": {
+"cost_rmb": 24.0,
+"rsp_rmb": 194.0
+},
+"JWZSM304T": {
+"cost_rmb": 27.0,
+"rsp_rmb": 194.0
+},
+"JWZSM305T": {
+"cost_rmb": 29.0,
+"rsp_rmb": 194.0
+},
+"JWZSM306T": {
+"cost_rmb": 22.0,
+"rsp_rmb": 194.0
+},
+"JWZSM308T": {
+"cost_rmb": 22.5,
+"rsp_rmb": 194.0
+},
+"JWZSM309T": {
+"cost_rmb": 30.5,
+"rsp_rmb": 194.0
+},
+"BGZPP201-BLK": {
+"cost_rmb": 280.0
+},
+"BGZBM212-SLV-PNK": {
+"cost_rmb": 117.0,
+"rsp_rmb": 1749.0
+},
+"BGZBM209-PNK": {
+"cost_rmb": 117.0
+},
+"APAPS401-BLU-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS401-BLU-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS401-BLU-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS402-OWT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS402-OWT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS402-OWT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS403-OWT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS403-OWT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS403-OWT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS404-OWT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS404-OWT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS404-OWT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS406-PNK-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS406-PNK-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS406-PNK-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS407-BLU-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS407-BLU-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS407-BLU-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS408-WHT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS408-WHT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS408-WHT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS409-PNK-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS409-PNK-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS409-PNK-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS410-WHT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS410-WHT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS410-WHT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS411-OWT-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS411-OWT-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS411-OWT-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS412-BLU-1": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS412-BLU-2": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS412-BLU-3": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS501-BLU-1": {
+"cost_rmb": 92.0,
+"rsp_rmb": 274.0
+},
+"APAPS501-BLU-2": {
+"cost_rmb": 92.0,
+"rsp_rmb": 274.0
+},
+"APAPS501-BLU-3": {
+"cost_rmb": 92.0,
+"rsp_rmb": 274.0
+},
+"APAPS503-OWT-1": {
+"cost_rmb": 93.0,
+"rsp_rmb": 274.0
+},
+"APAPS503-OWT-2": {
+"cost_rmb": 93.0,
+"rsp_rmb": 274.0
+},
+"APAPS503-OWT-3": {
+"cost_rmb": 93.0,
+"rsp_rmb": 274.0
+}
+},
+"core_prices": {
+"BGUSSAI201": {
+"cost_rmb": 329.0,
+"rsp_rmb": 1398.0
+},
+"BGUSSAI501": {
+"cost_rmb": 261.45,
+"rsp_rmb": 998.0
+},
+"BGUSSAI701": {
+"cost_rmb": 348.25,
+"rsp_rmb": 1498.0
+},
+"JWUSSAI303C": {
+"cost_rmb": 65.0,
+"rsp_rmb": 650.0
+},
+"JWUSSAI303T": {
+"cost_rmb": 65.0,
+"rsp_rmb": 650.0
+},
+"JWUSSAI304C": {
+"cost_rmb": 50.0,
+"rsp_rmb": 498.0
+},
+"JWUSSAI304T": {
+"cost_rmb": 50.0,
+"rsp_rmb": 498.0
+},
+"BGVSSLV501": {
+"cost_rmb": 229.24,
+"rsp_rmb": 768.0
+},
+"BGUAWRF201": {
+"cost_rmb": 289.4,
+"rsp_rmb": 1198.0
+},
+"BGUAWRF501": {
+"cost_rmb": 222.4,
+"rsp_rmb": 998.0
+},
+"BGUAWRF701": {
+"cost_rmb": 343.7,
+"rsp_rmb": 1498.0
+},
+"BGUAWRF801": {
+"cost_rmb": 394.7,
+"rsp_rmb": 1698.0
+},
+"JWWSSMS301T": {
+"cost_rmb": 58.52,
+"rsp_rmb": 549.0
+},
+"JWWSSMS301C": {
+"cost_rmb": 58.52,
+"rsp_rmb": 549.0
+},
+"JWXSSBC401": {
+"cost_rmb": 45.95
+},
+"BGXBM202": {
+"cost_rmb": 273.0
+},
+"APZPA401-MEG": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-PNK": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA401-OWT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-MEG": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-PNK": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA402-OWT": {
+"cost_rmb": 61.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-MEG": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA403-OWT": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-MEG": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA404-OWT": {
+"cost_rmb": 56.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-MEG": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA405-OWT": {
+"cost_rmb": 51.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-PNK": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA406-OWT": {
+"cost_rmb": 59.0,
+"rsp_rmb": 274.0
+},
+"APZPA408-OWT": {
+"cost_rmb": 38.0,
+"rsp_rmb": 194.0
+},
+"APZPA411-OWT": {
+"cost_rmb": 37.0,
+"rsp_rmb": 194.0
+},
+"APZPA417-OWT": {
+"cost_rmb": 48.0,
+"rsp_rmb": 194.0
+},
+"APAPS401-BLU": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS402-OWT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS403-OWT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS404-OWT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS406-PNK": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS407-BLU": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS408-WHT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS409-PNK": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS410-WHT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS411-OWT": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS412-BLU": {
+"cost_rmb": 53.0,
+"rsp_rmb": 274.0
+},
+"APAPS501-BLU": {
+"cost_rmb": 92.0,
+"rsp_rmb": 274.0
+},
+"APAPS503-OWT": {
+"cost_rmb": 93.0,
+"rsp_rmb": 274.0
+}
+},
+"counts": {
+"exact": 302,
+"core": 46
+}
+}
