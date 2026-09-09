@@ -656,6 +656,8 @@ async function ensureSchema() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_sku ON opening_inventory(sku)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_barcode ON opening_inventory(barcode)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_org ON opening_inventory(org_id)`);
+    await pool.query(`ALTER TABLE opening_inventory ADD COLUMN IF NOT EXISTS purchase_price NUMERIC DEFAULT 0`);
+    await pool.query(`ALTER TABLE opening_inventory ADD COLUMN IF NOT EXISTS mrp NUMERIC DEFAULT 0`);
   } catch (err) {
     console.error('opening_inventory migration warning:', err.message);
   }
@@ -4148,6 +4150,16 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
           : null;
       }
 
+      // Purchase price + MRP (retail price) — optional per-item fields from the
+      // scan session. Blank/invalid → null so existing saved prices are kept.
+      const toPrice = (v) => {
+        if (v === undefined || v === null || String(v).trim() === '') return null;
+        const n = parseFloat(v);
+        return isNaN(n) || n < 0 ? null : n;
+      };
+      const purchasePrice = toPrice(item.purchase_price);
+      const mrp = toPrice(item.mrp);
+
       const existing = await pool.query(
         'SELECT id, qty FROM opening_inventory WHERE sku = $1 AND org_id = $2',
         [item.sku, targetOrg]
@@ -4156,15 +4168,16 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
       if (existing.rows.length > 0) {
         // ADD semantics: opening inventory accumulates across batches —
         // user counts in multiple sittings, each batch adds to what was saved.
+        // Prices fill-if-empty: a blank input never wipes a saved price.
         await pool.query(
-          'UPDATE opening_inventory SET qty = qty + $1, barcode = COALESCE($2, barcode), friendly_name = COALESCE($3, friendly_name), color = COALESCE($4, color), created_by = $5, created_at = NOW() WHERE id = $6',
-          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id]
+          'UPDATE opening_inventory SET qty = qty + $1, barcode = COALESCE($2, barcode), friendly_name = COALESCE($3, friendly_name), color = COALESCE($4, color), purchase_price = COALESCE(NULLIF(purchase_price, 0), $7, purchase_price), mrp = COALESCE(NULLIF(mrp, 0), $8, mrp), created_by = $5, created_at = NOW() WHERE id = $6',
+          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id, purchasePrice, mrp]
         );
       } else {
         await pool.query(
-          `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy]
+          `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by, purchase_price, mrp)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0), COALESCE($9, 0))`,
+          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy, purchasePrice, mrp]
         );
       }
       saved++;
