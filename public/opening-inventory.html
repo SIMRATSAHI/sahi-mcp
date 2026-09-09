@@ -118,7 +118,7 @@
 
         <table id="sessionTable" style="display:none;">
             <thead>
-                <tr><th>SKU</th><th>Item Name</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Action</th></tr>
+                <tr><th>SKU</th><th>Item Name</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th><th>Action</th></tr>
             </thead>
             <tbody id="sessionTableBody"></tbody>
         </table>
@@ -147,9 +147,12 @@
             <button class="btn btn-blue" id="canonicalizeBtn" onclick="canonicalizeBarcodes()" style="background:#1976d2;">🔧 Fix Barcodes (use canonical EAN)</button>
             <span id="canonicalizeStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
         </div>
+        <input type="text" id="savedSearchInput" placeholder="Search SKU / barcode / collection (FN, IB, BC, AI...) / warehouse / created by..."
+               oninput="renderSavedTable()"
+               style="width:100%; max-width:520px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:6px; margin-bottom:10px;">
         <table id="savedTable" style="display:none;">
             <thead>
-                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Qty</th><th>Warehouse</th><th>Created By</th></tr>
+                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th><th>Warehouse</th><th>Created By</th></tr>
             </thead>
             <tbody id="savedTableBody"></tbody>
         </table>
@@ -394,12 +397,15 @@
                     feedback.className = 'scan-feedback scan-success';
                     feedback.textContent = `✓ ${item.sku}  qty: ${existing.qty} (+1)` + (fromPO ? '  • from PO' : '');
                 } else {
+                    const prices = priceForSku(item.sku);
                     sessionItems.push({
                         sku: item.sku,
                         friendly_name: item.friendly_name || '',
                         color: item.color || '',
                         barcode: item.barcode || scannedBarcode,
-                        qty: 1
+                        qty: 1,
+                        purchase_price: prices.purchase_price,
+                        mrp: prices.mrp
                     });
                     feedback.className = 'scan-feedback scan-success';
                     feedback.textContent = `✓ ${item.sku}  added` + (fromPO ? '  • from PO archive' : '');
@@ -481,12 +487,15 @@
             if (existing) {
                 existing.qty += qty;
             } else {
+                const prices = priceForSku(currentScannedItem.sku);
                 sessionItems.push({
                     sku: currentScannedItem.sku,
                     friendly_name: currentScannedItem.friendly_name || '',
                     color: currentScannedItem.color || '',
                     barcode: currentScannedItem.barcode || '',
-                    qty: qty
+                    qty: qty,
+                    purchase_price: prices.purchase_price,
+                    mrp: prices.mrp
                 });
             }
             closePopup();
@@ -747,6 +756,18 @@
                     <td>${item.color}</td>
                     <td style="font-family:monospace; font-size:12px;">${item.barcode}</td>
                     <td>
+                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                               value="${item.purchase_price ? item.purchase_price : ''}"
+                               onchange="updateSessionPrice(${idx}, 'purchase_price', this.value)"
+                               style="width:90px; font-size:13px; padding:4px; text-align:right; border:1px solid #ddd; border-radius:4px;">
+                    </td>
+                    <td>
+                        <input type="number" min="0" step="0.01" placeholder="0.00"
+                               value="${item.mrp ? item.mrp : ''}"
+                               onchange="updateSessionPrice(${idx}, 'mrp', this.value)"
+                               style="width:90px; font-size:13px; padding:4px; text-align:right; border:1px solid #ddd; border-radius:4px;">
+                    </td>
+                    <td>
                         <input type="number" min="1" max="9999" maxlength="4"
                                value="${item.qty}" onchange="updateSessionQty(${idx}, this.value)"
                                style="width:70px; font-size:14px; padding:4px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold;">
@@ -771,6 +792,24 @@
             const q = Math.max(1, Math.min(9999, parseInt(String(val).trim()) || 1));
             sessionItems[idx].qty = q;
             document.getElementById('totalQty').textContent = sessionItems.reduce((s, i) => s + i.qty, 0);
+        }
+
+        function updateSessionPrice(idx, field, val) {
+            const raw = String(val).trim();
+            const n = raw === '' ? 0 : parseFloat(raw);
+            sessionItems[idx][field] = (isNaN(n) || n < 0) ? 0 : n;
+            persistScanSession();
+        }
+
+        // Prefill prices for a SKU from what was already saved (so re-scans carry
+        // the known purchase price / MRP instead of asking again)
+        function priceForSku(sku) {
+            const orgId = document.getElementById('orgSelect').value;
+            const savedRow = savedInventory.find(s => s.sku === sku && String(s.org_id) === String(orgId));
+            return {
+                purchase_price: (savedRow && parseFloat(savedRow.purchase_price) > 0) ? parseFloat(savedRow.purchase_price) : 0,
+                mrp: (savedRow && parseFloat(savedRow.mrp) > 0) ? parseFloat(savedRow.mrp) : 0
+            };
         }
 
         function removeItem(idx) {
@@ -903,38 +942,83 @@
             return { '1': 'BRACELET', '2': 'BROOCH', '3': 'EARRING', '4': 'NECKLACE', '5': 'RING', '6': 'CHARM' }[d] || '';
         }
 
-        async function loadSavedInventory() {
-            try {
-                const res = await fetch('/api/opening-inventory', { credentials: 'same-origin' });
-                const data = await res.json();
-                const tbody = document.getElementById('savedTableBody');
-                const table = document.getElementById('savedTable');
-                const empty = document.getElementById('savedEmpty');
+        // Collection code from SKU: JW22SSFN303T -> FN, JW22SSIB204 -> IB,
+        // BGZPP201 -> ZPP. Letters between the season prefix and the 3-digit number.
+        function deriveCollection(sku) {
+            const s = String(sku || '').trim().toUpperCase();
+            let m = s.match(/^[A-Z]{2}\d{2}[A-Z]{2}([A-Z]{1,4})\d{3}/);
+            if (m) return m[1];
+            m = s.match(/^[A-Z]{2}([A-Z]{1,4})\d{3}/);
+            return m ? m[1] : '';
+        }
 
-                if (!data || data.length === 0) {
-                    table.style.display = 'none';
-                    empty.style.display = '';
-                    savedInventory = [];
-                    return;
-                }
+        function renderSavedTable() {
+            const tbody = document.getElementById('savedTableBody');
+            const table = document.getElementById('savedTable');
+            const empty = document.getElementById('savedEmpty');
+            const term = (document.getElementById('savedSearchInput').value || '').trim().toLowerCase();
 
-                table.style.display = '';
-                empty.style.display = 'none';
-                savedInventory = data;  // cache for session-row hints
+            const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
+            const fmtPrice = (v) => (v !== null && v !== undefined && parseFloat(v) > 0) ? parseFloat(v).toFixed(2) : '';
 
-                const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
-                tbody.innerHTML = data.map(r => `
+            let rows = savedInventory;
+            if (term) {
+                rows = savedInventory.filter(r => {
+                    const hay = [
+                        r.sku,
+                        r.barcode,
+                        deriveCollection(r.sku),
+                        orgNames[r.org_id] || String(r.org_id || ''),
+                        r.created_by
+                    ].join(' ').toLowerCase();
+                    return hay.includes(term);
+                });
+            }
+
+            if (!savedInventory || savedInventory.length === 0) {
+                table.style.display = 'none';
+                empty.style.display = '';
+                empty.textContent = 'No saved opening inventory yet.';
+                return;
+            }
+            if (rows.length === 0) {
+                table.style.display = 'none';
+                empty.style.display = '';
+                empty.textContent = `No rows match "${term}".`;
+                return;
+            }
+
+            table.style.display = '';
+            empty.style.display = 'none';
+            tbody.innerHTML = rows.map(r => `
                     <tr>
                         <td>${new Date(r.created_at).toLocaleDateString('en-CA')}</td>
                         <td><strong>${r.sku}</strong></td>
                         <td>${r.department || deriveDepartment(r.sku)}</td>
                         <td>${r.color || 'NA'}</td>
                         <td style="font-family:monospace; font-size:12px;">${r.barcode || ''}</td>
+                        <td style="text-align:right;">${fmtPrice(r.purchase_price)}</td>
+                        <td style="text-align:right;">${fmtPrice(r.mrp)}</td>
                         <td><strong>${r.qty}</strong></td>
                         <td>${orgNames[r.org_id] || r.org_id}</td>
                         <td>${r.created_by || ''}</td>
                     </tr>
                 `).join('');
+        }
+
+        async function loadSavedInventory() {
+            try {
+                const res = await fetch('/api/opening-inventory', { credentials: 'same-origin' });
+                const data = await res.json();
+
+                if (!data || data.length === 0) {
+                    savedInventory = [];
+                    renderSavedTable();
+                    return;
+                }
+
+                savedInventory = data;  // cache for session-row hints + search
+                renderSavedTable();
             } catch (err) {
                 console.error('Error loading saved inventory:', err);
             }
