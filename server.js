@@ -658,6 +658,15 @@ async function ensureSchema() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_oi_org ON opening_inventory(org_id)`);
     await pool.query(`ALTER TABLE opening_inventory ADD COLUMN IF NOT EXISTS purchase_price NUMERIC DEFAULT 0`);
     await pool.query(`ALTER TABLE opening_inventory ADD COLUMN IF NOT EXISTS mrp NUMERIC DEFAULT 0`);
+    // Backfill: purchase price comes from item_master.std_cost_rmb when the row
+    // was saved without one
+    await pool.query(`
+      UPDATE opening_inventory oi SET purchase_price = im.std_cost_rmb
+      FROM item_master im
+      WHERE oi.sku = im.sku
+        AND (oi.purchase_price IS NULL OR oi.purchase_price = 0)
+        AND im.std_cost_rmb IS NOT NULL AND im.std_cost_rmb > 0
+    `);
   } catch (err) {
     console.error('opening_inventory migration warning:', err.message);
   }
@@ -3532,7 +3541,7 @@ app.get('/api/items/all', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) =
   try {
     const result = await pool.query(
       `SELECT sku, friendly_name, barcode, collection, category, status,
-              color_code AS color, material, vendor_item_number
+              color_code AS color, material, vendor_item_number, std_cost_rmb
        FROM item_master
        ORDER BY sku`
     );
@@ -4159,6 +4168,20 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
       };
       const purchasePrice = toPrice(item.purchase_price);
       const mrp = toPrice(item.mrp);
+      // Purchase price fallback: the cost is already in item_master.std_cost_rmb,
+      // so a blank input still saves a real price instead of 0
+      let effectivePurchase = purchasePrice;
+      if (effectivePurchase === null) {
+        try {
+          const imP = await pool.query(
+            `SELECT std_cost_rmb FROM item_master
+              WHERE TRIM(UPPER(sku)) = $1 AND std_cost_rmb IS NOT NULL AND std_cost_rmb > 0
+              LIMIT 1`,
+            [skuUp]
+          );
+          if (imP.rows.length > 0) effectivePurchase = parseFloat(imP.rows[0].std_cost_rmb);
+        } catch (e) { /* non-fatal */ }
+      }
 
       const existing = await pool.query(
         'SELECT id, qty FROM opening_inventory WHERE sku = $1 AND org_id = $2',
@@ -4171,13 +4194,13 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
         // Prices fill-if-empty: a blank input never wipes a saved price.
         await pool.query(
           'UPDATE opening_inventory SET qty = qty + $1, barcode = COALESCE($2, barcode), friendly_name = COALESCE($3, friendly_name), color = COALESCE($4, color), purchase_price = COALESCE(NULLIF(purchase_price, 0), $7, purchase_price), mrp = COALESCE(NULLIF(mrp, 0), $8, mrp), created_by = $5, created_at = NOW() WHERE id = $6',
-          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id, purchasePrice, mrp]
+          [item.qty, barcode, item.friendly_name || null, item.color || null, createdBy, existing.rows[0].id, effectivePurchase, mrp]
         );
       } else {
         await pool.query(
           `INSERT INTO opening_inventory (sku, barcode, friendly_name, color, qty, org_id, created_by, purchase_price, mrp)
            VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0), COALESCE($9, 0))`,
-          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy, purchasePrice, mrp]
+          [item.sku, barcode, item.friendly_name || null, item.color || null, item.qty, targetOrg, createdBy, effectivePurchase, mrp]
         );
       }
       saved++;
