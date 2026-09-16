@@ -155,7 +155,7 @@
         </div>
         <table id="savedTable" style="display:none;">
             <thead>
-                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th></tr>
+                <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th><th></th></tr>
             </thead>
             <tbody id="savedTableBody"></tbody>
         </table>
@@ -1012,17 +1012,103 @@
             metaLine.style.display = '';
 
             tbody.innerHTML = rows.map(r => `
-                    <tr>
+                    <tr data-id="${r.id}">
                         <td>${new Date(r.created_at).toLocaleDateString('en-CA')}</td>
                         <td><strong>${r.sku}</strong></td>
                         <td>${r.department || deriveDepartment(r.sku)}</td>
                         <td>${r.color || 'NA'}</td>
                         <td style="font-family:monospace; font-size:12px;">${r.barcode || ''}</td>
-                        <td style="text-align:right;">${fmtPrice(r.purchase_price)}</td>
-                        <td style="text-align:right;">${fmtPrice(r.mrp)}</td>
-                        <td><strong>${r.qty}</strong></td>
+                        <td style="text-align:right;">${editableCell(r, 'purchase_price', fmtPrice(r.purchase_price))}</td>
+                        <td style="text-align:right;">${editableCell(r, 'mrp', fmtPrice(r.mrp))}</td>
+                        <td style="text-align:right;"><strong>${editableCell(r, 'qty', r.qty)}</strong></td>
+                        <td style="text-align:center;"><button class="oi-del-btn" onclick="deleteSavedRow(${r.id}, this)" title="Delete row" style="border:none;background:none;color:#c0392b;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;">&times;</button></td>
                     </tr>
                 `).join('');
+        }
+
+        // Inline amend: click a Qty / Purchase / MRP cell to edit it in place.
+        // Enter or blur saves (PATCH), Esc cancels. No dialogs.
+        function editableCell(row, field, display) {
+            return `<span class="oi-edit-cell" title="Click to amend"
+                          style="cursor:text; border-bottom:1px dashed #9ab; padding:0 2px;"
+                          onclick="startCellEdit(event, ${row.id}, '${field}', this)">${display}</span>`;
+        }
+
+        function startCellEdit(ev, rowId, field, span) {
+            ev.stopPropagation();
+            if (span.querySelector('input')) return;
+            const raw = span.textContent.trim();
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = raw;
+            input.style.cssText = 'width:70px;text-align:right;font:inherit;padding:1px 3px;border:1px solid #4a90d9;border-radius:3px;';
+            span.textContent = '';
+            span.appendChild(input);
+            input.focus();
+            input.select();
+            const done = (save) => {
+                if (!save) { renderSavedTable(); return; }
+                const val = input.value.trim();
+                span.textContent = '…';
+                patchSavedRow(rowId, field, val);
+            };
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); done(true); }
+                else if (e.key === 'Escape') { e.preventDefault(); done(false); }
+            });
+            input.addEventListener('blur', () => done(true));
+        }
+
+        async function patchSavedRow(rowId, field, value) {
+            const body = {};
+            body[field] = value;
+            try {
+                const res = await fetch(`/api/opening-inventory/${rowId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert('Amend failed: ' + (err.error || res.status));
+                }
+            } catch (e) {
+                alert('Amend failed: ' + e.message);
+            }
+            await loadSavedInventory();
+        }
+
+        // Delete a saved row. First click arms the button (turns into "sure?"),
+        // second click within 4s deletes. No confirmation dialogs.
+        async function deleteSavedRow(rowId, btn) {
+            if (btn.dataset.armed !== '1') {
+                btn.dataset.armed = '1';
+                btn.textContent = 'sure?';
+                btn.style.fontWeight = 'bold';
+                setTimeout(() => {
+                    btn.dataset.armed = '';
+                    btn.innerHTML = '&times;';
+                    btn.style.fontWeight = '';
+                }, 4000);
+                return;
+            }
+            btn.disabled = true;
+            try {
+                const res = await fetch(`/api/opening-inventory/${rowId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert('Delete failed: ' + (err.error || res.status));
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert('Delete failed: ' + e.message);
+                btn.disabled = false;
+            }
+            await loadSavedInventory();
         }
 
         async function loadSavedInventory() {
