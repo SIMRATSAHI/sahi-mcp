@@ -4287,6 +4287,61 @@ app.get('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (req
   }
 });
 
+// PATCH /api/opening-inventory/:id — amend a saved row (inline edit from the
+// saved table). Only the fields present in the body are updated. Qty is an
+// absolute set (amend), not an add — scanning more still goes through POST.
+app.patch('/api/opening-inventory/:id', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const allowed = ['qty', 'purchase_price', 'mrp', 'color', 'barcode'];
+  const sets = [];
+  const params = [];
+  for (const f of allowed) {
+    if (!(f in req.body)) continue;
+    let v = req.body[f];
+    if (f === 'qty') {
+      v = parseInt(v, 10);
+      if (isNaN(v) || v < 0) return res.status(400).json({ error: 'qty must be a non-negative integer' });
+    } else if (f === 'purchase_price' || f === 'mrp') {
+      if (v === '' || v === null) { v = null; }
+      else {
+        v = parseFloat(v);
+        if (isNaN(v) || v < 0) return res.status(400).json({ error: f + ' must be a non-negative number' });
+      }
+    } else {
+      v = (v === undefined || v === null || String(v).trim() === '') ? null : String(v).trim();
+    }
+    params.push(v);
+    sets.push(`${f} = $${params.length}`);
+  }
+  if (sets.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+  try {
+    params.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE opening_inventory SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+      params
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Row not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error amending opening inventory row:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/opening-inventory/:id — remove a wrong/duplicate saved row
+app.delete('/api/opening-inventory/:id', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `DELETE FROM opening_inventory WHERE id = $1 RETURNING id, sku`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Row not found' });
+    res.json({ deleted: result.rows[0] });
+  } catch (err) {
+    console.error('Error deleting opening inventory row:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/opening-inventory — save a batch of scanned items as opening stock
 app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { items, org_id } = req.body;
