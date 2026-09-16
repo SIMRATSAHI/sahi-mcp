@@ -3663,17 +3663,27 @@ function lookupItemPrices(sku) {
   };
   let hit = tryHit(s);
   if (hit) return hit;
-  // SKU alias: opening inventory holds legacy season codes for the same
-  // physical items the Item Master prices under letter-coded prefixes
-  // (JW22SSBC201 = JWVSSBC201, JW21SAI303T-1 = JWUSSAI303T-1).
-  // Retry the whole chain on each aliased code.
-  const aliases = [];
-  if (s.startsWith('JW22SS')) aliases.push('JWVSS' + s.slice(6));
-  if (s.startsWith('JW21SS')) aliases.push('JWUSS' + s.slice(6));
-  if (s.startsWith('JW21S')) aliases.push('JWUSS' + s.slice(5));
-  for (const a of aliases) {
-    hit = tryHit(a);
-    if (hit) return hit;
+  // SKU alias: opening inventory holds legacy season codes (JW21…, JW22SS…,
+  // JW21AWRF…) for items the Item Master prices with a letter season code
+  // (JWU…, JWV…) — 21st letter = U, 22nd = V. Portal codes are inconsistent
+  // (JW21SAI…, JW21AWRF…, JW22SS…), so try the letter form with and without
+  // an S segment, and with any '+X' add-on suffix stripped.
+  const m = s.match(/^JW(\d{2})(.*)$/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 10 && n <= 26) {
+      const letter = String.fromCharCode(64 + n);
+      const rest = m[2];
+      const cands = [
+        'JW' + letter + rest,
+        'JW' + letter + 'S' + rest,
+        'JW' + letter + rest.split('+')[0]
+      ];
+      for (const a of cands) {
+        hit = tryHit(a);
+        if (hit) return hit;
+      }
+    }
   }
   return null;
 }
