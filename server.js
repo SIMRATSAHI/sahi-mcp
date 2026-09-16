@@ -4801,6 +4801,8 @@ async function autoResolvePendingUnmatched(orgId, actor) {
       skipped.push({ id: ub.id, barcode: ub.barcode, qty: ub.qty, reason: 'error: ' + rowErr.message });
     }
   }
+  // Price-fill newly created rows immediately — don't wait for the next boot.
+  if (resolved.length > 0) await backfillPricesFromItemPrices();
   return { resolved, skipped };
 }
 
