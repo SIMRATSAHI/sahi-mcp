@@ -153,6 +153,7 @@
         <div id="savedMetaLine" style="display:none; margin-bottom:8px; font-size:13px; color:#555;">
             <span id="savedMetaText"></span>
         </div>
+        <div id="savedStats" style="display:none; margin-bottom:12px;"></div>
         <table id="savedTable" style="display:none;">
             <thead>
                 <tr><th>Date</th><th>SKU Code</th><th>Department</th><th>Color</th><th>Barcode</th><th>Purchase Price</th><th>MRP (Retail)</th><th>Qty</th><th></th></tr>
@@ -961,6 +962,35 @@
             return m ? m[1] : '';
         }
 
+        // Category counts for the Saved Opening Inventory header:
+        // per department — distinct SKUs + total qty — plus grand totals.
+        function renderSavedStats(rows) {
+            const box = document.getElementById('savedStats');
+            const byDept = {};
+            let totalQty = 0, totalSkus = 0;
+            for (const r of rows) {
+                const dept = ((r.department || deriveDepartment(r.sku) || deriveCategory(r.sku) || 'OTHER') + '').trim().toUpperCase();
+                if (!byDept[dept]) byDept[dept] = { skus: new Set(), qty: 0 };
+                byDept[dept].skus.add(String(r.sku).trim().toUpperCase());
+                byDept[dept].qty += parseInt(r.qty, 10) || 0;
+                totalQty += parseInt(r.qty, 10) || 0;
+            }
+            totalSkus = Object.values(byDept).reduce((n, d) => n + d.skus.size, 0);
+            const order = ['EARRING', 'NECKLACE', 'BRACELET', 'BROOCH', 'RING', 'CHARM', 'HANDBAG', 'T-SHIRT'];
+            const depts = Object.keys(byDept).sort((a, b) => {
+                const ia = order.indexOf(a), ib = order.indexOf(b);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
+            });
+            const chip = (label, skus, qty) => `
+                <span style="display:inline-block; background:#f4f6fa; border:1px solid #dfe5ee; border-radius:14px; padding:4px 12px; margin:0 6px 6px 0; font-size:13px; color:#333;">
+                    <b>${label}</b>&nbsp; ${skus} SKU${skus === 1 ? '' : 's'} · ${qty} pcs
+                </span>`;
+            let html = depts.map(d => chip(d, byDept[d].skus.size, byDept[d].qty)).join('');
+            html += chip('TOTAL', totalSkus, totalQty);
+            box.innerHTML = html;
+            box.style.display = '';
+        }
+
         function renderSavedTable() {
             const tbody = document.getElementById('savedTableBody');
             const table = document.getElementById('savedTable');
@@ -989,6 +1019,7 @@
                 empty.style.display = '';
                 empty.textContent = 'No saved opening inventory yet.';
                 document.getElementById('savedMetaLine').style.display = 'none';
+                document.getElementById('savedStats').style.display = 'none';
                 return;
             }
             if (rows.length === 0) {
@@ -1010,6 +1041,8 @@
             const who = [...new Set(savedInventory.map(r => (r.created_by || '').trim()).filter(Boolean))];
             metaText.innerHTML = `<b>Warehouse:</b> ${whs.join(', ') || '—'} &nbsp;·&nbsp; <b>Created By:</b> ${who.join(', ') || '—'}`;
             metaLine.style.display = '';
+
+            renderSavedStats(savedInventory);
 
             tbody.innerHTML = rows.map(r => `
                     <tr data-id="${r.id}">
