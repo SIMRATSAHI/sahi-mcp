@@ -1,5 +1,5 @@
 {
- "source": "Item Master-Live-V2.xlsx > Item-Details (Cost RMB / RSP RMB) + PO 10001080000013 (Meimeida Jewelry, cost only)",
+ "source": "Item Master-Live-V2.xlsx > Item-Details + PO 10001080000013 (Meimeida) + PO-106 SAHI 19AWGW (Geili 2019) + PO 10001060000029 (JW21SSAI201)",
  "currency": "RMB",
  "sku_prices": {
   "BGUSSAI201-1": {
@@ -1175,6 +1175,34 @@
   "JWZBF401": {
    "cost_rmb": 87.14,
    "rsp_rmb": 289
+  },
+  "19AWGW101": {
+   "cost_rmb": 12.0,
+   "rsp_rmb": null
+  },
+  "19AWGW301T": {
+   "cost_rmb": 9.0,
+   "rsp_rmb": null
+  },
+  "19AWGW302T": {
+   "cost_rmb": 7.0,
+   "rsp_rmb": null
+  },
+  "19AWGW302C": {
+   "cost_rmb": 2.0,
+   "rsp_rmb": null
+  },
+  "19AWGW304T": {
+   "cost_rmb": 9.0,
+   "rsp_rmb": null
+  },
+  "19AWGW401": {
+   "cost_rmb": 9.0,
+   "rsp_rmb": null
+  },
+  "JW21SSAI201": {
+   "cost_rmb": 26.0,
+   "rsp_rmb": null
   }
  },
  "core_prices": {
@@ -1362,7 +1390,7 @@
   }
  },
  "counts": {
-  "exact": 304,
+  "exact": 311,
   "core": 46
  }
 }
