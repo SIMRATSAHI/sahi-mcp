@@ -3653,14 +3653,16 @@ function lookupItemPrices(sku) {
   const cp = itemPriceRegistry.core_prices || {};
   const tryHit = (code) => {
     if (!code) return null;
-    if (sp[code]) return sp[code];
-    // Separator normalisation: item master prices size variants with
-    // '-S/-M/-L' while portal rows may hold '/S /M /L' (e.g. JW22SSBC503/S).
-    const norm = code.replace(/\//g, '-');
-    if (norm !== code && sp[norm]) return sp[norm];
-    const core = norm.replace(/[-/ ]\d+$/, '');
-    if (core && core !== norm && cp[core]) return cp[core];
-    return null;
+    const hit = sp[code] || (code.replace(/\//g, '-') !== code && sp[code.replace(/\//g, '-')]) || null;
+    const core = code.replace(/\//g, '-').replace(/[-/ ]\d+$/, '');
+    const hit2 = hit || (core && core !== code && cp[core]) || null;
+    if (!hit2) return null;
+    // User SOP: when a source has cost but no retail, MRP (RMB) = 5 x cost,
+    // rounded to the nearest 5.
+    if (!(hit2.rsp_rmb > 0) && hit2.cost_rmb > 0) {
+      return { cost_rmb: hit2.cost_rmb, rsp_rmb: Math.round(hit2.cost_rmb * 5 / 5) * 5 };
+    }
+    return hit2;
   };
   const aliasChain = (x) => {
     let hit = tryHit(x);
