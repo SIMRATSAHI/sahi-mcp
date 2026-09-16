@@ -1,5 +1,5 @@
 {
- "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029",
+ "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029 + PO_Upload JW21SSCB CSVs (2021 GEILI, 20 SKUs cost+sale)",
  "currency": "RMB",
  "sku_prices": {
   "BGUSSAI201-1": {
@@ -2614,6 +2614,86 @@
   "JW21AWRF303T+C": {
    "cost_rmb": 43.0,
    "rsp_rmb": 499.0
+  },
+  "JW21SSCB312T": {
+   "cost_rmb": 125.0,
+   "rsp_rmb": 950.0
+  },
+  "JW21SSCB304T": {
+   "cost_rmb": 60.0,
+   "rsp_rmb": 650.0
+  },
+  "JW21SSCB304C": {
+   "cost_rmb": 60.0,
+   "rsp_rmb": 650.0
+  },
+  "JW21SSCB302T": {
+   "cost_rmb": 50.0,
+   "rsp_rmb": 550.0
+  },
+  "JW21SSCB302C": {
+   "cost_rmb": 50.0,
+   "rsp_rmb": 550.0
+  },
+  "JW21SSCB310T": {
+   "cost_rmb": 60.0,
+   "rsp_rmb": 650.0
+  },
+  "JW21SSCB310C": {
+   "cost_rmb": 60.0,
+   "rsp_rmb": 650.0
+  },
+  "JW21SSCB311T": {
+   "cost_rmb": 34.0,
+   "rsp_rmb": 380.0
+  },
+  "JW21SSCB301T": {
+   "cost_rmb": 32.0,
+   "rsp_rmb": 350.0
+  },
+  "JW21SSCB301C": {
+   "cost_rmb": 32.0,
+   "rsp_rmb": 350.0
+  },
+  "JW21SSCB102": {
+   "cost_rmb": 68.0,
+   "rsp_rmb": 750.0
+  },
+  "JW21SSCB101": {
+   "cost_rmb": 58.0,
+   "rsp_rmb": 650.0
+  },
+  "JW21SSCB406": {
+   "cost_rmb": 50.0,
+   "rsp_rmb": 550.0
+  },
+  "JW21SSCB402": {
+   "cost_rmb": 68.0,
+   "rsp_rmb": 750.0
+  },
+  "JW21SSCB407": {
+   "cost_rmb": 70.0,
+   "rsp_rmb": 800.0
+  },
+  "JW21SSCB201": {
+   "cost_rmb": 70.0,
+   "rsp_rmb": 800.0
+  },
+  "JW21SSCB501": {
+   "cost_rmb": 43.0,
+   "rsp_rmb": 500.0
+  },
+  "JW21SSCB502/S": {
+   "cost_rmb": 43.0,
+   "rsp_rmb": 500.0
+  },
+  "JW21SSCB502/M": {
+   "cost_rmb": 43.0,
+   "rsp_rmb": 500.0
+  },
+  "JW21SSCB502/L": {
+   "cost_rmb": 43.0,
+   "rsp_rmb": 500.0
   }
  },
  "core_prices": {
@@ -2801,7 +2881,7 @@
   }
  },
  "counts": {
-  "exact": 673,
+  "exact": 693,
   "core": 46
  }
 }
