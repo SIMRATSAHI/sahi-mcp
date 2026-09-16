@@ -1,5 +1,5 @@
 {
- "source": "Item Master-Live-V2.xlsx > Item-Details + PO 10001080000013 (Meimeida) + PO-106 SAHI 19AWGW (Geili 2019) + PO 10001060000029 (JW21SSAI201)",
+ "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029",
  "currency": "RMB",
  "sku_prices": {
   "BGUSSAI201-1": {
@@ -1177,32 +1177,1435 @@
    "rsp_rmb": 289
   },
   "19AWGW101": {
-   "cost_rmb": 12.0,
-   "rsp_rmb": null
+   "cost_rmb": 85.0,
+   "rsp_rmb": 1050.0
   },
   "19AWGW301T": {
-   "cost_rmb": 9.0,
-   "rsp_rmb": null
+   "cost_rmb": 120.0,
+   "rsp_rmb": 1500.0
   },
   "19AWGW302T": {
-   "cost_rmb": 7.0,
-   "rsp_rmb": null
+   "cost_rmb": 90.0,
+   "rsp_rmb": 1150.0
   },
   "19AWGW302C": {
-   "cost_rmb": 2.0,
-   "rsp_rmb": null
+   "cost_rmb": 90.0,
+   "rsp_rmb": 1150.0
   },
   "19AWGW304T": {
-   "cost_rmb": 9.0,
-   "rsp_rmb": null
+   "cost_rmb": 110.0,
+   "rsp_rmb": 1350.0
   },
   "19AWGW401": {
-   "cost_rmb": 9.0,
-   "rsp_rmb": null
+   "cost_rmb": 90.0,
+   "rsp_rmb": 1150.0
   },
   "JW21SSAI201": {
    "cost_rmb": 26.0,
    "rsp_rmb": null
+  },
+  "19SSVN501": {
+   "cost_rmb": 130.0
+  },
+  "19SS3J191": {
+   "rsp_rmb": 2300.0,
+   "cost_rmb": 1225.0
+  },
+  "19SSBB1S01": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S02": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S03": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S04": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S05": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S06": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S07": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S08": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S09": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1S10": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSBB1SKQL": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 399.5
+  },
+  "19SSSQ2S01": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S02": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S03": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S04": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S05": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S06": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S07": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S08": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S09": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSSQ2S10": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "19SSS2A2S01": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A2S02": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A2S03": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A2S04": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A2S05": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A2S06": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A2S07": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A3S01": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A3S02": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19SSS2A3S03": {
+   "rsp_rmb": 890.0,
+   "cost_rmb": 432.0388349514563
+  },
+  "19AWPSDXH": {
+   "rsp_rmb": 1780.0,
+   "cost_rmb": 864.0776699029126
+  },
+  "19AWPSDH": {
+   "rsp_rmb": 1780.0,
+   "cost_rmb": 864.0776699029126
+  },
+  "19AWPSSSL": {
+   "rsp_rmb": 1780.0,
+   "cost_rmb": 864.0776699029126
+  },
+  "19AWPSZS": {
+   "rsp_rmb": 1780.0,
+   "cost_rmb": 864.0776699029126
+  },
+  "19AWCH1001": {
+   "rsp_rmb": 21.0,
+   "cost_rmb": 9.6
+  },
+  "19SSMR4148": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 14.0
+  },
+  "19SSMR4149": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 14.0
+  },
+  "19SSMR4302": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 14.0
+  },
+  "19SSMR4449": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 14.0
+  },
+  "19SSLC3143": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 34.0
+  },
+  "19SSLC3417": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 34.0
+  },
+  "19SSAC3415": {
+   "rsp_rmb": 500.0,
+   "cost_rmb": 19.0
+  },
+  "19SSAC3138": {
+   "rsp_rmb": 500.0,
+   "cost_rmb": 19.0
+  },
+  "19SSRC3418": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 29.0
+  },
+  "19SSRC3139": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 29.0
+  },
+  "19SSRC3140": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 29.0
+  },
+  "19SSAF301": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 7.8
+  },
+  "19SSAF302": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 7.8
+  },
+  "19SSAF303": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 7.8
+  },
+  "19SSAF304": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 7.8
+  },
+  "19SSAF305": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 7.8
+  },
+  "19SSAF306": {
+   "rsp_rmb": 300.0,
+   "cost_rmb": 7.8
+  },
+  "19SSAF401": {
+   "rsp_rmb": 200.0,
+   "cost_rmb": 4.94
+  },
+  "19SSAF402": {
+   "rsp_rmb": 200.0,
+   "cost_rmb": 4.94
+  },
+  "19SSAF403": {
+   "rsp_rmb": 200.0,
+   "cost_rmb": 4.94
+  },
+  "19SSAF404": {
+   "rsp_rmb": 200.0,
+   "cost_rmb": 4.94
+  },
+  "19SSAF405": {
+   "rsp_rmb": 200.0,
+   "cost_rmb": 4.94
+  },
+  "19SSAF406": {
+   "rsp_rmb": 200.0,
+   "cost_rmb": 4.94
+  },
+  "19SSAF601": {
+   "rsp_rmb": 100.0,
+   "cost_rmb": 3.95
+  },
+  "19SSAF602": {
+   "rsp_rmb": 100.0,
+   "cost_rmb": 3.95
+  },
+  "19SSAF603": {
+   "rsp_rmb": 100.0,
+   "cost_rmb": 3.95
+  },
+  "19SSAF604": {
+   "rsp_rmb": 100.0,
+   "cost_rmb": 3.95
+  },
+  "19SSAF605": {
+   "rsp_rmb": 100.0,
+   "cost_rmb": 3.95
+  },
+  "19SSAF606": {
+   "rsp_rmb": 100.0,
+   "cost_rmb": 3.95
+  },
+  "19SSAC1": {
+   "rsp_rmb": 369.0,
+   "cost_rmb": 166.05
+  },
+  "19SSAC2": {
+   "rsp_rmb": 369.0,
+   "cost_rmb": 166.05
+  },
+  "19SSAC3": {
+   "rsp_rmb": 369.0,
+   "cost_rmb": 166.05
+  },
+  "19SSAD1": {
+   "rsp_rmb": 429.0,
+   "cost_rmb": 193.05
+  },
+  "19SSAD2": {
+   "rsp_rmb": 429.0,
+   "cost_rmb": 193.05
+  },
+  "19SSAD3": {
+   "rsp_rmb": 429.0,
+   "cost_rmb": 193.05
+  },
+  "19SSILDIF2S": {
+   "rsp_rmb": 1599.0,
+   "cost_rmb": 719.5500000000001
+  },
+  "19SSILDIF3S": {
+   "rsp_rmb": 1599.0,
+   "cost_rmb": 719.5500000000001
+  },
+  "19SSILDIF4S": {
+   "rsp_rmb": 1599.0,
+   "cost_rmb": 719.5500000000001
+  },
+  "19SSRR250": {
+   "rsp_rmb": 400.0,
+   "cost_rmb": 14.0
+  },
+  "FVM1798": {
+   "cost_rmb": 30.0
+  },
+  "19AWAA301T": {
+   "rsp_rmb": 2500.0,
+   "cost_rmb": 3800.0
+  },
+  "19AWAA302T": {
+   "rsp_rmb": 1000.0,
+   "cost_rmb": 1600.0
+  },
+  "19AWAA303T": {
+   "rsp_rmb": 2100.0,
+   "cost_rmb": 3360.0
+  },
+  "19AWAA304T": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 3520.0
+  },
+  "19AWAA305T": {
+   "rsp_rmb": 1800.0,
+   "cost_rmb": 2880.0
+  },
+  "19AWAA306H": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 3520.0
+  },
+  "19AWAA307T": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 3520.0
+  },
+  "19SSBFER1094": {
+   "cost_rmb": 14.0
+  },
+  "19SSBFER1100": {
+   "cost_rmb": 12.0
+  },
+  "19SSBFNW1088": {
+   "cost_rmb": 13.0
+  },
+  "19SSBFBR1090": {
+   "cost_rmb": 16.0
+  },
+  "19SSBFGF1098": {
+   "cost_rmb": 13.0
+  },
+  "19SSBFRI1085": {
+   "cost_rmb": 10.0
+  },
+  "19SSLNER1021": {
+   "cost_rmb": 8.0
+  },
+  "19SSLNNW1039": {
+   "cost_rmb": 16.0
+  },
+  "19SSLNWW1039": {
+   "cost_rmb": 14.0
+  },
+  "19SSLNRI1042": {
+   "cost_rmb": 14.0
+  },
+  "19SSLNER1012": {
+   "cost_rmb": 16.0
+  },
+  "19SSLNER1025": {
+   "cost_rmb": 18.0
+  },
+  "19SSLNER1018": {
+   "cost_rmb": 17.0
+  },
+  "19SSLNER1015": {
+   "cost_rmb": 13.0
+  },
+  "19SSLNNW1028": {
+   "cost_rmb": 17.0
+  },
+  "19SSFGER1071": {
+   "cost_rmb": 17.0
+  },
+  "19SSFGWW1069": {
+   "cost_rmb": 13.0
+  },
+  "19SSFGWW1075": {
+   "cost_rmb": 16.0
+  },
+  "19SSFGNW1068": {
+   "cost_rmb": 14.0
+  },
+  "19SSSP304T": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 8.09
+  },
+  "19SSSP310T": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 8.05
+  },
+  "19SSSSP309T": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 9.79
+  },
+  "19SSSP308T": {
+   "rsp_rmb": 1250.0,
+   "cost_rmb": 14.8
+  },
+  "19SSSP308C": {
+   "rsp_rmb": 1250.0,
+   "cost_rmb": 14.8
+  },
+  "19SSSP306T": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 10.3
+  },
+  "19SSSP306C": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 10.3
+  },
+  "19SSSP102": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 10.0
+  },
+  "19SSSP104": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 7.36
+  },
+  "19SSSP101": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 6.35
+  },
+  "19SSSP402": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 10.0
+  },
+  "19SSSP401": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 8.95
+  },
+  "19SSSP403": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 9.26
+  },
+  "19SSSP501": {
+   "rsp_rmb": 450.0,
+   "cost_rmb": 5.2
+  },
+  "19SSBW307T": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 10.3
+  },
+  "19SSBW307C": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 10.3
+  },
+  "19SSBW302T": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 9.2
+  },
+  "19SSBW301T": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 8.35
+  },
+  "19SSBW301C": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 8.35
+  },
+  "19SSBW102": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 9.0
+  },
+  "19SSBW402": {
+   "rsp_rmb": 1050.0,
+   "cost_rmb": 12.0
+  },
+  "19SSBW401": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 10.45
+  },
+  "19SSBW502": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 8.2
+  },
+  "19SSSM302T": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 8.8
+  },
+  "19SSSM302C": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 8.8
+  },
+  "19SSSM303T": {
+   "rsp_rmb": 881.4,
+   "cost_rmb": 78.0
+  },
+  "19SSSM303C": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 10.0
+  },
+  "19SSSM304T": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 11.0
+  },
+  "19SSSM305T": {
+   "rsp_rmb": 1350.0,
+   "cost_rmb": 15.5
+  },
+  "19SSSM305C": {
+   "rsp_rmb": 1350.0,
+   "cost_rmb": 15.5
+  },
+  "19SSSM301T": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 8.0
+  },
+  "19SSSM301C": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 8.0
+  },
+  "19SSSP309T": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 9.79
+  },
+  "19SSVT301T": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 28.0
+  },
+  "19SSVT302T": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 29.0
+  },
+  "19SSVT302C": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 29.0
+  },
+  "19SSVT303T": {
+   "rsp_rmb": 1600.0,
+   "cost_rmb": 38.0
+  },
+  "19SSVT303C": {
+   "rsp_rmb": 1600.0,
+   "cost_rmb": 38.0
+  },
+  "19SSVT101": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 35.0
+  },
+  "19SSVT102": {
+   "rsp_rmb": 1250.0,
+   "cost_rmb": 30.0
+  },
+  "19SSVT103": {
+   "rsp_rmb": 1750.0,
+   "cost_rmb": 41.0
+  },
+  "19SSVT104": {
+   "rsp_rmb": 1450.0,
+   "cost_rmb": 34.0
+  },
+  "19SSVT401": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 36.0
+  },
+  "19SSVT402": {
+   "rsp_rmb": 1850.0,
+   "cost_rmb": 44.0
+  },
+  "19SSVT403": {
+   "rsp_rmb": 1800.0,
+   "cost_rmb": 42.0
+  },
+  "19SSHS301H": {
+   "rsp_rmb": 2850.0,
+   "cost_rmb": 68.0
+  },
+  "19SSHS401": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 52.25
+  },
+  "19SSHS501": {
+   "rsp_rmb": 1150.0,
+   "cost_rmb": 27.0
+  },
+  "19SSHS302T": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 35.0
+  },
+  "19SSHS402": {
+   "rsp_rmb": 2300.0,
+   "cost_rmb": 55.0
+  },
+  "19SSHS502": {
+   "rsp_rmb": 1350.0,
+   "cost_rmb": 32.0
+  },
+  "19SSHS303T": {
+   "rsp_rmb": 1650.0,
+   "cost_rmb": 40.0
+  },
+  "19SSHS403": {
+   "rsp_rmb": 2000.0,
+   "cost_rmb": 47.0
+  },
+  "19SSHS503": {
+   "rsp_rmb": 1250.0,
+   "cost_rmb": 30.0
+  },
+  "19SSHS304T": {
+   "rsp_rmb": 2350.0,
+   "cost_rmb": 56.0
+  },
+  "19SSHS404": {
+   "rsp_rmb": 2350.0,
+   "cost_rmb": 56.0
+  },
+  "19SSHS504": {
+   "rsp_rmb": 1700.0,
+   "cost_rmb": 40.0
+  },
+  "19SSHS305T": {
+   "rsp_rmb": 2250.0,
+   "cost_rmb": 54.0
+  },
+  "19SSHS405": {
+   "rsp_rmb": 3000.0,
+   "cost_rmb": 70.0
+  },
+  "19SSHS505": {
+   "rsp_rmb": 2100.0,
+   "cost_rmb": 50.0
+  },
+  "19SSHS306T": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 35.0
+  },
+  "19SSHS406": {
+   "rsp_rmb": 2250.0,
+   "cost_rmb": 54.0
+  },
+  "19SSHS506": {
+   "rsp_rmb": 1600.0,
+   "cost_rmb": 38.0
+  },
+  "19SSHS307T": {
+   "rsp_rmb": 1150.0,
+   "cost_rmb": 27.0
+  },
+  "19SSHS407": {
+   "rsp_rmb": 1650.0,
+   "cost_rmb": 40.0
+  },
+  "19SSHS507": {
+   "rsp_rmb": 1000.0,
+   "cost_rmb": 24.0
+  },
+  "19SSHS308H": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 36.0
+  },
+  "19SSHS408": {
+   "rsp_rmb": 2800.0,
+   "cost_rmb": 67.0
+  },
+  "19SSHS508": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 29.0
+  },
+  "19SSHS309H": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 35.0
+  },
+  "19SSHS409": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 39.0
+  },
+  "19SSHS509": {
+   "rsp_rmb": 1200.0,
+   "cost_rmb": 28.0
+  },
+  "19SSHS310T": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 22.0
+  },
+  "19SSHS410": {
+   "rsp_rmb": 1550.0,
+   "cost_rmb": 38.0
+  },
+  "19SSHS510": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 21.0
+  },
+  "19SSHS311T": {
+   "rsp_rmb": 1100.0,
+   "cost_rmb": 26.0
+  },
+  "19SSHS411": {
+   "rsp_rmb": 1750.0,
+   "cost_rmb": 41.0
+  },
+  "19SSHS511": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 23.0
+  },
+  "19SSHS312H": {
+   "rsp_rmb": 1350.0,
+   "cost_rmb": 33.0
+  },
+  "19SSHS412": {
+   "rsp_rmb": 1750.0,
+   "cost_rmb": 42.0
+  },
+  "19SSHS512": {
+   "rsp_rmb": 1050.0,
+   "cost_rmb": 26.0
+  },
+  "19AWBR303H": {
+   "rsp_rmb": 1250.0,
+   "cost_rmb": 100.0
+  },
+  "19AWBR304T": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 51.33
+  },
+  "19AWBR304C": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 51.33
+  },
+  "19AWBR310T": {
+   "rsp_rmb": 1300.0,
+   "cost_rmb": 101.77
+  },
+  "19AWBR310C": {
+   "rsp_rmb": 1300.0,
+   "cost_rmb": 101.77
+  },
+  "19AWBR307T": {
+   "rsp_rmb": 1050.0,
+   "cost_rmb": 87.61
+  },
+  "19AWBR306H": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 51.33
+  },
+  "19AWBR305T": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 51.33
+  },
+  "19AWBR305C": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 51.33
+  },
+  "19AWBR105": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 69.91
+  },
+  "19AWBR104": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 60.18
+  },
+  "19AWBR101": {
+   "rsp_rmb": 1450.0,
+   "cost_rmb": 116.81
+  },
+  "19AWBR408": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 61.86
+  },
+  "19AWBR401": {
+   "rsp_rmb": 1050.0,
+   "cost_rmb": 84.07
+  },
+  "19AWBR404": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 158.41
+  },
+  "19AWBR203": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 69.91
+  },
+  "19AWBR202": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 51.33
+  },
+  "19SSBA501": {
+   "rsp_rmb": 350.0,
+   "cost_rmb": 25.84
+  },
+  "19SSBA502": {
+   "rsp_rmb": 350.0,
+   "cost_rmb": 25.6
+  },
+  "19SSBA301": {
+   "rsp_rmb": 380.0,
+   "cost_rmb": 31.0
+  },
+  "19AWPK301T": {
+   "rsp_rmb": 1100.0,
+   "cost_rmb": 89.0
+  },
+  "19AWPK308T": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 78.0
+  },
+  "19AWPK308C": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 78.0
+  },
+  "19AWPK309H": {
+   "rsp_rmb": 600.0,
+   "cost_rmb": 48.0
+  },
+  "19AWPK303T": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 65.0
+  },
+  "19AWPK101": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 50.0
+  },
+  "19AWPK102": {
+   "rsp_rmb": 1150.0,
+   "cost_rmb": 90.0
+  },
+  "19AWPK401": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 50.0
+  },
+  "19AWPK402": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 75.0
+  },
+  "19AWPK502": {
+   "rsp_rmb": 450.0,
+   "cost_rmb": 35.0
+  },
+  "19AWGW402": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 63.0
+  },
+  "19AWGW201": {
+   "rsp_rmb": 800.0,
+   "cost_rmb": 65.0
+  },
+  "19AWGW501": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 59.0
+  },
+  "19AWGW502": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 49.0
+  },
+  "19AWTB306T": {
+   "rsp_rmb": 1100.0,
+   "cost_rmb": 88.5
+  },
+  "19AWTB308T": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 75.0
+  },
+  "19AWTB102": {
+   "rsp_rmb": 1350.0,
+   "cost_rmb": 106.2
+  },
+  "19AWTB402": {
+   "rsp_rmb": 900.0,
+   "cost_rmb": 70.8
+  },
+  "19AWTB202": {
+   "rsp_rmb": 600.0,
+   "cost_rmb": 46.9
+  },
+  "19AWBH301T": {
+   "rsp_rmb": 350.0,
+   "cost_rmb": 23.5
+  },
+  "19AWBH301C": {
+   "rsp_rmb": 350.0,
+   "cost_rmb": 23.5
+  },
+  "19AWBH102": {
+   "rsp_rmb": 350.0,
+   "cost_rmb": 24.8
+  },
+  "19AWBH402": {
+   "rsp_rmb": 450.0,
+   "cost_rmb": 31.4
+  },
+  "19AWBH501": {
+   "rsp_rmb": 450.0,
+   "cost_rmb": 31.86
+  },
+  "19AWDF301T": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 37.0
+  },
+  "19AWDF301C": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 37.0
+  },
+  "19AWDF302T": {
+   "rsp_rmb": 650.0,
+   "cost_rmb": 46.8
+  },
+  "19AWDF304T": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 53.2
+  },
+  "19AWDF303T": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 44.2
+  },
+  "19AWDF303C": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 44.2
+  },
+  "19AWDF305T": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 76.0
+  },
+  "19AWDF101": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 39.9
+  },
+  "19AWDF102": {
+   "rsp_rmb": 1250.0,
+   "cost_rmb": 100.0
+  },
+  "19AWDF401": {
+   "rsp_rmb": 550.0,
+   "cost_rmb": 40.6
+  },
+  "19AWDF402": {
+   "rsp_rmb": 1800.0,
+   "cost_rmb": 145.1
+  },
+  "19SSCV301T": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 58.5
+  },
+  "19SSCV301C": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 58.5
+  },
+  "19SSCV302T": {
+   "rsp_rmb": 450.0,
+   "cost_rmb": 32.9
+  },
+  "19SSCV302C": {
+   "rsp_rmb": 450.0,
+   "cost_rmb": 32.9
+  },
+  "19SSCV306T": {
+   "rsp_rmb": 1300.0,
+   "cost_rmb": 104.5
+  },
+  "19SSCV308T": {
+   "rsp_rmb": 1150.0,
+   "cost_rmb": 92.0
+  },
+  "19SSCV308C": {
+   "rsp_rmb": 1150.0,
+   "cost_rmb": 92.0
+  },
+  "19SSCV311T": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 120.0
+  },
+  "19SSCV312T": {
+   "rsp_rmb": 1500.0,
+   "cost_rmb": 120.0
+  },
+  "19SSCV102": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 55.0
+  },
+  "19SSCV407": {
+   "rsp_rmb": 750.0,
+   "cost_rmb": 59.0
+  },
+  "19SSCV403": {
+   "rsp_rmb": 1100.0,
+   "cost_rmb": 85.0
+  },
+  "19SSCV401": {
+   "rsp_rmb": 700.0,
+   "cost_rmb": 55.0
+  },
+  "19SSCV501": {
+   "rsp_rmb": 600.0,
+   "cost_rmb": 46.5
+  },
+  "19SSCV502": {
+   "rsp_rmb": 600.0,
+   "cost_rmb": 48.0
+  },
+  "19SSCV201": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 65.0
+  },
+  "19AWDL401": {
+   "cost_rmb": 85.01490000000001
+  },
+  "19AWDL402": {
+   "cost_rmb": 175.8351
+  },
+  "19AWDL301T": {
+   "cost_rmb": 227.88300000000004
+  },
+  "19AWDL403": {
+   "cost_rmb": 350.649
+  },
+  "19AWDL302H": {
+   "cost_rmb": 344.48850000000004
+  },
+  "19AWDL101": {
+   "cost_rmb": 288.6
+  },
+  "19AWDL102": {
+   "cost_rmb": 107.00400000000002
+  },
+  "19SSNE0066": {
+   "rsp_rmb": 1300.0,
+   "cost_rmb": 32.03
+  },
+  "19SSNJE039": {
+   "rsp_rmb": 1700.0,
+   "cost_rmb": 42.03
+  },
+  "19SSNR062": {
+   "rsp_rmb": 850.0,
+   "cost_rmb": 21.03
+  },
+  "19SSNJN030R": {
+   "rsp_rmb": 1850.0,
+   "cost_rmb": 46.03
+  },
+  "19SSNJR160": {
+   "rsp_rmb": 1100.0,
+   "cost_rmb": 27.03
+  },
+  "19SSNJE161": {
+   "rsp_rmb": 1570.0,
+   "cost_rmb": 39.03
+  },
+  "19SSNJN01": {
+   "rsp_rmb": 1050.0,
+   "cost_rmb": 26.03
+  },
+  "19SSNJE001": {
+   "rsp_rmb": 1800.0,
+   "cost_rmb": 44.03
+  },
+  "19SSNJB202": {
+   "rsp_rmb": 2400.0,
+   "cost_rmb": 59.03
+  },
+  "19SSNB029": {
+   "rsp_rmb": 1400.0,
+   "cost_rmb": 34.53
+  },
+  "19AWOG101C01": {
+   "rsp_rmb": 1680.0,
+   "cost_rmb": 672.0
+  },
+  "19AWOG101C02": {
+   "rsp_rmb": 1680.0,
+   "cost_rmb": 672.0
+  },
+  "19AWOG202C01": {
+   "rsp_rmb": 880.0,
+   "cost_rmb": 352.0
+  },
+  "19AWOG202C02": {
+   "rsp_rmb": 880.0,
+   "cost_rmb": 352.0
+  },
+  "19AWOG201C01": {
+   "rsp_rmb": 980.0,
+   "cost_rmb": 392.0
+  },
+  "19AWOG201C02": {
+   "rsp_rmb": 980.0,
+   "cost_rmb": 392.0
+  },
+  "19AWOG203C01": {
+   "rsp_rmb": 680.0,
+   "cost_rmb": 272.0
+  },
+  "19AWOG203C02": {
+   "rsp_rmb": 680.0,
+   "cost_rmb": 272.0
+  },
+  "19AWOG301C01": {
+   "rsp_rmb": 1180.0,
+   "cost_rmb": 472.0
+  },
+  "19AWOG301C02": {
+   "rsp_rmb": 1180.0,
+   "cost_rmb": 472.0
+  },
+  "19SSMW90C14": {
+   "rsp_rmb": 2450.0,
+   "cost_rmb": 980.0
+  },
+  "19SSMW90C15": {
+   "rsp_rmb": 2450.0,
+   "cost_rmb": 980.0
+  },
+  "19SSMW226C6": {
+   "rsp_rmb": 2100.0,
+   "cost_rmb": 840.0
+  },
+  "19SSMW226C4": {
+   "rsp_rmb": 2100.0,
+   "cost_rmb": 840.0
+  },
+  "19SSMW205C4": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW205C5": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW207C1": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW208C4": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW221C1": {
+   "rsp_rmb": 2100.0,
+   "cost_rmb": 840.0
+  },
+  "19SSMW221C2": {
+   "rsp_rmb": 2100.0,
+   "cost_rmb": 840.0
+  },
+  "19SSMW248C1": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 880.0
+  },
+  "19SSMW248C5": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 880.0
+  },
+  "19SSMW185C1": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW185C4": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW185C2": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW242C4": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 880.0
+  },
+  "19SSMW242C5": {
+   "rsp_rmb": 2200.0,
+   "cost_rmb": 880.0
+  },
+  "19SSMW203C1": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW203C4": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSMW203C5": {
+   "rsp_rmb": 1950.0,
+   "cost_rmb": 780.0
+  },
+  "19SSN21S42C4": {
+   "rsp_rmb": 2250.0,
+   "cost_rmb": 900.0
+  },
+  "19SSN21S42C2": {
+   "rsp_rmb": 2250.0,
+   "cost_rmb": 900.0
+  },
+  "19SSN21S42C3": {
+   "rsp_rmb": 2350.0,
+   "cost_rmb": 940.0
+  },
+  "19SSN21S41C4": {
+   "rsp_rmb": 2250.0,
+   "cost_rmb": 900.0
+  },
+  "19SSN21S40C1": {
+   "rsp_rmb": 2350.0,
+   "cost_rmb": 940.0
+  },
+  "19SSN21S40C2": {
+   "rsp_rmb": 2250.0,
+   "cost_rmb": 900.0
+  },
+  "19SSN21S40C3": {
+   "rsp_rmb": 2350.0,
+   "cost_rmb": 940.0
+  },
+  "19SSYY7011": {
+   "rsp_rmb": 2900.0,
+   "cost_rmb": 1160.0
+  },
+  "19SSYY7029": {
+   "rsp_rmb": 3870.0,
+   "cost_rmb": 1548.0
+  },
+  "19SSYY7015": {
+   "rsp_rmb": 2720.0,
+   "cost_rmb": 1088.0
+  },
+  "19SSYY7030": {
+   "rsp_rmb": 3160.0,
+   "cost_rmb": 1264.0
+  },
+  "19SSYY7035": {
+   "rsp_rmb": 3690.0,
+   "cost_rmb": 1476.0
+  },
+  "19SSYY7010": {
+   "rsp_rmb": 2900.0,
+   "cost_rmb": 1160.0
+  },
+  "19SSYY7031": {
+   "rsp_rmb": 3160.0,
+   "cost_rmb": 1264.0
+  },
+  "19SSTOS711": {
+   "rsp_rmb": 1680.0,
+   "cost_rmb": 672.0
+  },
+  "19SSTOS106": {
+   "rsp_rmb": 1680.0,
+   "cost_rmb": 672.0
+  },
+  "19SSTOS708": {
+   "rsp_rmb": 1580.0,
+   "cost_rmb": 632.0
+  },
+  "19SSTOS112": {
+   "rsp_rmb": 1880.0,
+   "cost_rmb": 752.0
+  },
+  "19SSTOS110": {
+   "rsp_rmb": 1680.0,
+   "cost_rmb": 672.0
+  },
+  "19SSTOS108": {
+   "rsp_rmb": 1580.0,
+   "cost_rmb": 632.0
+  },
+  "19SSTOFX10": {
+   "rsp_rmb": 1180.0,
+   "cost_rmb": 472.0
+  },
+  "19SSTOS103": {
+   "rsp_rmb": 1680.0,
+   "cost_rmb": 672.0
+  },
+  "19SSVMD3": {
+   "cost_rmb": 26.0
+  },
+  "19SSVMD4": {
+   "cost_rmb": 2.0
+  },
+  "19SSVMD5": {
+   "cost_rmb": 2.0
+  },
+  "19SSVMD6": {
+   "cost_rmb": 5.0
+  },
+  "19SSVMD7": {
+   "cost_rmb": 2.0
+  },
+  "19SSVMD8": {
+   "cost_rmb": 2.0
+  },
+  "19SSVMD9": {
+   "cost_rmb": 3.0
+  },
+  "19SSVMD10": {
+   "cost_rmb": 19.333333333333332
+  },
+  "19SSVMD2": {
+   "rsp_rmb": 40.0,
+   "cost_rmb": 30.05263157894737
+  },
+  "19SSBB1SDXH": {
+   "rsp_rmb": 799.0,
+   "cost_rmb": 387.8640776699029
+  },
+  "BG2021SSGM201": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 522.5
+  },
+  "BG2021SSGM202": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 475.0
+  },
+  "BG2021SSGM203": {
+   "rsp_rmb": 950.0,
+   "cost_rmb": 475.0
+  },
+  "BG2021SSBX201": {
+   "rsp_rmb": 895.0,
+   "cost_rmb": 447.5
+  },
+  "BG2021SSBX202": {
+   "rsp_rmb": 895.0,
+   "cost_rmb": 447.5
+  },
+  "BG2021SSBX203": {
+   "rsp_rmb": 895.0,
+   "cost_rmb": 447.5
+  },
+  "YS0300NS": {
+   "rsp_rmb": 499.0,
+   "cost_rmb": 296.4356435643564
+  },
+  "YS0300BS": {
+   "rsp_rmb": 399.0,
+   "cost_rmb": 237.029702970297
+  },
+  "YS0310S": {
+   "rsp_rmb": 868.0,
+   "cost_rmb": 515.6435643564356
+  },
+  "YS0310G": {
+   "rsp_rmb": 868.0,
+   "cost_rmb": 515.6435643564356
+  },
+  "YS0311BS": {
+   "rsp_rmb": 1299.0,
+   "cost_rmb": 771.6831683168316
+  },
+  "YS0312GS": {
+   "rsp_rmb": 1399.0,
+   "cost_rmb": 831.089108910891
+  },
+  "YS0313GS": {
+   "rsp_rmb": 1099.0,
+   "cost_rmb": 652.8712871287129
+  },
+  "YS0314GS": {
+   "rsp_rmb": 899.0,
+   "cost_rmb": 534.059405940594
+  },
+  "YS0315GS": {
+   "rsp_rmb": 899.0,
+   "cost_rmb": 534.059405940594
+  },
+  "YS0325BS": {
+   "rsp_rmb": 999.0,
+   "cost_rmb": 593.4653465346535
+  },
+  "YS0323BS": {
+   "rsp_rmb": 999.0,
+   "cost_rmb": 593.4653465346535
+  },
+  "YS0320AS": {
+   "rsp_rmb": 1199.0,
+   "cost_rmb": 712.2772277227723
+  },
+  "YS0320BS": {
+   "rsp_rmb": 1239.0,
+   "cost_rmb": 736.039603960396
+  },
+  "YS0322BS": {
+   "rsp_rmb": 1239.0,
+   "cost_rmb": 736.039603960396
+  },
+  "YS0324BS": {
+   "rsp_rmb": 899.0,
+   "cost_rmb": 534.059405940594
+  },
+  "YS0318BS": {
+   "rsp_rmb": 899.0,
+   "cost_rmb": 534.059405940594
+  },
+  "YS0319BS": {
+   "rsp_rmb": 899.0,
+   "cost_rmb": 534.059405940594
+  },
+  "YS0316BS": {
+   "rsp_rmb": 789.0,
+   "cost_rmb": 468.7128712871287
+  },
+  "19SSTV303C": {
+   "cost_rmb": 52.8
   }
  },
  "core_prices": {
@@ -1390,7 +2793,7 @@
   }
  },
  "counts": {
-  "exact": 311,
+  "exact": 671,
   "core": 46
  }
 }
