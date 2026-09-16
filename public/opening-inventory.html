@@ -969,7 +969,7 @@
             const byDept = {};
             let totalQty = 0, totalSkus = 0;
             for (const r of rows) {
-                const dept = ((r.department || deriveDepartment(r.sku) || deriveCategory(r.sku) || 'OTHER') + '').trim().toUpperCase();
+                const dept = ((r.department || deriveDepartment(r.sku) || 'OTHER') + '').trim().toUpperCase();
                 if (!byDept[dept]) byDept[dept] = { skus: new Set(), qty: 0 };
                 byDept[dept].skus.add(String(r.sku).trim().toUpperCase());
                 byDept[dept].qty += parseInt(r.qty, 10) || 0;
