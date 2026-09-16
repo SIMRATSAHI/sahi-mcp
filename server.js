@@ -3647,42 +3647,58 @@ try {
 
 // Look up RMB cost/retail for a SKU: exact match first, then core variant.
 function lookupItemPrices(sku) {
-  let s = String(sku || '').trim().toUpperCase();
-  if (!s) return null;
-  // Separator normalisation: item master prices size variants with '-S/-M/-L'
-  // while portal rows may hold '/S /M /L' (e.g. JW22SSBC503/S).
-  s = s.replace(/\//g, '-');
+  const raw = String(sku || '').trim().toUpperCase();
+  if (!raw) return null;
   const sp = itemPriceRegistry.sku_prices || {};
   const cp = itemPriceRegistry.core_prices || {};
   const tryHit = (code) => {
     if (!code) return null;
     if (sp[code]) return sp[code];
-    const core = code.replace(/[-/ ]\d+$/, '');
-    if (core && core !== code && cp[core]) return cp[core];
+    // Separator normalisation: item master prices size variants with
+    // '-S/-M/-L' while portal rows may hold '/S /M /L' (e.g. JW22SSBC503/S).
+    const norm = code.replace(/\//g, '-');
+    if (norm !== code && sp[norm]) return sp[norm];
+    const core = norm.replace(/[-/ ]\d+$/, '');
+    if (core && core !== norm && cp[core]) return cp[core];
     return null;
   };
-  let hit = tryHit(s);
-  if (hit) return hit;
-  // SKU alias: opening inventory holds legacy season codes (JW21…, JW22SS…,
-  // JW21AWRF…) for items the Item Master prices with a letter season code
-  // (JWU…, JWV…) — 21st letter = U, 22nd = V. Portal codes are inconsistent
-  // (JW21SAI…, JW21AWRF…, JW22SS…), so try the letter form with and without
-  // an S segment, and with any '+X' add-on suffix stripped.
-  const m = s.match(/^JW(\d{2})(.*)$/);
-  if (m) {
-    const n = parseInt(m[1], 10);
-    if (n >= 10 && n <= 26) {
-      const letter = String.fromCharCode(64 + n);
-      const rest = m[2];
-      const cands = [
-        'JW' + letter + rest,
-        'JW' + letter + 'S' + rest,
-        'JW' + letter + rest.split('+')[0]
-      ];
-      for (const a of cands) {
-        hit = tryHit(a);
-        if (hit) return hit;
+  const aliasChain = (x) => {
+    let hit = tryHit(x);
+    if (hit) return hit;
+    // SKU alias: opening inventory holds legacy season codes (JW21…, JW22SS…,
+    // JW21AWRF…) for items the Item Master prices with a letter season code
+    // (JWU…, JWV…) — 21st letter = U, 22nd = V. Portal codes are inconsistent
+    // (JW21SAI…, JW21AWRF…, JW22SS…), so try the letter form with and without
+    // an S segment, and with any '+X' add-on suffix stripped.
+    const m = x.match(/^JW(\d{2})(.*)$/);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n >= 10 && n <= 26) {
+        const letter = String.fromCharCode(64 + n);
+        const rest = m[2];
+        const cands = [
+          'JW' + letter + rest,
+          'JW' + letter + 'S' + rest,
+          'JW' + letter + rest.split('+')[0]
+        ];
+        for (const a of cands) {
+          hit = tryHit(a);
+          if (hit) return hit;
+        }
       }
+    }
+    return null;
+  };
+  let hit = aliasChain(raw);
+  if (hit) return hit;
+  // Combined T/C code (e.g. 19AWGW302T/C, JW21AWRF303T+C): T = tops (post),
+  // C = clip — same physical earring, same price. Retry with the T form,
+  // then the C form.
+  const tc = raw.match(/^(.*)T[\/+]C(.*)$/);
+  if (tc) {
+    for (const v of [tc[1] + 'T' + tc[2], tc[1] + 'C' + tc[2]]) {
+      hit = aliasChain(v);
+      if (hit) return hit;
     }
   }
   return null;
