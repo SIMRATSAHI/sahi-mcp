@@ -2606,6 +2606,14 @@
   },
   "19SSTV303C": {
    "cost_rmb": 52.8
+  },
+  "19AWGW302T/C": {
+   "cost_rmb": 90.0,
+   "rsp_rmb": 1150.0
+  },
+  "JW21AWRF303T+C": {
+   "cost_rmb": 43.0,
+   "rsp_rmb": 499.0
   }
  },
  "core_prices": {
@@ -2793,7 +2801,7 @@
   }
  },
  "counts": {
-  "exact": 671,
+  "exact": 673,
   "core": 46
  }
 }
