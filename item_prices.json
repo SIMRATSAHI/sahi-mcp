@@ -1,5 +1,5 @@
 {
- "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029 + PO_Upload JW21SSCB CSVs (2021 GEILI, 20 SKUs cost+sale)",
+ "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029 + PO_Upload JW21SSCB CSVs (2021 GEILI, 20 SKUs cost+sale) + MRP rule: RMB = 5 x cost, rounded to nearest 5 (user SOP)",
  "currency": "RMB",
  "sku_prices": {
   "BGUSSAI201-1": {
@@ -511,79 +511,104 @@
    "rsp_rmb": 494.0
   },
   "JWVAWBQ301T": {
-   "cost_rmb": 70.0
+   "cost_rmb": 70.0,
+   "rsp_rmb": 350
   },
   "JWVAWBQ302D": {
-   "cost_rmb": 74.0
+   "cost_rmb": 74.0,
+   "rsp_rmb": 370
   },
   "JWVAWBQ303T": {
-   "cost_rmb": 69.0
+   "cost_rmb": 69.0,
+   "rsp_rmb": 345
   },
   "JWVAWBQ304T": {
-   "cost_rmb": 69.0
+   "cost_rmb": 69.0,
+   "rsp_rmb": 345
   },
   "JWXSSLA302": {
-   "cost_rmb": 66.2
+   "cost_rmb": 66.2,
+   "rsp_rmb": 330
   },
   "JWXSSLA301": {
-   "cost_rmb": 52.95
+   "cost_rmb": 52.95,
+   "rsp_rmb": 265
   },
   "JWXSSLA303": {
-   "cost_rmb": 79.0
+   "cost_rmb": 79.0,
+   "rsp_rmb": 395
   },
   "JWXSSLA101": {
-   "cost_rmb": 66.2
+   "cost_rmb": 66.2,
+   "rsp_rmb": 330
   },
   "JWXSSLA102": {
-   "cost_rmb": 73.5
+   "cost_rmb": 73.5,
+   "rsp_rmb": 370
   },
   "JWXSSLA401": {
-   "cost_rmb": 69.9
+   "cost_rmb": 69.9,
+   "rsp_rmb": 350
   },
   "JWXSSLA501": {
-   "cost_rmb": 47.0
+   "cost_rmb": 47.0,
+   "rsp_rmb": 235
   },
   "JWXSSLA503": {
-   "cost_rmb": 44.3
+   "cost_rmb": 44.3,
+   "rsp_rmb": 220
   },
   "JWXSSBC401-1": {
-   "cost_rmb": 45.95
+   "cost_rmb": 45.95,
+   "rsp_rmb": 230
   },
   "JWXSSBC401-3": {
-   "cost_rmb": 45.95
+   "cost_rmb": 45.95,
+   "rsp_rmb": 230
   },
   "JWXSSBC401-4": {
-   "cost_rmb": 45.95
+   "cost_rmb": 45.95,
+   "rsp_rmb": 230
   },
   "JWXSSBC401-8": {
-   "cost_rmb": 45.95
+   "cost_rmb": 45.95,
+   "rsp_rmb": 230
   },
   "JWXSSBC402": {
-   "cost_rmb": 59.0
+   "cost_rmb": 59.0,
+   "rsp_rmb": 295
   },
   "JWXSSBC301T": {
-   "cost_rmb": 49.0
+   "cost_rmb": 49.0,
+   "rsp_rmb": 245
   },
   "JWXSSBC302T": {
-   "cost_rmb": 57.85
+   "cost_rmb": 57.85,
+   "rsp_rmb": 290
   },
   "JWXSSCM306": {
-   "cost_rmb": 76.0
+   "cost_rmb": 76.0,
+   "rsp_rmb": 380
   },
   "JWXSSCM304": {
-   "cost_rmb": 89.0
+   "cost_rmb": 89.0,
+   "rsp_rmb": 445
   },
   "JWXSSCM403": {
-   "cost_rmb": 115.0
+   "cost_rmb": 115.0,
+   "rsp_rmb": 575
   },
   "JWXSSCM502": {
-   "cost_rmb": 55.0
+   "cost_rmb": 55.0,
+   "rsp_rmb": 275
   },
   "JWXSSCM305": {
-   "cost_rmb": 76.0
+   "cost_rmb": 76.0,
+   "rsp_rmb": 380
   },
   "JWXSSCM101": {
-   "cost_rmb": 76.0
+   "cost_rmb": 76.0,
+   "rsp_rmb": 380
   },
   "JWXSSCM301": {
    "cost_rmb": 59.0,
@@ -594,16 +619,20 @@
    "rsp_rmb": 449.0
   },
   "JWXSSCM402": {
-   "cost_rmb": 76.0
+   "cost_rmb": 76.0,
+   "rsp_rmb": 380
   },
   "JWXSSCM303": {
-   "cost_rmb": 58.0
+   "cost_rmb": 58.0,
+   "rsp_rmb": 290
   },
   "JWXSSCM501": {
-   "cost_rmb": 58.0
+   "cost_rmb": 58.0,
+   "rsp_rmb": 290
   },
   "JWXSSCM401": {
-   "cost_rmb": 58.0
+   "cost_rmb": 58.0,
+   "rsp_rmb": 290
   },
   "BGXBM201-PNK": {
    "cost_rmb": 240.0,
@@ -614,7 +643,8 @@
    "rsp_rmb": 1194.0
   },
   "BGXBM202-1": {
-   "cost_rmb": 273.0
+   "cost_rmb": 273.0,
+   "rsp_rmb": 1365
   },
   "BGXBM203-PNK": {
    "cost_rmb": 240.0,
@@ -653,34 +683,44 @@
    "rsp_rmb": 549.0
   },
   "JWXSSST101": {
-   "cost_rmb": 79.0
+   "cost_rmb": 79.0,
+   "rsp_rmb": 395
   },
   "JWXSSST301": {
-   "cost_rmb": 90.0
+   "cost_rmb": 90.0,
+   "rsp_rmb": 450
   },
   "JWXSSST302": {
-   "cost_rmb": 95.0
+   "cost_rmb": 95.0,
+   "rsp_rmb": 475
   },
   "JWXSSST303": {
-   "cost_rmb": 85.0
+   "cost_rmb": 85.0,
+   "rsp_rmb": 425
   },
   "JWXSSST304": {
-   "cost_rmb": 120.0
+   "cost_rmb": 120.0,
+   "rsp_rmb": 600
   },
   "JWXSSST305": {
-   "cost_rmb": 45.0
+   "cost_rmb": 45.0,
+   "rsp_rmb": 225
   },
   "JWXSSST306": {
-   "cost_rmb": 85.0
+   "cost_rmb": 85.0,
+   "rsp_rmb": 425
   },
   "JWXSSST401": {
-   "cost_rmb": 93.0
+   "cost_rmb": 93.0,
+   "rsp_rmb": 465
   },
   "JWXSSST402": {
-   "cost_rmb": 100.0
+   "cost_rmb": 100.0,
+   "rsp_rmb": 500
   },
   "JWXSSST501": {
-   "cost_rmb": 107.5
+   "cost_rmb": 107.5,
+   "rsp_rmb": 540
   },
   "BGZBM208-BLK": {
    "cost_rmb": 370.0,
@@ -1003,14 +1043,16 @@
    "rsp_rmb": 194.0
   },
   "BGZPP201-BLK": {
-   "cost_rmb": 280.0
+   "cost_rmb": 280.0,
+   "rsp_rmb": 1400
   },
   "BGZBM212-SLV-PNK": {
    "cost_rmb": 117.0,
    "rsp_rmb": 1749.0
   },
   "BGZBM209-PNK": {
-   "cost_rmb": 117.0
+   "cost_rmb": 117.0,
+   "rsp_rmb": 585
   },
   "APAPS401-BLU-1": {
    "cost_rmb": 53.0,
@@ -1205,7 +1247,8 @@
    "rsp_rmb": 350.0
   },
   "19SSVN501": {
-   "cost_rmb": 130.0
+   "cost_rmb": 130.0,
+   "rsp_rmb": 650
   },
   "19SS3J191": {
    "rsp_rmb": 2300.0,
@@ -1512,7 +1555,8 @@
    "cost_rmb": 14.0
   },
   "FVM1798": {
-   "cost_rmb": 30.0
+   "cost_rmb": 30.0,
+   "rsp_rmb": 150
   },
   "19AWAA301T": {
    "rsp_rmb": 2500.0,
@@ -1543,61 +1587,80 @@
    "cost_rmb": 3520.0
   },
   "19SSBFER1094": {
-   "cost_rmb": 14.0
+   "cost_rmb": 14.0,
+   "rsp_rmb": 70
   },
   "19SSBFER1100": {
-   "cost_rmb": 12.0
+   "cost_rmb": 12.0,
+   "rsp_rmb": 60
   },
   "19SSBFNW1088": {
-   "cost_rmb": 13.0
+   "cost_rmb": 13.0,
+   "rsp_rmb": 65
   },
   "19SSBFBR1090": {
-   "cost_rmb": 16.0
+   "cost_rmb": 16.0,
+   "rsp_rmb": 80
   },
   "19SSBFGF1098": {
-   "cost_rmb": 13.0
+   "cost_rmb": 13.0,
+   "rsp_rmb": 65
   },
   "19SSBFRI1085": {
-   "cost_rmb": 10.0
+   "cost_rmb": 10.0,
+   "rsp_rmb": 50
   },
   "19SSLNER1021": {
-   "cost_rmb": 8.0
+   "cost_rmb": 8.0,
+   "rsp_rmb": 40
   },
   "19SSLNNW1039": {
-   "cost_rmb": 16.0
+   "cost_rmb": 16.0,
+   "rsp_rmb": 80
   },
   "19SSLNWW1039": {
-   "cost_rmb": 14.0
+   "cost_rmb": 14.0,
+   "rsp_rmb": 70
   },
   "19SSLNRI1042": {
-   "cost_rmb": 14.0
+   "cost_rmb": 14.0,
+   "rsp_rmb": 70
   },
   "19SSLNER1012": {
-   "cost_rmb": 16.0
+   "cost_rmb": 16.0,
+   "rsp_rmb": 80
   },
   "19SSLNER1025": {
-   "cost_rmb": 18.0
+   "cost_rmb": 18.0,
+   "rsp_rmb": 90
   },
   "19SSLNER1018": {
-   "cost_rmb": 17.0
+   "cost_rmb": 17.0,
+   "rsp_rmb": 85
   },
   "19SSLNER1015": {
-   "cost_rmb": 13.0
+   "cost_rmb": 13.0,
+   "rsp_rmb": 65
   },
   "19SSLNNW1028": {
-   "cost_rmb": 17.0
+   "cost_rmb": 17.0,
+   "rsp_rmb": 85
   },
   "19SSFGER1071": {
-   "cost_rmb": 17.0
+   "cost_rmb": 17.0,
+   "rsp_rmb": 85
   },
   "19SSFGWW1069": {
-   "cost_rmb": 13.0
+   "cost_rmb": 13.0,
+   "rsp_rmb": 65
   },
   "19SSFGWW1075": {
-   "cost_rmb": 16.0
+   "cost_rmb": 16.0,
+   "rsp_rmb": 80
   },
   "19SSFGNW1068": {
-   "cost_rmb": 14.0
+   "cost_rmb": 14.0,
+   "rsp_rmb": 70
   },
   "19SSSP304T": {
    "rsp_rmb": 750.0,
@@ -2208,25 +2271,32 @@
    "cost_rmb": 65.0
   },
   "19AWDL401": {
-   "cost_rmb": 85.01490000000001
+   "cost_rmb": 85.01490000000001,
+   "rsp_rmb": 425
   },
   "19AWDL402": {
-   "cost_rmb": 175.8351
+   "cost_rmb": 175.8351,
+   "rsp_rmb": 880
   },
   "19AWDL301T": {
-   "cost_rmb": 227.88300000000004
+   "cost_rmb": 227.88300000000004,
+   "rsp_rmb": 1140
   },
   "19AWDL403": {
-   "cost_rmb": 350.649
+   "cost_rmb": 350.649,
+   "rsp_rmb": 1755
   },
   "19AWDL302H": {
-   "cost_rmb": 344.48850000000004
+   "cost_rmb": 344.48850000000004,
+   "rsp_rmb": 1720
   },
   "19AWDL101": {
-   "cost_rmb": 288.6
+   "cost_rmb": 288.6,
+   "rsp_rmb": 1445
   },
   "19AWDL102": {
-   "cost_rmb": 107.00400000000002
+   "cost_rmb": 107.00400000000002,
+   "rsp_rmb": 535
   },
   "19SSNE0066": {
    "rsp_rmb": 1300.0,
@@ -2477,28 +2547,36 @@
    "cost_rmb": 672.0
   },
   "19SSVMD3": {
-   "cost_rmb": 26.0
+   "cost_rmb": 26.0,
+   "rsp_rmb": 130
   },
   "19SSVMD4": {
-   "cost_rmb": 2.0
+   "cost_rmb": 2.0,
+   "rsp_rmb": 10
   },
   "19SSVMD5": {
-   "cost_rmb": 2.0
+   "cost_rmb": 2.0,
+   "rsp_rmb": 10
   },
   "19SSVMD6": {
-   "cost_rmb": 5.0
+   "cost_rmb": 5.0,
+   "rsp_rmb": 25
   },
   "19SSVMD7": {
-   "cost_rmb": 2.0
+   "cost_rmb": 2.0,
+   "rsp_rmb": 10
   },
   "19SSVMD8": {
-   "cost_rmb": 2.0
+   "cost_rmb": 2.0,
+   "rsp_rmb": 10
   },
   "19SSVMD9": {
-   "cost_rmb": 3.0
+   "cost_rmb": 3.0,
+   "rsp_rmb": 15
   },
   "19SSVMD10": {
-   "cost_rmb": 19.333333333333332
+   "cost_rmb": 19.333333333333332,
+   "rsp_rmb": 95
   },
   "19SSVMD2": {
    "rsp_rmb": 40.0,
@@ -2605,7 +2683,8 @@
    "cost_rmb": 468.7128712871287
   },
   "19SSTV303C": {
-   "cost_rmb": 52.8
+   "cost_rmb": 52.8,
+   "rsp_rmb": 265
   },
   "19AWGW302T/C": {
    "cost_rmb": 90.0,
