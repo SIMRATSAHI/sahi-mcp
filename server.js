@@ -759,7 +759,7 @@ ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcod
 }).then((r) => {
   if (r) console.log(`[AUTO-RESOLVE] Startup self-heal: ${r.resolved.length} resolved, ${r.skipped.length} still need manual SKU`);
   return backfillPricesFromItemPrices();
-}).then(() => {
+}).then(() => reconcileOpeningInventoryPrices()).then(() => {
   console.log('[PRICE-REGISTRY] Startup self-heal done');
 }).catch((e) => console.error('[STARTUP] self-heal chain error:', e.message));
 
@@ -3832,6 +3832,41 @@ async function backfillPricesFromItemPrices() {
     console.log(`[PRICE-REGISTRY] Backfill done: opening_inventory ${pp} cost / ${mp} mrp filled; item_master ${imPp} cost / ${imMp} mrp filled`);
   } catch (e) {
     console.error('[PRICE-REGISTRY] Backfill failed:', e.message);
+  }
+}
+
+// Reconcile: where the price registry has a NON-ZERO value that differs from a
+// saved opening_inventory row, the registry wins. This corrects rows written
+// earlier from weaker sources (e.g. costs self-mined from POs before the
+// collection sheets were merged) — the registry is the curated source of truth
+// (Item Master + collection cost/sell sheets + user-supplied prices).
+async function reconcileOpeningInventoryPrices() {
+  try {
+    const rows = await pool.query(`SELECT id, sku, purchase_price, mrp FROM opening_inventory`);
+    let cc = 0, mc = 0;
+    for (const r of rows.rows) {
+      const pr = lookupItemPrices(r.sku);
+      if (!pr) continue;
+      const sets = [];
+      const params = [];
+      const curPp = r.purchase_price === null ? null : parseFloat(r.purchase_price);
+      const curMp = r.mrp === null ? null : parseFloat(r.mrp);
+      if (pr.cost_rmb != null && pr.cost_rmb > 0 && curPp !== null && Math.abs(curPp - pr.cost_rmb) > 0.005) {
+        params.push(pr.cost_rmb); sets.push(`purchase_price = $${params.length}`); cc++;
+        console.log(`[PRICE-RECONCILE] ${r.sku}: cost ${curPp} -> ${pr.cost_rmb}`);
+      }
+      if (pr.rsp_rmb != null && pr.rsp_rmb > 0 && curMp !== null && Math.abs(curMp - pr.rsp_rmb) > 0.005) {
+        params.push(pr.rsp_rmb); sets.push(`mrp = $${params.length}`); mc++;
+        console.log(`[PRICE-RECONCILE] ${r.sku}: mrp ${curMp} -> ${pr.rsp_rmb}`);
+      }
+      if (sets.length > 0) {
+        params.push(r.id);
+        await pool.query(`UPDATE opening_inventory SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+      }
+    }
+    console.log(`[PRICE-RECONCILE] done: ${cc} costs / ${mc} mrps corrected`);
+  } catch (e) {
+    console.error('[PRICE-RECONCILE] failed:', e.message);
   }
 }
 
