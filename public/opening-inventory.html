@@ -1054,7 +1054,10 @@
                         <td style="text-align:right;">${editableCell(r, 'purchase_price', fmtPrice(r.purchase_price))}</td>
                         <td style="text-align:right;">${editableCell(r, 'mrp', fmtPrice(r.mrp))}</td>
                         <td style="text-align:right;"><strong>${editableCell(r, 'qty', r.qty)}</strong></td>
-                        <td style="text-align:center;"><button class="oi-del-btn" onclick="deleteSavedRow(${r.id}, this)" title="Delete row" style="border:none;background:none;color:#c0392b;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;">&times;</button></td>
+                        <td style="text-align:center;">
+                            <button class="oi-edit-btn" onclick="editRowCPSP(${r.id}, this)" title="Update CP (Purchase) &amp; SP (MRP)" style="border:none;background:none;color:#2c6e9e;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;">&#9998;</button>
+                            <button class="oi-del-btn" onclick="deleteSavedRow(${r.id}, this)" title="Delete row" style="border:none;background:none;color:#c0392b;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;">&times;</button>
+                        </td>
                     </tr>
                 `).join('');
         }
@@ -1062,28 +1065,91 @@
         // Inline amend: click a Qty / Purchase / MRP cell to edit it in place.
         // Enter or blur saves (PATCH), Esc cancels. No dialogs.
         function editableCell(row, field, display) {
-            return `<span class="oi-edit-cell" title="Click to amend"
+            return `<span class="oi-edit-cell" data-field="${field}" title="Click to amend"
                           style="cursor:text; border-bottom:1px dashed #9ab; padding:0 2px;"
                           onclick="startCellEdit(event, ${row.id}, '${field}', this)">${display}</span>`;
         }
 
+        // Open both CP (Purchase Price) and SP (MRP) inputs for one row at once.
+        // Both values save in a single PATCH when both inputs are committed
+        // (Enter, Tab through both, or click away). Esc cancels the row.
+        function editRowCPSP(rowId, btn) {
+            const tr = btn.closest('tr');
+            if (!tr) return;
+            const spans = {};
+            tr.querySelectorAll('span.oi-edit-cell').forEach(s => { spans[s.dataset.field] = s; });
+            const fields = ['purchase_price', 'mrp'].filter(f => spans[f] && !spans[f].querySelector('input'));
+            if (!fields.length) return;
+            const inputs = {};
+            const vals = {};
+            let saved = false;
+            const finishAll = () => {
+                if (saved) return;
+                saved = true;
+                const body = {};
+                for (const f of fields) {
+                    const v = (vals[f] !== undefined ? vals[f] : inputs[f].value).trim();
+                    if (v !== '') body[f] = v;
+                }
+                if (Object.keys(body).length === 0) { renderSavedTable(); return; }
+                fields.forEach(f => { spans[f].textContent = '…'; });
+                patchSavedRowBody(rowId, body);
+            };
+            for (const f of fields) {
+                const span = spans[f];
+                const raw = span.textContent.trim();
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = raw === '-' ? '' : raw;
+                input.style.cssText = 'width:70px;text-align:right;font:inherit;padding:1px 3px;border:1px solid #4a90d9;border-radius:3px;';
+                span.textContent = '';
+                span.appendChild(input);
+                inputs[f] = input;
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') { e.preventDefault(); saved = true; renderSavedTable(); }
+                    else if (e.key === 'Enter') {
+                        e.preventDefault(); finishAll();
+                    } else if (e.key === 'Tab') {
+                        e.preventDefault();
+                        const i = fields.indexOf(f);
+                        const next = inputs[fields[i + 1]];
+                        if (next) { next.focus(); next.select(); }
+                        else finishAll();
+                    }
+                });
+                input.addEventListener('blur', () => {
+                    vals[f] = input.value.trim();
+                    setTimeout(() => {
+                        const active = document.activeElement;
+                        const stillEditing = active && active.tagName === 'INPUT' && tr.contains(active);
+                        if (!stillEditing) finishAll();
+                    }, 0);
+                });
+            }
+            inputs[fields[0]].focus();
+            inputs[fields[0]].select();
+        }
+
         function startCellEdit(ev, rowId, field, span) {
-            ev.stopPropagation();
+            if (ev) ev.stopPropagation();
+            startCellEditForSpan(span, rowId, field);
+        }
+
+        function startCellEditForSpan(span, rowId, field) {
             if (span.querySelector('input')) return;
             const raw = span.textContent.trim();
             const input = document.createElement('input');
             input.type = 'text';
-            input.value = raw;
+            input.value = raw === '-' ? '' : raw;
             input.style.cssText = 'width:70px;text-align:right;font:inherit;padding:1px 3px;border:1px solid #4a90d9;border-radius:3px;';
             span.textContent = '';
             span.appendChild(input);
-            input.focus();
             input.select();
             const done = (save) => {
                 if (!save) { renderSavedTable(); return; }
                 const val = input.value.trim();
                 span.textContent = '…';
-                patchSavedRow(rowId, field, val);
+                patchSavedRowBody(rowId, { [field]: val });
             };
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); done(true); }
@@ -1092,9 +1158,7 @@
             input.addEventListener('blur', () => done(true));
         }
 
-        async function patchSavedRow(rowId, field, value) {
-            const body = {};
-            body[field] = value;
+        async function patchSavedRowBody(rowId, body) {
             try {
                 const res = await fetch(`/api/opening-inventory/${rowId}`, {
                     method: 'PATCH',
@@ -1110,6 +1174,10 @@
                 alert('Amend failed: ' + e.message);
             }
             await loadSavedInventory();
+        }
+
+        async function patchSavedRow(rowId, field, value) {
+            await patchSavedRowBody(rowId, { [field]: value });
         }
 
         // Delete a saved row. First click arms the button (turns into "sure?"),
