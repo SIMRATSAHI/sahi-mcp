@@ -145,7 +145,11 @@
         <div style="margin-bottom:10px;">
             <button class="btn btn-pink" onclick="loadSavedInventory()" style="margin-right:6px;">🔄 Refresh</button>
             <button class="btn btn-blue" id="canonicalizeBtn" onclick="canonicalizeBarcodes()" style="background:#1976d2;">🔧 Fix Barcodes (use canonical EAN)</button>
+            <button class="btn" id="bulkPriceBtn" onclick="toggleBulkPriceEdit()" style="background:#00897b; color:#fff; margin-left:6px;">&#9998; Update Prices (CP / SP)</button>
+            <button class="btn" id="bulkSaveBtn" onclick="saveBulkPrices()" style="background:#2e7d32; color:#fff; margin-left:6px; display:none;">&#10003; Save All</button>
+            <button class="btn" id="bulkCancelBtn" onclick="cancelBulkPriceEdit()" style="margin-left:6px; display:none;">Cancel</button>
             <span id="canonicalizeStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
+            <span id="bulkPriceStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
         </div>
         <input type="text" id="savedSearchInput" placeholder="Search SKU / barcode / collection (FN, IB, BC, AI...) / warehouse / created by..."
                oninput="renderSavedTable()"
@@ -1034,15 +1038,16 @@
             empty.style.display = 'none';
 
             // Warehouse + Created By shown once, above the table (they repeat on
-            // every row otherwise). Dedupe across the full saved list.
+            // every row otherwise). Dedupe across the FILTERED rows so the summary
+            // follows the search: blank = whole picture, "WL" = WL-only breakdown.
             const metaLine = document.getElementById('savedMetaLine');
             const metaText = document.getElementById('savedMetaText');
-            const whs = [...new Set(savedInventory.map(r => orgNames[r.org_id] || String(r.org_id || '')))].filter(Boolean);
-            const who = [...new Set(savedInventory.map(r => (r.created_by || '').trim()).filter(Boolean))];
+            const whs = [...new Set(rows.map(r => orgNames[r.org_id] || String(r.org_id || '')))].filter(Boolean);
+            const who = [...new Set(rows.map(r => (r.created_by || '').trim()).filter(Boolean))];
             metaText.innerHTML = `<b>Warehouse:</b> ${whs.join(', ') || '—'} &nbsp;·&nbsp; <b>Created By:</b> ${who.join(', ') || '—'}`;
             metaLine.style.display = '';
 
-            renderSavedStats(savedInventory);
+            renderSavedStats(rows);
 
             tbody.innerHTML = rows.map(r => `
                     <tr data-id="${r.id}">
@@ -1051,8 +1056,8 @@
                         <td>${r.department || deriveDepartment(r.sku)}</td>
                         <td>${r.color || 'NA'}</td>
                         <td style="font-family:monospace; font-size:12px;">${r.barcode || ''}</td>
-                        <td style="text-align:right;">${editableCell(r, 'purchase_price', fmtPrice(r.purchase_price))}</td>
-                        <td style="text-align:right;">${editableCell(r, 'mrp', fmtPrice(r.mrp))}</td>
+                        <td style="text-align:right;">${bulkPriceMode ? bulkPriceInput(r, 'purchase_price') : editableCell(r, 'purchase_price', fmtPrice(r.purchase_price))}</td>
+                        <td style="text-align:right;">${bulkPriceMode ? bulkPriceInput(r, 'mrp') : editableCell(r, 'mrp', fmtPrice(r.mrp))}</td>
                         <td style="text-align:right;"><strong>${editableCell(r, 'qty', r.qty)}</strong></td>
                         <td style="text-align:center;">
                             <button class="oi-edit-btn" onclick="editRowCPSP(${r.id}, this)" title="Update CP (Purchase) &amp; SP (MRP)" style="border:none;background:none;color:#2c6e9e;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;">&#9998;</button>
@@ -1179,6 +1184,86 @@
         async function patchSavedRow(rowId, field, value) {
             await patchSavedRowBody(rowId, { [field]: value });
         }
+
+        // ---- Bulk price edit mode -------------------------------------
+        // "Update Prices (CP / SP)" flips the whole saved table into edit
+        // mode: every Purchase Price and MRP cell becomes an input (the
+        // search filter still applies, so you can scope to one collection).
+        // Save All PATCHes only the changed cells, one request per row.
+        let bulkPriceMode = false;
+
+        function bulkPriceInput(row, field) {
+            const v = (row[field] !== null && row[field] !== undefined && parseFloat(row[field]) > 0) ? parseFloat(row[field]).toFixed(2) : '';
+            return `<input type="text" data-field="${field}" data-orig="${v}" value="${v}"
+                           style="width:80px; text-align:right; font:inherit; padding:2px 4px; border:1px solid #4a90d9; border-radius:3px;">`;
+        }
+
+        function setBulkButtons() {
+            document.getElementById('bulkPriceBtn').style.display = bulkPriceMode ? 'none' : '';
+            document.getElementById('bulkSaveBtn').style.display = bulkPriceMode ? '' : 'none';
+            document.getElementById('bulkCancelBtn').style.display = bulkPriceMode ? '' : 'none';
+            document.getElementById('bulkPriceStatus').textContent = bulkPriceMode ? 'Edit any CP / SP cell, then Save All.' : '';
+        }
+
+        function toggleBulkPriceEdit() {
+            bulkPriceMode = !bulkPriceMode;
+            setBulkButtons();
+            renderSavedTable();
+        }
+
+        function cancelBulkPriceEdit() {
+            bulkPriceMode = false;
+            setBulkButtons();
+            renderSavedTable();
+        }
+
+        async function saveBulkPrices() {
+            const status = document.getElementById('bulkPriceStatus');
+            const changed = {}; // rowId -> { field: value }
+            document.querySelectorAll('#savedTableBody input[data-field]').forEach(inp => {
+                const tr = inp.closest('tr');
+                if (!tr) return;
+                const id = tr.dataset.id;
+                const v = inp.value.trim();
+                const orig = (inp.dataset.orig || '').trim();
+                if (v === orig) return;
+                if (!changed[id]) changed[id] = {};
+                if (v !== '') changed[id][inp.dataset.field] = v;
+            });
+            const ids = Object.keys(changed);
+            if (ids.length === 0) {
+                status.textContent = 'No changes to save.';
+                setTimeout(() => { if (!bulkPriceMode) status.textContent = ''; }, 2500);
+                return;
+            }
+            status.textContent = `Saving ${ids.length} row${ids.length === 1 ? '' : 's'}…`;
+            let ok = 0, fail = 0;
+            for (const id of ids) {
+                try {
+                    const res = await fetch(`/api/opening-inventory/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(changed[id])
+                    });
+                    if (res.ok) ok++; else fail++;
+                } catch (e) { fail++; }
+            }
+            bulkPriceMode = false;
+            setBulkButtons();
+            status.textContent = `Saved ${ok} row${ok === 1 ? '' : 's'}${fail ? `, ${fail} failed` : ''}.`;
+            await loadSavedInventory();
+            setTimeout(() => { status.textContent = ''; }, 4000);
+        }
+
+        // Enter inside any bulk price input = Save All.
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && bulkPriceMode && e.target && e.target.matches
+                && e.target.matches('#savedTableBody input[data-field]')) {
+                e.preventDefault();
+                saveBulkPrices();
+            }
+        });
 
         // Delete a saved row. First click arms the button (turns into "sure?"),
         // second click within 4s deletes. No confirmation dialogs.
