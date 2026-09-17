@@ -3872,6 +3872,36 @@ async function reconcileOpeningInventoryPrices() {
   }
 }
 
+// Fill-if-empty registry prices onto the opening_inventory row(s) for one SKU.
+// Called after every code path that creates/accumulates an OI row so prices
+// appear at creation time, never only on the next boot.
+async function fillOiPricesForSku(sku, orgId) {
+  try {
+    const pr = lookupItemPrices(sku);
+    if (!pr) return;
+    const rows = await pool.query(
+      `SELECT id, purchase_price, mrp FROM opening_inventory WHERE sku = $1 AND org_id = $2`,
+      [sku, orgId]
+    );
+    for (const r of rows.rows) {
+      const sets = [];
+      const params = [];
+      if (!(parseFloat(r.purchase_price) > 0) && pr.cost_rmb > 0) {
+        params.push(pr.cost_rmb); sets.push(`purchase_price = $${params.length}`);
+      }
+      if (!(parseFloat(r.mrp) > 0) && pr.rsp_rmb > 0) {
+        params.push(pr.rsp_rmb); sets.push(`mrp = $${params.length}`);
+      }
+      if (sets.length > 0) {
+        params.push(r.id);
+        await pool.query(`UPDATE opening_inventory SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+      }
+    }
+  } catch (e) {
+    console.error('[OI-PRICE-FILL]', sku, e.message);
+  }
+}
+
 // GET /api/items/barcode/:barcode — lookup single item by barcode (for scanner)
 // Fallback chain: item_master → po_barcode_index → 404 (unmatched)
 app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
@@ -3941,6 +3971,7 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
               [sku, barcode, realName, ub.qty, ub.org_id]
             );
           }
+          await fillOiPricesForSku(sku, ub.org_id);
           await pool.query(
             `UPDATE unmatched_barcodes SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW() WHERE id = $2`,
             [sku, ub.id]
@@ -4024,6 +4055,7 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
               [eanSku, barcode, realName, ub.qty, ub.org_id]
             );
           }
+          await fillOiPricesForSku(eanSku, ub.org_id);
           await pool.query(
             `UPDATE unmatched_barcodes SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW() WHERE id = $2`,
             [eanSku, ub.id]
@@ -4600,6 +4632,7 @@ app.post('/api/unmatched-barcodes/:id/resolve', requireAuthApi(['ADMIN', 'BUYER'
         [im.sku, ub.barcode, im.friendly_name, im.color, ub.qty, ub.org_id, req.user ? req.user.email : 'system']
       );
     }
+    await fillOiPricesForSku(im.sku, ub.org_id);
 
     // 3. Mark resolved
     await pool.query(
@@ -5006,6 +5039,7 @@ app.post('/api/scan/resolve-unknown', requireAuthApi(['ADMIN', 'BUYER']), async 
         [cleanSku, canonicalBarcode, item.friendly_name, item.color, cleanQty, orgId, req.user ? req.user.email : 'system']
       );
     }
+    await fillOiPricesForSku(cleanSku, orgId);
 
     logActivity(req.user, 'SCAN_RESOLVE_UNKNOWN', cleanSku, { barcode: canonicalBarcode, qty: cleanQty, org_id: orgId });
     res.json({
