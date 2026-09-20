@@ -146,6 +146,7 @@
             <button class="btn btn-pink" onclick="loadSavedInventory()" style="margin-right:6px;">🔄 Refresh</button>
             <button class="btn btn-blue" id="canonicalizeBtn" onclick="canonicalizeBarcodes()" style="background:#1976d2;">🔧 Fix Barcodes (use canonical EAN)</button>
             <button class="btn" id="bulkPriceBtn" onclick="toggleBulkPriceEdit()" style="background:#00897b; color:#fff; margin-left:6px;">&#9998; Update Prices (CP / SP)</button>
+            <button class="btn" id="syncPricesBtn" onclick="syncPricesFromRegistry()" style="background:#1565c0; color:#fff; margin-left:6px;" title="Auto-fill blank CP / SP cells from the price registry">&#9889; Sync Prices from Registry</button>
             <button class="btn" id="bulkSaveBtn" onclick="saveBulkPrices()" style="background:#2e7d32; color:#fff; margin-left:6px; display:none;">&#10003; Save All</button>
             <button class="btn" id="bulkCancelBtn" onclick="cancelBulkPriceEdit()" style="margin-left:6px; display:none;">Cancel</button>
             <span id="canonicalizeStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
@@ -1264,6 +1265,59 @@
                 saveBulkPrices();
             }
         });
+
+        // ---- Sync Prices from Registry ---------------------------------
+        // One-click backfill: pulls the price registry view (diag endpoint,
+        // which exposes each row's registry cost / retail) and PATCHes every
+        // saved row whose Purchase Price or MRP is still blank. Never
+        // overwrites a value the user already set — only fills zeros.
+        async function syncPricesFromRegistry() {
+            const btn = document.getElementById('syncPricesBtn');
+            const status = document.getElementById('bulkPriceStatus');
+            const origLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Syncing…';
+            try {
+                const res = await fetch('/api/diag/oi-prices', { credentials: 'same-origin' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const diag = await res.json();
+                const bySku = {};
+                diag.forEach(d => { bySku[String(d.sku).trim().toUpperCase()] = d; });
+                let patched = 0, noPrice = [], failed = 0;
+                for (const row of (savedInventory || [])) {
+                    const d = bySku[String(row.sku).trim().toUpperCase()];
+                    if (!d) continue;
+                    const reg = d.registry || {};
+                    const cost = parseFloat(reg.cost_rmb) || 0;
+                    const rsp = parseFloat(reg.rsp_rmb) || 0;
+                    const body = {};
+                    if ((!parseFloat(row.purchase_price) || 0) === 0 && cost > 0) body.purchase_price = String(cost);
+                    if ((!parseFloat(row.mrp) || 0) === 0 && rsp > 0) body.mrp = String(rsp);
+                    if (!Object.keys(body).length) continue;
+                    try {
+                        const pr = await fetch(`/api/opening-inventory/${row.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(body)
+                        });
+                        if (pr.ok) patched++; else failed++;
+                    } catch (e2) { failed++; }
+                    // Track which SKUs the registry could not help at all.
+                    if (!cost && !rsp && !noPrice.includes(row.sku)) noPrice.push(row.sku);
+                }
+                let msg = `Sync done: ${patched} row${patched === 1 ? '' : 's'} priced.`;
+                if (noPrice.length) msg += ` No registry price for: ${noPrice.join(', ')}.`;
+                if (failed) msg += ` ${failed} failed.`;
+                status.textContent = msg;
+            } catch (e) {
+                status.textContent = 'Sync failed: ' + e.message;
+            }
+            btn.disabled = false;
+            btn.textContent = origLabel;
+            await loadSavedInventory();
+            setTimeout(() => { status.textContent = ''; }, 6000);
+        }
 
         // Delete a saved row. First click arms the button (turns into "sure?"),
         // second click within 4s deletes. No confirmation dialogs.
