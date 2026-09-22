@@ -1,5 +1,5 @@
 {
- "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029 + PO_Upload JW21SSCB CSVs (2021 GEILI, 20 SKUs cost+sale) + MRP rule: RMB = 5 x cost, rounded to nearest 5 (user SOP)",
+ "source": "Item Master-Live-V2.xlsx > Item-Details + collection cost/sell sheets (EXCEL,PDF 2018-2026, 61 files, 366 SKUs, RMB) + POs 10001080000013/10001060000029 + PO_Upload JW21SSCB CSVs (2021 GEILI, 20 SKUs cost+sale) + MRP rule: RMB = 5 x cost, rounded to nearest 5 (user SOP) + LV22SSHT201/401 from LV21SSHT.xlsx ORDER sheet (cost incl VAT)",
  "currency": "RMB",
  "sku_prices": {
   "BGUSSAI201-1": {
@@ -2773,6 +2773,14 @@
   "JW21SSCB502/L": {
    "cost_rmb": 43.0,
    "rsp_rmb": 500.0
+  },
+  "LV22SSHT201": {
+   "cost_rmb": 96.05,
+   "rsp_rmb": 694.0
+  },
+  "LV22SSHT401": {
+   "cost_rmb": 101.7,
+   "rsp_rmb": 794.0
   }
  },
  "core_prices": {
@@ -2960,7 +2968,7 @@
   }
  },
  "counts": {
-  "exact": 693,
+  "exact": 695,
   "core": 46
  }
 }
