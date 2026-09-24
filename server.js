@@ -758,9 +758,12 @@ ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcod
   return autoResolvePendingUnmatched(null, 'startup');
 }).then((r) => {
   if (r) console.log(`[AUTO-RESOLVE] Startup self-heal: ${r.resolved.length} resolved, ${r.skipped.length} still need manual SKU`);
-  return backfillPricesFromItemPrices();
-}).then(() => reconcileOpeningInventoryPrices()).then(() => {
+  return fixGarbledSkus();
+}).then(() => loadDbPriceRegistryOverlay()).then(() => backfillPricesFromItemPrices()).then(() => reconcileOpeningInventoryPrices()).then(() => {
   console.log('[PRICE-REGISTRY] Startup self-heal done');
+  // Recurring self-heal: rows scanned after boot get registry prices within
+  // 10 minutes, no deploy needed.
+  setInterval(() => reconcileOpeningInventoryPrices(), 10 * 60 * 1000);
 }).catch((e) => console.error('[STARTUP] self-heal chain error:', e.message));
 
 // Record an action in the audit trail. Never lets a logging failure break the
@@ -3645,6 +3648,66 @@ try {
   console.error('[PRICE-REGISTRY] Failed to load:', e.message);
 }
 
+// DB-backed price registry: prices set through the portal (inline CP/SP edit,
+// bulk Save All, scan inputs, Set Price endpoint) are persisted in the
+// price_registry table and WIN over the file registry. The table lives in
+// Postgres, so portal-set prices survive redeploys — updating a price NEVER
+// requires a git push or a GitHub token.
+async function loadDbPriceRegistryOverlay() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS price_registry (
+      sku TEXT PRIMARY KEY,
+      cost_rmb NUMERIC,
+      rsp_rmb NUMERIC,
+      source TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    const rows = await pool.query(`SELECT sku, cost_rmb, rsp_rmb FROM price_registry`);
+    let n = 0;
+    for (const r of rows.rows) {
+      const sku = String(r.sku || '').trim().toUpperCase();
+      if (!sku) continue;
+      const entry = Object.assign({}, itemPriceRegistry.sku_prices[sku] || {});
+      if (r.cost_rmb != null && parseFloat(r.cost_rmb) > 0) entry.cost_rmb = parseFloat(r.cost_rmb);
+      if (r.rsp_rmb != null && parseFloat(r.rsp_rmb) > 0) entry.rsp_rmb = parseFloat(r.rsp_rmb);
+      if (!('cost_rmb' in entry) && !('rsp_rmb' in entry)) continue;
+      itemPriceRegistry.sku_prices[sku] = entry;
+      n++;
+    }
+    console.log(`[PRICE-REGISTRY] DB overlay: ${n} portal-set prices applied (DB wins over file)`);
+  } catch (e) {
+    console.error('[PRICE-REGISTRY] DB overlay failed:', e.message);
+  }
+}
+
+// Upsert one SKU's prices into the DB registry + the in-memory view. Only
+// positive values are written; nulls keep whatever is already stored.
+async function upsertPriceRegistry(sku, costRmb, rspRmb, source) {
+  const key = String(sku || '').trim().toUpperCase();
+  if (!key) return;
+  const cost = (costRmb != null && parseFloat(costRmb) > 0) ? parseFloat(costRmb) : null;
+  const rsp = (rspRmb != null && parseFloat(rspRmb) > 0) ? parseFloat(rspRmb) : null;
+  if (cost == null && rsp == null) return;
+  try {
+    await pool.query(
+      `INSERT INTO price_registry (sku, cost_rmb, rsp_rmb, source)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (sku) DO UPDATE SET
+         cost_rmb = COALESCE(EXCLUDED.cost_rmb, price_registry.cost_rmb),
+         rsp_rmb = COALESCE(EXCLUDED.rsp_rmb, price_registry.rsp_rmb),
+         source = EXCLUDED.source,
+         updated_at = NOW()`,
+      [key, cost, rsp, source || 'portal']
+    );
+    const cur = Object.assign({}, itemPriceRegistry.sku_prices[key] || {});
+    if (cost != null) cur.cost_rmb = cost;
+    if (rsp != null) cur.rsp_rmb = rsp;
+    itemPriceRegistry.sku_prices[key] = cur;
+  } catch (e) {
+    console.error('[PRICE-REGISTRY] upsert failed', key, e.message);
+  }
+}
+
 // Look up RMB cost/retail for a SKU: exact match first, then core variant.
 function lookupItemPrices(sku) {
   const raw = String(sku || '').trim().toUpperCase();
@@ -3837,6 +3900,22 @@ async function backfillPricesFromItemPrices() {
   }
 }
 
+// SKU self-heal: repair known scan-garbled SKU text in opening_inventory.
+// 'JWXXBC' (double X, missing S) is a mis-decode of the real JWXSSBC family —
+// no JWXXBC family exists in any source. Idempotent; runs at boot before the
+// price backfill so garbled rows price correctly.
+async function fixGarbledSkus() {
+  try {
+    const r = await pool.query(
+      `UPDATE opening_inventory SET sku = REPLACE(sku, 'JWXXBC', 'JWXSSBC') WHERE sku LIKE '%JWXXBC%'`
+    );
+    if (r.rowCount > 0) console.log(`[SKU-SELF-HEAL] fixed ${r.rowCount} JWXXBC -> JWXSSBC rows`);
+    return r.rowCount;
+  } catch (e) {
+    console.error('[SKU-SELF-HEAL] failed:', e.message);
+  }
+}
+
 // Reconcile: where the price registry has a NON-ZERO value that differs from a
 // saved opening_inventory row, the registry wins. This corrects rows written
 // earlier from weaker sources (e.g. costs self-mined from POs before the
@@ -3879,10 +3958,15 @@ async function fillOiPricesForSku(sku, orgId) {
   try {
     const pr = lookupItemPrices(sku);
     if (!pr) return;
-    const rows = await pool.query(
-      `SELECT id, purchase_price, mrp FROM opening_inventory WHERE sku = $1 AND org_id = $2`,
-      [sku, orgId]
-    );
+    const rows = orgId != null
+      ? await pool.query(
+          `SELECT id, purchase_price, mrp FROM opening_inventory WHERE sku = $1 AND org_id = $2`,
+          [sku, orgId]
+        )
+      : await pool.query(
+          `SELECT id, purchase_price, mrp FROM opening_inventory WHERE sku = $1`,
+          [sku]
+        );
     for (const r of rows.rows) {
       const sets = [];
       const params = [];
@@ -3901,6 +3985,27 @@ async function fillOiPricesForSku(sku, orgId) {
     console.error('[OI-PRICE-FILL]', sku, e.message);
   }
 }
+
+// POST /api/price-registry — set the permanent CP / SP for a SKU from the
+// portal. Persists in the price_registry DB table (survives redeploys),
+// updates the in-memory registry, and price-fills any matching
+// opening_inventory rows immediately. No git push / token involved.
+app.post('/api/price-registry', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const sku = String((req.body && req.body.sku) || '').trim().toUpperCase();
+    if (!sku) return res.status(400).json({ error: 'sku is required' });
+    const cost = req.body.cost_rmb;
+    const rsp = req.body.rsp_rmb;
+    if (cost == null && rsp == null) return res.status(400).json({ error: 'cost_rmb and/or rsp_rmb required' });
+    await upsertPriceRegistry(sku, cost, rsp, req.body.source || 'portal-set');
+    const orgId = req.body.org_id != null ? parseInt(req.body.org_id, 10) : null;
+    await fillOiPricesForSku(sku, orgId);
+    res.json({ success: true, sku, cost_rmb: cost, rsp_rmb: rsp });
+  } catch (err) {
+    console.error('Error setting price registry:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/items/barcode/:barcode — lookup single item by barcode (for scanner)
 // Fallback chain: item_master → po_barcode_index → 404 (unmatched)
@@ -4415,6 +4520,18 @@ app.patch('/api/opening-inventory/:id', requireAuthApi(['ADMIN', 'BUYER']), asyn
       params
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Row not found' });
+    // A CP/SP set through the portal becomes the PERMANENT registry price for
+    // this SKU (DB table — survives redeploys). It feeds future scans, the
+    // Sync button, and the boot reconcile. No git push / token ever needed.
+    const updatedRow = result.rows[0];
+    if (updatedRow && updatedRow.sku && ('purchase_price' in req.body || 'mrp' in req.body)) {
+      await upsertPriceRegistry(
+        updatedRow.sku,
+        'purchase_price' in req.body ? req.body.purchase_price : null,
+        'mrp' in req.body ? req.body.mrp : null,
+        'portal-edit'
+      );
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error amending opening inventory row:', err);
@@ -4524,6 +4641,11 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
       }
       saved++;
       totalQty += item.qty;
+      // Manually typed CP/SP from the scan session become the permanent
+      // registry price for the SKU (DB-backed, survives redeploys).
+      if (purchasePrice !== null || mrp !== null) {
+        await upsertPriceRegistry(item.sku, purchasePrice, mrp, 'scan-input');
+      }
     }
 
     logActivity(req.user, 'OPENING_INVENTORY_SAVE', null, { saved, totalQty, org_id: targetOrg });
