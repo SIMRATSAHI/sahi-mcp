@@ -6188,5 +6188,166 @@ app.put('/api/items/:sku/barcode', requireAuthApi(['ADMIN', 'BUYER']), async (re
   }
 });
 
+// ============================================================
+// SOURCING ORDERS — catalogue -> order sheet -> vendor confirm ->
+// item master (auto barcode) -> vendor PO
+// ============================================================
+
+// Catalogue data (built from D:/SAHI_CATALOGUE/vendors/*.xlsx by gen_catalog_json.py).
+// Served auth-only: contains vendor prices.
+let sourcingCatalogue = { generated: '', vendors: [] };
+try {
+  const catPath = path.join(__dirname, 'catalog_data.json');
+  if (fs.existsSync(catPath)) {
+    sourcingCatalogue = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+    const nItems = sourcingCatalogue.vendors.reduce((a, v) => a + v.items.length, 0);
+    console.log(`[SOURCING] Loaded catalogue: ${sourcingCatalogue.vendors.length} vendors / ${nItems} items (generated ${sourcingCatalogue.generated})`);
+  } else {
+    console.log('[SOURCING] catalog_data.json not found - sourcing page will be empty');
+  }
+} catch (e) {
+  console.error('[SOURCING] Failed to load catalog_data.json:', e.message);
+}
+
+app.get('/api/sourcing/catalogue', requireAuthApi(['ADMIN', 'BUYER']), (req, res) => {
+  res.json(sourcingCatalogue);
+});
+
+// Valid EAN-13 in the GS1 200-299 internal-use range (no GS1 licence needed,
+// scans on any standard scanner, resolves only inside this portal).
+function sourcingGenEan13() {
+  let body = '200' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += parseInt(body[i], 10) * (i % 2 === 0 ? 1 : 3);
+  const check = (10 - (sum % 10)) % 10;
+  return body + String(check);
+}
+
+// Import the vendor-CONFIRMED order sheet (same format as the downloaded one:
+// Vendor SKU + Qty, optional Unit Price). Matches against the catalogue, NOT
+// item_master, because these items do not exist yet.
+app.post('/api/sourcing/parse-order-file', requireAuthApi(['ADMIN', 'BUYER']), invoiceFileUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const XLSX = require('xlsx');
+    let rows;
+    try {
+      const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    } catch (e) {
+      return res.status(400).json({ error: 'Could not read file. Use .csv, .xlsx or .xls.' });
+    }
+    if (!sourcingCatalogue.vendors.length) return res.status(400).json({ error: 'Catalogue data not loaded on server' });
+
+    const pick = (r, names) => {
+      for (const k of Object.keys(r)) {
+        const norm = String(k).trim().toLowerCase().replace(/[\s_()/-]/g, '');
+        if (names.includes(norm)) return r[k];
+      }
+      return undefined;
+    };
+
+    // flat sku -> {item, vendor} map
+    const bySku = {};
+    sourcingCatalogue.vendors.forEach(v => v.items.forEach(it => { bySku[it.sku.toUpperCase()] = { item: it, vendor: v }; }));
+
+    const merged = {};
+    const notFound = [];
+    for (const r of rows) {
+      const skuRaw = pick(r, ['sku', 'vendorsku', 'vendorskucode', 'itemcode', 'code', 'barcode', 'ean', 'partnumber']);
+      const qty = parseInt(pick(r, ['qty', 'quantity', 'pcs', 'units', 'count', 'orderqty', 'confirmedqty']), 10) || 0;
+      const priceRaw = pick(r, ['unitprice', 'price', 'unitpricermb', 'pricecny', 'priceyuan', 'confirmedprice']);
+      const price = (priceRaw !== undefined && priceRaw !== '' && !isNaN(parseFloat(priceRaw))) ? parseFloat(priceRaw) : null;
+      if (skuRaw === undefined || String(skuRaw).trim() === '') continue;
+      const key = String(skuRaw).trim().toUpperCase();
+      const hit = bySku[key];
+      if (!hit) { notFound.push(String(skuRaw).trim()); continue; }
+      if (qty <= 0 && !(merged[key])) continue; // skip zero-qty rows unless already added
+      if (merged[key]) {
+        if (qty > 0) merged[key].qty = qty;         // vendor row wins
+        if (price !== null) merged[key].unit_price = price;
+      } else {
+        merged[key] = {
+          sku: hit.item.sku,
+          name: hit.item.name,
+          sub: hit.item.sub,
+          colors: hit.item.colors,
+          size: hit.item.size,
+          packing: hit.item.packing,
+          qty: qty > 0 ? qty : 0,
+          unit_price: price !== null ? price : (hit.item.price_rmb || 0),
+          vendor_code: hit.vendor.code,
+          vendor_name: hit.vendor.name
+        };
+      }
+    }
+    const lines = Object.values(merged).filter(l => l.qty > 0);
+    res.json({ lines, notFound });
+  } catch (err) {
+    console.error('Error parsing sourcing order file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create item_master rows from the CONFIRMED order lines + auto EAN-13 barcode.
+// Ensures the vendor exists (category HD, currency RMB). Items start with 0 stock;
+// the PO that follows brings the qty in via receiving.
+app.post('/api/sourcing/create-items', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { vendor_code, vendor_name, items } = req.body;
+  if (!vendor_code || !Array.isArray(items) || !items.length) {
+    return res.status(400).json({ error: 'vendor_code and items[] required' });
+  }
+  const client = await pool.connect();
+  const created = [], existing = [], errors = [];
+  try {
+    await client.query('BEGIN');
+    // ensure vendor
+    const vExists = await client.query('SELECT vendor_code FROM vendors WHERE vendor_code = $1', [vendor_code]);
+    if (vExists.rows.length === 0) {
+      await client.query(
+        `INSERT INTO vendors (vendor_code, vendor_name, category, currency, is_active)
+         VALUES ($1, $2, 'HD', 'RMB', true) ON CONFLICT (vendor_code) DO NOTHING`,
+        [vendor_code, vendor_name || vendor_code]
+      );
+    }
+    for (const it of items) {
+      if (!it.sku || !it.qty || it.qty <= 0) { errors.push({ sku: it.sku, error: 'sku and positive qty required' }); continue; }
+      try {
+        const dup = await client.query('SELECT sku, barcode FROM item_master WHERE UPPER(sku) = UPPER($1)', [it.sku]);
+        if (dup.rows.length > 0) {
+          existing.push({ sku: it.sku, barcode: dup.rows[0].barcode });
+          continue;
+        }
+        const barcode = sourcingGenEan13();
+        const price = parseFloat(it.unit_price) || 0;
+        await client.query(
+          `INSERT INTO item_master (sku, barcode, friendly_name,
+             category_code, year_code, collection_code, department_code, color_code,
+             material, hs_code, description, std_cost_rmb,
+             collection, category, original_qty, balance_qty, status, created_by)
+           VALUES ($1, $2, $3, 'HD', 'A', $4, '1', 'n/a',
+             'Unknown', '9505100090', 'Sourcing catalogue item', $5,
+             $6, $6, 0, 0, 'PENDING_IMAGE', $7)`,
+          [it.sku, barcode, it.friendly_name || it.sku, vendor_code, price, it.sub || 'Sourcing', req.user ? req.user.email : 'system']
+        );
+        await client.query('INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0) ON CONFLICT DO NOTHING', [it.sku]);
+        created.push({ sku: it.sku, barcode, friendly_name: it.friendly_name || it.sku, unit_price: price, qty: it.qty });
+      } catch (e) {
+        errors.push({ sku: it.sku, error: e.message });
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) {}
+    console.error('sourcing create-items error:', err);
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+  logActivity(req.user, 'SOURCING_ITEMS_CREATED', vendor_code, { created: created.length, existing: existing.length, errors: errors.length });
+  res.json({ success: true, created, existing, errors });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Portal running on port ${PORT}`));
