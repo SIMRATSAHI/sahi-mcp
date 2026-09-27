@@ -134,11 +134,28 @@
 
         <button class="btn" onclick="generateInvoice()" style="margin-top:15px;">Generate Sales Invoice PDF</button>
 
+        <div class="add-box" style="margin-top:20px;">
+            <label style="margin-bottom:8px;">Shopify upload — export products CSV from any invoice</label>
+            <div class="add-row">
+                <div class="fg">
+                    <label>Order ID</label>
+                    <input type="text" id="csvOrderId" placeholder="e.g. SA-123456">
+                </div>
+                <div class="fg" style="max-width:160px;">
+                    <label>Price factor</label>
+                    <input type="number" id="shopifyFactor" value="1" step="0.05" min="0">
+                </div>
+                <button class="btn btn-inline btn-pink" onclick="downloadShopifyCSV(document.getElementById('csvOrderId').value.trim(), document.getElementById('shopifyFactor').value)">Download CSV</button>
+            </div>
+            <div class="hint" style="margin-top:6px;">Shopify price = invoice price &times; factor (use to convert currency or set store retail). Upload in Shopify Admin: Products &rarr; Import. Same SKU re-import updates the listing; images auto-attached when the portal has them.</div>
+        </div>
+
         <div id="result">
             <div class="success-box">
                 <h3 style="color:#333;">✅ Invoice Created!</h3>
                 <p id="summaryText"></p>
                 <button onclick="downloadPDF()" class="btn btn-pink" style="margin-top:5px;">Download Invoice PDF</button>
+                <button onclick="downloadShopifyCSV(currentData.order_id, document.getElementById('shopifyFactor').value)" class="btn" style="margin-top:5px;">Download Shopify Products CSV</button>
             </div>
         </div>
     </div>
@@ -360,6 +377,13 @@
             document.getElementById('result').style.display = 'block';
             document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
             fb('Invoice ' + data.order_id + ' created — stock deducted.', true);
+        }
+
+        function downloadShopifyCSV(orderId, factor) {
+            orderId = (orderId || '').trim();
+            if (!orderId) { fb('Enter the Order ID first', false); return; }
+            const f = parseFloat(factor) > 0 ? parseFloat(factor) : 1;
+            window.location.href = '/api/invoice/' + encodeURIComponent(orderId) + '/shopify-csv?factor=' + f;
         }
 
         function downloadPDF() {
