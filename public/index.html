@@ -150,6 +150,17 @@
             <div class="hint" style="margin-top:6px;">Shopify price = invoice price &times; factor (use to convert currency or set store retail). Upload in Shopify Admin: Products &rarr; Import. Same SKU re-import updates the listing; images auto-attached when the portal has them.</div>
         </div>
 
+        <div class="add-box" style="margin-top:12px; border-color:#f0b7b7;">
+            <label style="margin-bottom:8px;">Void an invoice (admin) — deletes it and returns the qty to Opening Inventory</label>
+            <div class="add-row">
+                <div class="fg">
+                    <label>Order ID</label>
+                    <input type="text" id="voidOrderId" placeholder="e.g. SA-1001">
+                </div>
+                <button class="btn btn-inline" style="background:#f44336; color:#fff;" onclick="voidInvoice()">Void invoice</button>
+            </div>
+        </div>
+
         <div id="result">
             <div class="success-box">
                 <h3 style="color:#333;">✅ Invoice Created!</h3>
@@ -377,6 +388,17 @@
             document.getElementById('result').style.display = 'block';
             document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
             fb('Invoice ' + data.order_id + ' created — stock deducted.', true);
+        }
+
+        async function voidInvoice() {
+            const id = document.getElementById('voidOrderId').value.trim();
+            if (!id) { fb('Enter the Order ID to void', false); return; }
+            if (!confirm('Void invoice ' + id + '? Its qty returns to Opening Inventory.')) return;
+            const res = await fetch('/api/invoice/' + encodeURIComponent(id), { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok || !data.success) { fb(data.error || 'Void failed', false); return; }
+            fb('Invoice ' + id + ' voided — stock restored (' + data.lines_restored + ' line(s))', true);
+            document.getElementById('voidOrderId').value = '';
         }
 
         function downloadShopifyCSV(orderId, factor) {
