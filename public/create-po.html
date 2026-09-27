@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SAHI Portal - Create PO</title>
+    <title>SAHI Portal - Vendor PO (Buying)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
@@ -55,7 +55,7 @@
         </div>
         <div class="nav">
             <a href="/">Sell (Invoice)</a>
-            <a href="/create-po.html" class="active">Create PO</a>
+            <a href="/create-po.html" class="active">Vendor PO (Buying)</a>
             <a href="/invoices.html">Invoice to PO</a>
             <a href="/receive-po.html">Receive Stock</a>
             <a href="/items.html">Item Master</a>
@@ -69,13 +69,13 @@
 
         <!-- Tab buttons -->
         <div style="display:flex; gap:5px; margin-bottom:0;">
-            <button class="tab-btn active" id="tabCreatePO" onclick="switchTab('createPO')">Create PO</button>
+            <button class="tab-btn active" id="tabCreatePO" onclick="switchTab('createPO')">Create Vendor PO</button>
             <button class="tab-btn" id="tabVendorPrices" onclick="switchTab('vendorPrices')">Vendor Price List</button>
         </div>
 
         <!-- ===== CREATE PO TAB ===== -->
         <div id="createPOSection" class="section-box" style="border-radius: 0 6px 6px 6px;">
-            <h3>Create Purchase Order</h3>
+            <h3>Create Vendor PO — Buying from Factory</h3>
             <p style="color:#666; font-size:13px;">Select a vendor, enter the invoice reference, pick items with images, and submit.</p>
 
             <div class="input-row">
@@ -184,7 +184,7 @@
 
         <hr style="margin:30px 0; border:none; border-top:1px solid #ddd;">
 
-        <h3 style="color:#333;">Purchase Orders</h3>
+        <h3 style="color:#333;">Vendor POs — what we buy from factories</h3>
         <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
             <button class="po-filter-btn" onclick="loadPOList()" style="padding:6px 14px; background:#87CEEB; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">All</button>
             <button class="po-filter-btn" onclick="loadPOList('DRAFT')" style="padding:6px 14px; background:#D3D3D3; border:none; border-radius:4px; cursor:pointer;">Draft</button>
