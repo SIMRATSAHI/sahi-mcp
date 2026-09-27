@@ -1725,6 +1725,44 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
   }
 });
 
+// DELETE /api/invoice/:orderId — void a sales invoice (ADMIN): deletes all
+// lines of the order and returns each line's qty back to opening_inventory
+// (org 1), so stock counts return to pre-invoice state.
+app.delete('/api/invoice/:orderId', requireAuthApi(['ADMIN']), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const linesRes = await client.query(
+      `SELECT id, sku, qty FROM customer_orders WHERE order_id = $1 FOR UPDATE`, [req.params.orderId]);
+    if (linesRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found: ' + req.params.orderId });
+    }
+    for (const line of linesRes.rows) {
+      const oi = await client.query(
+        `SELECT id FROM opening_inventory WHERE sku = $1 AND org_id = $2 ORDER BY created_at ASC LIMIT 1`,
+        [line.sku, HQ_ORG_ID]);
+      if (oi.rows.length) {
+        await client.query(`UPDATE opening_inventory SET qty = qty + $1 WHERE id = $2`, [line.qty, oi.rows[0].id]);
+      } else {
+        await client.query(
+          `INSERT INTO opening_inventory (sku, qty, org_id, created_by) VALUES ($1, $2, $3, $4)`,
+          [line.sku, line.qty, HQ_ORG_ID, 'void-restock']);
+      }
+    }
+    await client.query(`DELETE FROM customer_orders WHERE order_id = $1`, [req.params.orderId]);
+    await client.query('COMMIT');
+    logActivity(req.user, 'INVOICE_VOIDED', req.params.orderId, { lines_restored: linesRes.rows.length });
+    res.json({ success: true, order_id: req.params.orderId, lines_restored: linesRes.rows.length });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to void invoice: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { vendor_code, po_date, po_currency, exchange_rate, items, invoice_reference, invoice_id } = req.body;
   const po_id = `PO-${Date.now().toString().slice(-6)}`;
