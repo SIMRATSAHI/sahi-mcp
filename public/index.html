@@ -61,6 +61,7 @@
     </div>
     <div class="nav">
         <a href="/" class="active">Buyer Invoice (Sell)</a>
+        <a href="/buyer-po.html">Buyer PO</a>
         <a href="/create-po.html">Vendor PO (Buying)</a>
         <a href="/invoices.html">Invoice to PO</a>
         <a href="/receive-po.html">Receive Stock</a>
@@ -85,6 +86,10 @@
             <select id="buyerSelect"></select>
         </div>
         <div class="buyer-info" id="buyerInfo">Select a buyer — currency and default markup fill in automatically.</div>
+        <div class="form-group">
+            <label>Load from Buyer PO <span class="hint">(open POs from the Buyer PO page — pulls the buyer, PO number and lines in)</span></label>
+            <select id="poLoad" onchange="onPoLoad()"><option value="">— none, invoice without a PO —</option></select>
+        </div>
         <div class="form-group">
             <label>Invoice Markup % <span class="hint">(auto = buyer default, editable)</span></label>
             <div style="display:flex; gap:10px;">
@@ -177,6 +182,7 @@
         let buyers = [];             // from /api/buyers
         let itemMap = {};            // sku -> {name, cost_usd}
         let currentData = null;
+        let loadedPoId = null;   // Buyer PO being fulfilled by this invoice
 
         const fb = (msg, ok) => {
             const el = document.getElementById('addFeedback');
@@ -207,8 +213,56 @@
             });
             bSel.addEventListener('change', onBuyerChange);
             if (buyers.length) onBuyerChange();
+            await loadBuyerPOs();
+            const urlPo = new URLSearchParams(window.location.search).get('po');
+            if (urlPo) { document.getElementById('poLoad').value = urlPo; await onPoLoad(); }
         }
         init();
+
+        async function loadBuyerPOs() {
+            try {
+                const res = await fetch('/api/buyer-pos?status=OPEN');
+                const pos = await res.json();
+                const sel = document.getElementById('poLoad');
+                const keep = sel.value;
+                sel.innerHTML = '<option value="">— none, invoice without a PO —</option>';
+                (pos || []).forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.innerText = p.po_number + ' · ' + (p.buyer_name || p.buyer_code) + ' · ' + p.invoiced_qty + '/' + p.total_qty + ' invoiced';
+                    sel.appendChild(opt);
+                });
+                if (keep) sel.value = keep;
+            } catch (e) { /* PO dropdown is optional */ }
+        }
+
+        async function onPoLoad() {
+            const id = document.getElementById('poLoad').value;
+            if (!id) { loadedPoId = null; return; }
+            const res = await fetch('/api/buyer-pos/' + id);
+            const d = await res.json();
+            if (!res.ok) { fb(d.error || 'Could not load Buyer PO', false); return; }
+            loadedPoId = parseInt(id, 10);
+            if (d.buyer_code) {
+                const bSel = document.getElementById('buyerSelect');
+                if ([...bSel.options].some(o => o.value === d.buyer_code)) {
+                    bSel.value = d.buyer_code;
+                    onBuyerChange();
+                }
+            }
+            document.getElementById('poRef').value = d.po_number || '';
+            lines = (d.lines || []).map(l => {
+                const rem = (parseInt(l.qty, 10) || 0) - (parseInt(l.invoiced_qty, 10) || 0);
+                return rem > 0 ? {
+                    sku: l.sku,
+                    qty: rem,
+                    item_name: l.item_name || l.sku,
+                    cost_usd: itemMap[l.sku] ? itemMap[l.sku].cost_usd : 0
+                } : null;
+            }).filter(Boolean);
+            renderLines();
+            fb('Buyer PO ' + d.po_number + ' loaded — ' + lines.length + ' remaining line(s). Generate the invoice to fulfill it.', true);
+        }
 
         function currentBuyer() {
             return buyers.find(b => b.code === document.getElementById('buyerSelect').value) || null;
@@ -373,6 +427,7 @@
                 body: JSON.stringify({
                     buyer_code: buyer,
                     po_reference: po,
+                    buyer_po_id: loadedPoId,
                     items: lines.map(l => ({ sku: l.sku, qty: l.qty, markup_percent: markup }))
                 })
             });
@@ -380,12 +435,17 @@
             if (!data.success) { fb(data.error || 'Invoice failed', false); return; }
             currentData = data;
             lines = [];
+            loadedPoId = null;
+            document.getElementById('poLoad').value = '';
             renderLines();
+            loadBuyerPOs();
             document.getElementById('summaryText').innerHTML =
                 '<b>Order ID:</b> ' + data.order_id + '<br>' +
                 '<b>Buyer:</b> ' + data.buyer_name + ' (' + data.currency + ')<br>' +
                 '<b>Lines:</b> ' + data.lines.length + '<br>' +
-                '<b>Grand Total:</b> ' + data.currency + ' ' + data.grand_total_local.toFixed(2);
+                '<b>Grand Total:</b> ' + data.currency + ' ' + data.grand_total_local.toFixed(2) +
+                (data.buyer_po ? '<br><b>Buyer PO:</b> ' + data.buyer_po.po_number +
+                    (data.buyer_po.unmatched_skus && data.buyer_po.unmatched_skus.length ? ' <span style="color:#d32f2f;">(not on PO: ' + data.buyer_po.unmatched_skus.join(', ') + ')</span>' : ' — updated') : '');
             document.getElementById('result').style.display = 'block';
             document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
             fb('Invoice ' + data.order_id + ' created — stock deducted.', true);
@@ -421,7 +481,7 @@
             doc.text('SALES INVOICE', 105, 32, { align: 'center' });
             doc.setFontSize(10);
             doc.text('Invoice #: ' + data.order_id, 14, 50);
-            doc.text('PO Ref: ' + (data.po_reference || '-'), 14, 57);
+            doc.text('Buyer PO Ref: ' + (data.po_reference || '-'), 14, 57);
             doc.text('Buyer: ' + data.buyer_name, 14, 64);
             const firstMarkup = data.lines.length ? data.lines[0].markup_percent : '';
             doc.text('Markup: ' + firstMarkup + '%', 14, 71);
@@ -449,6 +509,7 @@
         // --- Auth / role-based nav (shared pattern across all pages) ---
         const NAV_PERMISSIONS = {
             '/': ['ADMIN'],
+            '/buyer-po.html': ['ADMIN', 'BUYER', 'ACCOUNTS'],
             '/create-po.html': ['ADMIN', 'BUYER'],
             '/items.html': ['ADMIN', 'BUYER'],
             '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
