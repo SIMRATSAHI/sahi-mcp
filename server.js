@@ -738,6 +738,11 @@ async function ensureSchema() {
       await pool.query(`ALTER TABLE customer_orders ADD COLUMN IF NOT EXISTS ${name} ${type}`);
     }
     await pool.query(`CREATE SEQUENCE IF NOT EXISTS customer_orders_order_seq START 1001`);
+    // Multi-line invoices store one row per line sharing the same order_id,
+    // so the legacy UNIQUE constraint on order_id must go (it made every
+    // invoice with 2+ lines fail with a duplicate-key error).
+    await pool.query(`ALTER TABLE customer_orders DROP CONSTRAINT IF EXISTS customer_orders_order_id_key`);
+    await pool.query(`ALTER TABLE customer_orders DROP CONSTRAINT IF EXISTS customer_orders_order_id_key1`);
   } catch (err) {
     console.error('customer_orders migration warning:', err.message);
   }
