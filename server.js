@@ -671,6 +671,43 @@ async function ensureSchema() {
     console.error('opening_inventory migration warning:', err.message);
   }
 
+  // Sales table — sales made from opening stock. Each sale snapshots the cost
+  // at sale time (margin stays true even if registry prices move later) and
+  // deducts qty from opening_inventory. Survives redeploys (Postgres).
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sales (
+        id SERIAL PRIMARY KEY,
+        sku TEXT NOT NULL,
+        barcode TEXT,
+        friendly_name TEXT,
+        qty INTEGER NOT NULL,
+        unit_price NUMERIC NOT NULL DEFAULT 0,
+        cost_price NUMERIC DEFAULT 0,
+        total NUMERIC NOT NULL DEFAULT 0,
+        margin NUMERIC DEFAULT 0,
+        customer TEXT,
+        invoice_no TEXT,
+        currency TEXT DEFAULT 'CAD',
+        org_id INTEGER NOT NULL DEFAULT 1,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sales_sku ON sales(sku)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at)`);
+  } catch (err) {
+    console.error('sales migration warning:', err.message);
+  }
+
+  // Buyers: per-buyer default markup % for sales invoices (currency already
+  // lives on buyers). Lazy self-heal also exists in GET /api/buyers.
+  try {
+    await pool.query(`ALTER TABLE buyers ADD COLUMN IF NOT EXISTS default_markup_pct NUMERIC DEFAULT 2.5`);
+  } catch (err) {
+    console.error('buyers markup migration warning:', err.message);
+  }
+
   // Add columns to item_master for bulk import support
   try {
     await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS collection TEXT`);
@@ -1319,8 +1356,40 @@ app.patch('/api/admin/users/:id/role', requireAuthApi(['ADMIN']), async (req, re
 });
 
 app.get('/api/buyers', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
-  const result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd FROM buyers");
-  res.json(result.rows);
+  try {
+    let result;
+    try {
+      result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers");
+    } catch (e) {
+      // Older deploys: add the default markup column lazily, then retry
+      await pool.query("ALTER TABLE buyers ADD COLUMN IF NOT EXISTS default_markup_pct NUMERIC DEFAULT 2.5");
+      result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers");
+    }
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch buyers' });
+  }
+});
+
+// PATCH /api/buyers/:code/markup — set the buyer's default markup % used to
+// auto-fill the invoice markup field.
+app.patch('/api/buyers/:code/markup', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const pct = parseFloat(req.body && req.body.default_markup_pct);
+    if (isNaN(pct) || pct < 0) return res.status(400).json({ error: 'Invalid markup %' });
+    await pool.query("ALTER TABLE buyers ADD COLUMN IF NOT EXISTS default_markup_pct NUMERIC DEFAULT 2.5");
+    const r = await pool.query(
+      `UPDATE buyers SET default_markup_pct = $1 WHERE code = $2
+       RETURNING code, name, currency, exchange_rate_to_usd, default_markup_pct`,
+      [pct, req.params.code]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Buyer not found' });
+    logActivity(req.user, 'BUYER_MARKUP_SET', req.params.code, { default_markup_pct: pct });
+    res.json(r.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to set buyer markup' });
+  }
 });
 
 app.get('/api/vendors', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
@@ -1422,6 +1491,178 @@ app.post('/api/create-invoice', requireAuthApi(['ADMIN']), async (req, res) => {
     await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: "Failed to create invoice" });
+  } finally {
+    client.release();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MULTI-LINE SALES INVOICE — scan items or upload CSV/Excel, one invoice in
+// the buyer's currency. Buyer default markup auto-fills; overridable per line.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const invoiceFileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// POST /api/invoice/parse-file — parse an uploaded CSV/XLSX with columns
+// SKU (or Barcode) + Qty. Resolves barcodes via opening_inventory / EAN
+// registry, validates every SKU against item_master, merges duplicates.
+// Returns ready-to-add lines (cost USD) plus any unresolvable values.
+app.post('/api/invoice/parse-file', requireAuthApi(['ADMIN', 'BUYER']), invoiceFileUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const XLSX = require('xlsx');
+    let rows;
+    try {
+      const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    } catch (e) {
+      return res.status(400).json({ error: 'Could not read file. Use .csv, .xlsx or .xls.' });
+    }
+    const pick = (r, names) => {
+      for (const k of Object.keys(r)) {
+        const norm = String(k).trim().toLowerCase().replace(/[\s_-]/g, '');
+        if (names.includes(norm)) return r[k];
+      }
+      return undefined;
+    };
+    const raw = [];
+    for (const r of rows) {
+      const val = pick(r, ['sku', 'itemcode', 'code', 'barcode', 'ean', 'partnumber']);
+      const qty = parseInt(pick(r, ['qty', 'quantity', 'pcs', 'units', 'count']), 10) || 1;
+      if (val === undefined || String(val).trim() === '') continue;
+      raw.push({ q: String(val).trim(), qty });
+    }
+    if (!raw.length) {
+      return res.status(400).json({ error: 'No rows found. File needs a SKU (or Barcode) column and a Qty column.' });
+    }
+    const items = [];
+    const notFound = [];
+    for (const { q, qty } of raw) {
+      let sku = null;
+      if (/^\d{6,14}$/.test(q)) {
+        const oi = await pool.query(`SELECT sku FROM opening_inventory WHERE barcode = $1 LIMIT 1`, [q]);
+        if (oi.rows.length) sku = oi.rows[0].sku;
+        if (!sku) sku = (eanRegistry.barcode_to_sku || {})[q] || null;
+      }
+      if (!sku) {
+        const im = await pool.query(`SELECT sku FROM item_master WHERE UPPER(sku) = UPPER($1) LIMIT 1`, [q]);
+        if (im.rows.length) sku = im.rows[0].sku;
+      }
+      if (!sku) { notFound.push(q); continue; }
+      const meta = await pool.query(`SELECT friendly_name, std_cost_rmb FROM item_master WHERE sku = $1`, [sku]);
+      if (!meta.rows.length) { notFound.push(q); continue; }
+      const costUsd = Math.round(((parseFloat(meta.rows[0].std_cost_rmb) || 0) / 7.0) * 100) / 100;
+      const existing = items.find(x => x.sku === sku);
+      if (existing) existing.qty += qty;
+      else items.push({ sku, qty, item_name: meta.rows[0].friendly_name, cost_usd: costUsd });
+    }
+    res.json({ items, notFound });
+  } catch (err) {
+    console.error('Error parsing invoice file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Deduct invoice qty for one SKU: opening_inventory first (the physically
+// counted stock), falling back to the inventory table. Caller owns the
+// transaction / ROLLBACK.
+async function deductInvoiceStock(client, sku, qty) {
+  const oi = await client.query(
+    `SELECT id, qty FROM opening_inventory WHERE sku = $1 AND qty > 0 ORDER BY created_at ASC FOR UPDATE`, [sku]);
+  const availOi = oi.rows.reduce((s, r) => s + r.qty, 0);
+  if (availOi >= qty) {
+    let remaining = qty;
+    for (const row of oi.rows) {
+      if (remaining <= 0) break;
+      const take = Math.min(row.qty, remaining);
+      await client.query(`UPDATE opening_inventory SET qty = qty - $1 WHERE id = $2`, [take, row.id]);
+      remaining -= take;
+    }
+    return { source: 'opening_inventory', available: availOi };
+  }
+  const onHand = Math.max(await getOnHand(client, sku, HQ_ORG_ID), 0);
+  if (onHand >= qty) {
+    await adjustInventory(client, sku, HQ_ORG_ID, -qty);
+    return { source: 'inventory', available: onHand };
+  }
+  return { source: null, available: availOi + onHand };
+}
+
+// POST /api/create-invoice-batch — one invoice, many lines, buyer currency.
+// Body: { buyer_code, po_reference, items: [{ sku, qty, markup_percent? }] }
+app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res) => {
+  const { buyer_code, po_reference, items } = req.body || {};
+  if (!buyer_code || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'buyer_code and items[] are required' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const buyerRes = await client.query(
+      "SELECT name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers WHERE code = $1", [buyer_code]);
+    if (buyerRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer not found' }); }
+    const buyer = buyerRes.rows[0];
+    const order_id = `${buyer_code.substring(0, 2)}-${Date.now().toString().slice(-6)}`;
+    const lines = [];
+    for (const it of items) {
+      const qty = parseInt(it.qty, 10);
+      if (!it.sku || !qty || qty <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Each item needs a sku and qty > 0' });
+      }
+      const im = await client.query(
+        `SELECT friendly_name, std_cost_rmb FROM item_master WHERE UPPER(sku) = UPPER($1)`, [it.sku]);
+      if (im.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Unknown SKU: ${it.sku}` });
+      }
+      const costUsd = (parseFloat(im.rows[0].std_cost_rmb) || 0) / 7.0;
+      const markup = (it.markup_percent !== undefined && it.markup_percent !== null && it.markup_percent !== '')
+        ? parseFloat(it.markup_percent)
+        : (parseFloat(buyer.default_markup_pct) || 2.5);
+      const stock = await deductInvoiceStock(client, it.sku, qty);
+      if (!stock.source) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Insufficient stock for ${it.sku}: only ${stock.available} available` });
+      }
+      const unitPriceUsd = costUsd * (1 + markup / 100);
+      const unitPriceLocal = unitPriceUsd * buyer.exchange_rate_to_usd;
+      const totalLocal = unitPriceLocal * qty;
+      await client.query(`
+        INSERT INTO customer_orders
+        (order_id, po_reference, buyer_code, sku, item_name, qty, markup_percent, unit_cost_usd, unit_price_usd, unit_price_local, total_local, order_currency, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [order_id, po_reference, buyer_code, it.sku, im.rows[0].friendly_name, qty, markup, costUsd, unitPriceUsd, unitPriceLocal, totalLocal, buyer.currency, req.user.email]);
+      lines.push({
+        sku: it.sku,
+        item_name: im.rows[0].friendly_name,
+        qty,
+        markup_percent: markup,
+        unit_cost_usd: Math.round(costUsd * 100) / 100,
+        unit_price_local: Math.round(unitPriceLocal * 100) / 100,
+        total_local: Math.round(totalLocal * 100) / 100,
+        stock_source: stock.source
+      });
+    }
+    await client.query('COMMIT');
+    const grandTotal = lines.reduce((s, l) => s + l.total_local, 0);
+    logActivity(req.user, 'INVOICE_BATCH_CREATED', order_id, { buyer_code, lines: lines.length, total_local: grandTotal.toFixed(2), currency: buyer.currency });
+    res.json({
+      success: true,
+      order_id,
+      po_reference,
+      buyer_code,
+      buyer_name: buyer.name,
+      currency: buyer.currency,
+      exchange_rate_to_usd: buyer.exchange_rate_to_usd,
+      lines,
+      grand_total_local: Math.round(grandTotal * 100) / 100
+    });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create batch invoice' });
   } finally {
     client.release();
   }
@@ -3630,6 +3871,36 @@ try {
   console.error('[EAN-REGISTRY] Failed to load:', e);
 }
 
+// Item-Master-wins barcode overlay (SOP: Item Master is the source of truth).
+// ean_barcodes.json was generated per BASE sku and both misses size variants
+// (APAPS503-OWT-1 has no entry) and conflicts with the variant-level EANs
+// recorded in the Item Master (e.g. 6941181219277 is APAPS410 in the
+// generated registry but APAPS503-OWT-1 in the Item Master). Overlaying makes
+// every sku->barcode and barcode->sku lookup follow the Item Master, so saved
+// rows get the correct barcode and physical scans resolve to the right SKU.
+try {
+  let remapped = 0, addedBc = 0, firstConflict = 'none';
+  for (const [sku, it] of Object.entries(itemMasterLive.items || {})) {
+    const bc = it && it.barcode ? String(it.barcode).trim() : '';
+    if (!bc || !/^\d{8,14}$/.test(bc)) continue;
+    const S = String(sku).trim().toUpperCase();
+    const cur = eanRegistry.barcode_to_sku[bc];
+    if (cur && cur !== S) {
+      if (firstConflict === 'none') firstConflict = bc + ': ' + cur + ' -> ' + S;
+      eanRegistry.barcode_to_sku[bc] = S;
+      remapped++;
+    } else if (!cur) {
+      eanRegistry.barcode_to_sku[bc] = S;
+      addedBc++;
+    }
+    const arr = eanRegistry.sku_to_barcodes[S] || [];
+    if (!arr.includes(bc)) eanRegistry.sku_to_barcodes[S] = [bc].concat(arr);
+  }
+  console.log(`[EAN-REGISTRY] Item-Master overlay: ${remapped} remapped, ${addedBc} added; first conflict: ${firstConflict}`);
+} catch (e) {
+  console.error('[EAN-REGISTRY] Item-Master overlay failed:', e.message);
+}
+
 // Price registry (RMB): SKU -> { cost_rmb (buying price), rsp_rmb (retail/MRP) },
 // extracted from 'Item Master-Live-V2.xlsx > Item-Details'. Exact SKU first, then
 // the core SKU (trailing -N variant stripped) as fallback.
@@ -3932,11 +4203,20 @@ async function reconcileOpeningInventoryPrices() {
       const params = [];
       const curPp = r.purchase_price === null ? null : parseFloat(r.purchase_price);
       const curMp = r.mrp === null ? null : parseFloat(r.mrp);
-      if (pr.cost_rmb != null && pr.cost_rmb > 0 && curPp !== null && Math.abs(curPp - pr.cost_rmb) > 0.005) {
+      // Fill-if-empty: null or 0 on the row + a real registry value -> fill it.
+      // (Reconcile used to skip blanks entirely, so rows created after boot by
+      // any path stayed unpriced until the next restart.)
+      if (pr.cost_rmb != null && pr.cost_rmb > 0 && !(curPp > 0)) {
+        params.push(pr.cost_rmb); sets.push(`purchase_price = $${params.length}`); cc++;
+        console.log(`[PRICE-RECONCILE] ${r.sku}: cost ${curPp} -> ${pr.cost_rmb} (fill)`);
+      } else if (pr.cost_rmb != null && pr.cost_rmb > 0 && curPp !== null && Math.abs(curPp - pr.cost_rmb) > 0.005) {
         params.push(pr.cost_rmb); sets.push(`purchase_price = $${params.length}`); cc++;
         console.log(`[PRICE-RECONCILE] ${r.sku}: cost ${curPp} -> ${pr.cost_rmb}`);
       }
-      if (pr.rsp_rmb != null && pr.rsp_rmb > 0 && curMp !== null && Math.abs(curMp - pr.rsp_rmb) > 0.005) {
+      if (pr.rsp_rmb != null && pr.rsp_rmb > 0 && !(curMp > 0)) {
+        params.push(pr.rsp_rmb); sets.push(`mrp = $${params.length}`); mc++;
+        console.log(`[PRICE-RECONCILE] ${r.sku}: mrp ${curMp} -> ${pr.rsp_rmb} (fill)`);
+      } else if (pr.rsp_rmb != null && pr.rsp_rmb > 0 && curMp !== null && Math.abs(curMp - pr.rsp_rmb) > 0.005) {
         params.push(pr.rsp_rmb); sets.push(`mrp = $${params.length}`); mc++;
         console.log(`[PRICE-RECONCILE] ${r.sku}: mrp ${curMp} -> ${pr.rsp_rmb}`);
       }
@@ -4673,6 +4953,277 @@ app.get('/api/opening-inventory/summary', requireAuthApi(['ADMIN', 'BUYER']), as
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SALES — sell from opening stock. Scan barcode / type SKU → record sale →
+// stock auto-deducted from opening_inventory. Cost snapshot per sale for
+// margin tracking. Invoice PDF per sale. Survives redeploys (Postgres).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function roundTo5(x) { return Math.round((parseFloat(x) || 0) / 5) * 5; }
+
+// GET /api/sales/lookup?q=<barcode-or-sku> — resolve an item for the sales page.
+// Resolution order: opening_inventory.barcode → EAN registry → SKU in
+// opening_inventory → SKU in item_master. Returns available qty (sum of OI
+// rows), cost snapshot and default sell price (mrp, else cost×5 rounded to 5).
+app.get('/api/sales/lookup', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'Provide ?q=barcode-or-sku' });
+  try {
+    let sku = null;
+    let r = await pool.query(`SELECT sku FROM opening_inventory WHERE barcode = $1 LIMIT 1`, [q]);
+    if (r.rows.length) sku = r.rows[0].sku;
+    if (!sku) sku = (eanRegistry.barcode_to_sku || {})[q] || null;
+    if (!sku) {
+      r = await pool.query(`SELECT sku FROM opening_inventory WHERE UPPER(sku) = UPPER($1) LIMIT 1`, [q]);
+      if (r.rows.length) sku = r.rows[0].sku;
+    }
+    if (!sku) {
+      r = await pool.query(`SELECT sku FROM item_master WHERE UPPER(sku) = UPPER($1) LIMIT 1`, [q]);
+      if (r.rows.length) sku = r.rows[0].sku;
+    }
+    if (!sku) return res.status(404).json({ error: `Not found: ${q}` });
+
+    r = await pool.query(
+      `SELECT COALESCE(SUM(qty),0) AS available,
+              MAX(NULLIF(purchase_price,0)) AS cost,
+              MAX(NULLIF(mrp,0)) AS mrp,
+              MAX(barcode) AS barcode
+       FROM opening_inventory WHERE sku = $1`, [sku]);
+    let available = parseInt(r.rows[0].available, 10) || 0;
+    let cost = parseFloat(r.rows[0].cost) || 0;
+    const mrp = parseFloat(r.rows[0].mrp) || 0;
+    const barcode = r.rows[0].barcode || null;
+
+    const meta = await pool.query(
+      `SELECT friendly_name, color, std_cost_rmb FROM item_master WHERE sku = $1`, [sku]);
+    const friendly_name = meta.rows.length ? meta.rows[0].friendly_name : null;
+    const color = meta.rows.length ? meta.rows[0].color : null;
+    if (!cost && meta.rows.length) cost = parseFloat(meta.rows[0].std_cost_rmb) || 0;
+
+    res.json({
+      sku, barcode, friendly_name, color,
+      available, cost,
+      mrp: mrp || roundTo5(cost * 5),
+      default_price: mrp > 0 ? mrp : roundTo5(cost * 5)
+    });
+  } catch (err) {
+    console.error('Error in sales lookup:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sales — recent sales + totals. Optional filters: customer, from, to (YYYY-MM-DD).
+app.get('/api/sales', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const params = [];
+    let where = '';
+    if (req.query.customer) {
+      params.push('%' + req.query.customer + '%');
+      where += (where ? ' AND ' : ' WHERE ') + `customer ILIKE $${params.length}`;
+    }
+    if (req.query.from) {
+      params.push(req.query.from);
+      where += (where ? ' AND ' : ' WHERE ') + `created_at::date >= $${params.length}::date`;
+    }
+    if (req.query.to) {
+      params.push(req.query.to);
+      where += (where ? ' AND ' : ' WHERE ') + `created_at::date <= $${params.length}::date`;
+    }
+    const rows = await pool.query(
+      `SELECT * FROM sales ${where} ORDER BY created_at DESC LIMIT 500`, params);
+    const totals = await pool.query(
+      `SELECT COUNT(*)::int AS n, COALESCE(SUM(qty),0)::int AS units,
+              COALESCE(SUM(total),0) AS revenue, COALESCE(SUM(margin),0) AS margin
+       FROM sales ${where}`, params);
+    res.json({ sales: rows.rows, totals: totals.rows[0] });
+  } catch (err) {
+    console.error('Error fetching sales:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sales — record a sale and deduct opening stock (oldest rows first).
+// Body: { sku, qty, unit_price, customer?, currency? }
+app.post('/api/sales', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { sku, qty, unit_price, customer, currency } = req.body || {};
+  const q = parseInt(qty, 10);
+  const price = parseFloat(unit_price);
+  if (!sku || !q || q <= 0 || !price || price <= 0) {
+    return res.status(400).json({ error: 'sku, qty (>0) and unit_price (>0) are required' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const oi = await client.query(
+      `SELECT id, qty, purchase_price, barcode FROM opening_inventory
+       WHERE sku = $1 AND qty > 0 ORDER BY created_at ASC FOR UPDATE`, [sku]);
+    const available = oi.rows.reduce((s, r) => s + r.qty, 0);
+    if (available < q) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Insufficient stock for ${sku}: only ${available} available` });
+    }
+    // Cost snapshot: first non-zero OI purchase price, else item_master std cost
+    let cost = 0;
+    for (const row of oi.rows) {
+      const p = parseFloat(row.purchase_price) || 0;
+      if (p > 0) { cost = p; break; }
+    }
+    let friendly_name = null;
+    if (!cost || !friendly_name) {
+      const meta = await client.query(
+        `SELECT friendly_name, std_cost_rmb FROM item_master WHERE sku = $1`, [sku]);
+      if (meta.rows.length) {
+        if (!friendly_name) friendly_name = meta.rows[0].friendly_name;
+        if (!cost) cost = parseFloat(meta.rows[0].std_cost_rmb) || 0;
+      }
+    }
+    const total = Math.round(q * price * 100) / 100;
+    const margin = Math.round((total - q * cost) * 100) / 100;
+    const ins = await client.query(
+      `INSERT INTO sales (sku, barcode, friendly_name, qty, unit_price, cost_price, total, margin, customer, currency, org_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [sku, (oi.rows[0] && oi.rows[0].barcode) || null, friendly_name, q, price, cost, total, margin,
+       (customer || '').trim() || null, currency || 'CAD', 1, req.user.email]);
+    const saleId = ins.rows[0].id;
+    const invoiceNo = 'SL-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + saleId;
+    const upd = await client.query(
+      `UPDATE sales SET invoice_no = $1 WHERE id = $2 RETURNING *`, [invoiceNo, saleId]);
+    // Deduct stock oldest-first across OI rows
+    let remaining = q;
+    for (const row of oi.rows) {
+      if (remaining <= 0) break;
+      const take = Math.min(row.qty, remaining);
+      await client.query(`UPDATE opening_inventory SET qty = qty - $1 WHERE id = $2`, [take, row.id]);
+      remaining -= take;
+    }
+    await client.query('COMMIT');
+    logActivity(req.user, 'SALE_RECORDED', null, { sku, qty: q, total, invoice_no: invoiceNo, customer: customer || null });
+    res.json(upd.rows[0]);
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
+    console.error('Error recording sale:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// DELETE /api/sales/:id — void a sale: restocks qty into opening_inventory
+// (first existing row for the SKU, or a new row if none left) and deletes it.
+app.delete('/api/sales/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const s = await client.query(`SELECT * FROM sales WHERE id = $1 FOR UPDATE`, [id]);
+    if (!s.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Sale not found' });
+    }
+    const sale = s.rows[0];
+    const oi = await client.query(
+      `SELECT id FROM opening_inventory WHERE sku = $1 ORDER BY created_at ASC LIMIT 1`, [sale.sku]);
+    if (oi.rows.length) {
+      await client.query(`UPDATE opening_inventory SET qty = qty + $1 WHERE id = $2`, [sale.qty, oi.rows[0].id]);
+    } else {
+      await client.query(
+        `INSERT INTO opening_inventory (sku, barcode, friendly_name, qty, org_id, created_by, purchase_price, mrp)
+         VALUES ($1,$2,$3,$4,1,$5,$6,$7)`,
+        [sale.sku, sale.barcode, sale.friendly_name, sale.qty, req.user.email, sale.cost_price,
+         sale.cost_price > 0 ? roundTo5(sale.cost_price * 5) : 0]);
+    }
+    await client.query(`DELETE FROM sales WHERE id = $1`, [id]);
+    await client.query('COMMIT');
+    logActivity(req.user, 'SALE_VOIDED', null, { id, sku: sale.sku, qty: sale.qty });
+    res.json({ success: true });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
+    console.error('Error voiding sale:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/sales/:id/pdf — customer-facing invoice PDF (no cost / margin shown).
+app.get('/api/sales/:id/pdf', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM sales WHERE id = $1`, [parseInt(req.params.id, 10)]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Sale not found' });
+    const buf = await generateSaleInvoicePDF(r.rows[0]);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="SAHI_Invoice_${r.rows[0].invoice_no || r.rows[0].id}.pdf"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('Error generating sale invoice PDF:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Compact A4 invoice PDF for a single sale — customer-facing: SKU, description,
+// qty, unit price, total. Cost/margin deliberately excluded.
+function generateSaleInvoicePDF(sale) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      const chunks = [];
+      doc.on('data', c => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      const SKY_BLUE = '#87CEEB', BLACK = '#111111', GREY = '#666666', LIGHT_GREY = '#F2F2F2';
+      // Header
+      doc.rect(0, 0, 595, 100).fill(SKY_BLUE);
+      doc.fillColor(BLACK).fontSize(28).font('Helvetica-Bold').text('SAHI LONDON', 40, 18);
+      doc.fontSize(8.5).font('Helvetica')
+        .text('1231, Niagara On The Lake', 40, 48)
+        .text('Ontario L0S 1J0, Canada', 40, 61)
+        .text('HST #732146907', 40, 74);
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
+        .text('INVOICE', 350, 22, { width: 205, align: 'right' });
+      doc.fontSize(16).font('Helvetica-Bold').fillColor(BLACK)
+        .text(`#${sale.invoice_no || sale.id}`, 350, 35, { width: 205, align: 'right' });
+      const d = sale.created_at ? new Date(sale.created_at) : new Date();
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(BLACK)
+        .text('DATE', 350, 64, { width: 205, align: 'right' });
+      doc.fontSize(10).font('Helvetica')
+        .text(d.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }), 350, 78, { width: 205, align: 'right' });
+      // Bill to
+      doc.roundedRect(40, 112, 515, 56, 5).fill(LIGHT_GREY).stroke('#cccccc');
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold').text('BILL TO', 52, 120);
+      doc.fontSize(10).font('Helvetica').fillColor(BLACK)
+        .text(sale.customer || 'Walk-in customer', 52, 136);
+      // Line items
+      let y = 200;
+      doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold');
+      doc.text('SKU', 40, y);
+      doc.text('DESCRIPTION', 190, y);
+      doc.text('QTY', 360, y, { width: 60, align: 'right' });
+      doc.text('UNIT', 430, y, { width: 60, align: 'right' });
+      doc.text('TOTAL', 495, y, { width: 60, align: 'right' });
+      doc.moveTo(40, y + 16).lineTo(555, y + 16).strokeColor('#cccccc').stroke();
+      y += 26;
+      doc.font('Helvetica').fillColor(BLACK);
+      doc.text(sale.sku, 40, y);
+      doc.text(sale.friendly_name || '', 190, y);
+      doc.text(String(sale.qty), 360, y, { width: 60, align: 'right' });
+      doc.text(parseFloat(sale.unit_price).toFixed(2), 430, y, { width: 60, align: 'right' });
+      doc.text(parseFloat(sale.total).toFixed(2), 495, y, { width: 60, align: 'right' });
+      y += 40;
+      doc.moveTo(40, y).lineTo(555, y).strokeColor('#cccccc').stroke();
+      y += 16;
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(BLACK)
+        .text('TOTAL DUE', 380, y, { width: 100, align: 'right' });
+      doc.text(`${sale.currency || 'CAD'} $${parseFloat(sale.total).toFixed(2)}`, 485, y, { width: 70, align: 'right' });
+      y += 34;
+      doc.fontSize(8.5).font('Helvetica').fillColor(GREY)
+        .text('Thank you for your business.', 40, y);
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 // GET /api/unmatched-barcodes — list unmatched barcodes (default: pending only)
 app.get('/api/unmatched-barcodes', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
@@ -4943,6 +5494,7 @@ async function autoResolvePendingUnmatched(orgId, actor) {
              ub.qty, ub.org_id, actor || 'system']
           );
         }
+        await fillOiPricesForSku(match.sku, ub.org_id);
         await pool.query(
           `UPDATE unmatched_barcodes
               SET status = 'RESOLVED', matched_sku = $1, resolved_at = NOW()
