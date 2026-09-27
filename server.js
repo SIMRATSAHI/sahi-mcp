@@ -737,6 +737,7 @@ async function ensureSchema() {
       const [name, type] = col.split(' ');
       await pool.query(`ALTER TABLE customer_orders ADD COLUMN IF NOT EXISTS ${name} ${type}`);
     }
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS customer_orders_order_seq START 1001`);
   } catch (err) {
     console.error('customer_orders migration warning:', err.message);
   }
@@ -1495,7 +1496,13 @@ app.post('/api/create-invoice', requireAuthApi(['ADMIN']), async (req, res) => {
     const unit_price_usd = std_cost_usd * markupMultiplier;
     const unit_price_local = unit_price_usd * buyer.exchange_rate_to_usd;
     const total_local = unit_price_local * qty;
-    const order_id = `${buyer_code.substring(0,2)}-${Date.now().toString().slice(-6)}`;
+    let order_id;
+    try {
+      const seqRes = await client.query(`SELECT nextval('customer_orders_order_seq') AS n`);
+      order_id = `${buyer_code.substring(0,2)}-${seqRes.rows[0].n}`;
+    } catch (seqErr) {
+      order_id = `${buyer_code.substring(0,2)}-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
+    }
 
     await adjustInventory(client, sku, HQ_ORG_ID, -qty);
     await client.query(`
@@ -1636,12 +1643,19 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
       "SELECT name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers WHERE code = $1", [buyer_code]);
     if (buyerRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer not found' }); }
     const buyer = buyerRes.rows[0];
-    // Collision-proof order id: prefix + full date + time + 2 random chars
-    // (the old last-6-digits-of-timestamp format wrapped every ~16 min and
-    // collided with existing rows on the unique order_id constraint)
-    const _d = new Date();
-    const _pad = (n) => String(n).padStart(2, '0');
-    const order_id = `${buyer_code.substring(0, 2)}-${_d.getFullYear()}${_pad(_d.getMonth() + 1)}${_pad(_d.getDate())}-${_pad(_d.getHours())}${_pad(_d.getMinutes())}${_pad(_d.getSeconds())}-${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
+    // Order id from a Postgres sequence — collision-free by construction
+    // (timestamp-based ids kept colliding with legacy rows on the unique
+    // order_id constraint). Falls back to date+time+random if the sequence
+    // is missing on older deploys.
+    let order_id;
+    try {
+      const seqRes = await client.query(`SELECT nextval('customer_orders_order_seq') AS n`);
+      order_id = `${buyer_code.substring(0, 2)}-${seqRes.rows[0].n}`;
+    } catch (seqErr) {
+      const _d = new Date();
+      const _pad = (n) => String(n).padStart(2, '0');
+      order_id = `${buyer_code.substring(0, 2)}-${_d.getFullYear()}${_pad(_d.getMonth() + 1)}${_pad(_d.getDate())}-${_pad(_d.getHours())}${_pad(_d.getMinutes())}${_pad(_d.getSeconds())}-${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
+    }
     const lines = [];
     for (const it of items) {
       const qty = parseInt(it.qty, 10);
