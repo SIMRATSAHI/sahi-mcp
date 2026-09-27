@@ -708,6 +708,39 @@ async function ensureSchema() {
     console.error('buyers markup migration warning:', err.message);
   }
 
+  // customer_orders must exist with the full column set used by the
+  // single-item and batch invoice routes (it was previously assumed to exist).
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS customer_orders (
+        id SERIAL PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        po_reference TEXT,
+        buyer_code TEXT,
+        sku TEXT,
+        item_name TEXT,
+        qty INTEGER NOT NULL DEFAULT 1,
+        markup_percent NUMERIC DEFAULT 0,
+        unit_cost_usd NUMERIC DEFAULT 0,
+        unit_price_usd NUMERIC DEFAULT 0,
+        unit_price_local NUMERIC DEFAULT 0,
+        total_local NUMERIC DEFAULT 0,
+        order_currency TEXT,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_co_order ON customer_orders(order_id)`);
+    for (const col of ['po_reference TEXT', 'buyer_code TEXT', 'sku TEXT', 'item_name TEXT',
+      'qty INTEGER DEFAULT 1', 'markup_percent NUMERIC DEFAULT 0', 'unit_cost_usd NUMERIC DEFAULT 0',
+      'unit_price_usd NUMERIC DEFAULT 0', 'unit_price_local NUMERIC DEFAULT 0',
+      'total_local NUMERIC DEFAULT 0', 'order_currency TEXT', 'created_by TEXT']) {
+      const [name, type] = col.split(' ');
+      await pool.query(`ALTER TABLE customer_orders ADD COLUMN IF NOT EXISTS ${name} ${type}`);
+    }
+  } catch (err) {
+    console.error('customer_orders migration warning:', err.message);
+  }
+
   // Add columns to item_master for bulk import support
   try {
     await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS collection TEXT`);
@@ -1490,7 +1523,7 @@ app.post('/api/create-invoice', requireAuthApi(['ADMIN']), async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ error: "Failed to create invoice" });
+    res.status(500).json({ error: "Failed to create invoice: " + err.message });
   } finally {
     client.release();
   }
@@ -1662,7 +1695,7 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
     console.error(err);
-    res.status(500).json({ error: 'Failed to create batch invoice' });
+    res.status(500).json({ error: 'Failed to create batch invoice: ' + err.message });
   } finally {
     client.release();
   }
