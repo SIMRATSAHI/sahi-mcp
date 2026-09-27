@@ -747,6 +747,30 @@ async function ensureSchema() {
     console.error('customer_orders migration warning:', err.message);
   }
 
+  // Buyers + Vendors management: ensure tables/columns exist
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS buyers (
+        code TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        exchange_rate_to_usd NUMERIC NOT NULL DEFAULT 1,
+        default_markup_pct NUMERIC DEFAULT 2.5,
+        contact TEXT,
+        email TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+    for (const col of ["contact TEXT", "email TEXT", "is_active BOOLEAN DEFAULT true",
+      "default_markup_pct NUMERIC DEFAULT 2.5"]) {
+      const [name, type] = col.split(' ');
+      await pool.query(`ALTER TABLE buyers ADD COLUMN IF NOT EXISTS ${name} ${type}`);
+    }
+    await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'RMB'`);
+  } catch (err) {
+    console.error('buyers/vendors migration warning:', err.message);
+  }
+
   // Add columns to item_master for bulk import support
   try {
     await pool.query(`ALTER TABLE item_master ADD COLUMN IF NOT EXISTS collection TEXT`);
@@ -1398,11 +1422,11 @@ app.get('/api/buyers', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS'
   try {
     let result;
     try {
-      result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers");
+      result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd, default_markup_pct, contact, email, is_active FROM buyers");
     } catch (e) {
       // Older deploys: add the default markup column lazily, then retry
       await pool.query("ALTER TABLE buyers ADD COLUMN IF NOT EXISTS default_markup_pct NUMERIC DEFAULT 2.5");
-      result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers");
+      result = await pool.query("SELECT code, name, currency, exchange_rate_to_usd, default_markup_pct, contact, email, is_active FROM buyers");
     }
     res.json(result.rows);
   } catch (err) {
@@ -1431,6 +1455,77 @@ app.patch('/api/buyers/:code/markup', requireAuthApi(['ADMIN']), async (req, res
   }
 });
 
+// POST /api/buyers — create a buyer (the customers SSCL sells to)
+app.post('/api/buyers', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const { code, name, currency, exchange_rate_to_usd, default_markup_pct, contact, email } = req.body;
+    if (!code || !name) return res.status(400).json({ error: 'Buyer code and name are required' });
+    const r = await pool.query(
+      `INSERT INTO buyers (code, name, currency, exchange_rate_to_usd, default_markup_pct, contact, email, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+       ON CONFLICT (code) DO NOTHING RETURNING *`,
+      [code.trim().toUpperCase(), name.trim(),
+       (currency || 'USD').trim().toUpperCase(),
+       parseFloat(exchange_rate_to_usd) || 1,
+       default_markup_pct === undefined || default_markup_pct === '' ? 2.5 : parseFloat(default_markup_pct),
+       contact || null, email || null]);
+    if (r.rows.length === 0) return res.status(409).json({ error: 'Buyer code already exists' });
+    logActivity(req.user, 'BUYER_CREATED', r.rows[0].code, { name: r.rows[0].name, currency: r.rows[0].currency });
+    res.json({ success: true, buyer: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create buyer: ' + err.message });
+  }
+});
+
+// PATCH /api/buyers/:code — edit a buyer (any provided field)
+app.patch('/api/buyers/:code', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const fields = ['name', 'currency', 'exchange_rate_to_usd', 'default_markup_pct', 'contact', 'email', 'is_active'];
+    const sets = [], params = [];
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        params.push(f === 'exchange_rate_to_usd' || f === 'default_markup_pct' ? parseFloat(req.body[f]) : req.body[f]);
+        sets.push(`${f} = $${params.length}`);
+      }
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(req.params.code);
+    const r = await pool.query(
+      `UPDATE buyers SET ${sets.join(', ')} WHERE code = $${params.length} RETURNING *`, params);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Buyer not found' });
+    logActivity(req.user, 'BUYER_UPDATED', req.params.code, { fields: sets.map(s => s.split(' ')[0]) });
+    res.json({ success: true, buyer: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update buyer: ' + err.message });
+  }
+});
+
+// PATCH /api/vendors/:code — edit a vendor (any provided field)
+app.patch('/api/vendors/:code', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const fields = ['vendor_name', 'category', 'city', 'contact', 'email', 'currency', 'is_active'];
+    const sets = [], params = [];
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        params.push(req.body[f]);
+        sets.push(`${f} = $${params.length}`);
+      }
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(req.params.code);
+    const r = await pool.query(
+      `UPDATE vendors SET ${sets.join(', ')} WHERE vendor_code = $${params.length} RETURNING *`, params);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Vendor not found' });
+    logActivity(req.user, 'VENDOR_UPDATED', req.params.code, { fields: sets.map(s => s.split(' ')[0]) });
+    res.json({ success: true, vendor: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update vendor: ' + err.message });
+  }
+});
+
 app.get('/api/vendors', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM vendors ORDER BY vendor_code");
@@ -1443,16 +1538,16 @@ app.get('/api/vendors', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS
 
 app.post('/api/vendors', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
-    const { vendor_code, vendor_name, category, city, contact, email } = req.body;
+    const { vendor_code, vendor_name, category, city, contact, email, currency } = req.body;
     if (!vendor_code || !vendor_name || !category) {
       return res.status(400).json({ error: "vendor_code, vendor_name, and category are required" });
     }
     const result = await pool.query(
-      `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
+      `INSERT INTO vendors (vendor_code, vendor_name, category, city, contact, email, currency, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
        ON CONFLICT (vendor_code) DO NOTHING
        RETURNING *`,
-      [vendor_code, vendor_name, category, city || null, contact || null, email || null]
+      [vendor_code, vendor_name, category, city || null, contact || null, email || null, (currency || 'RMB').trim().toUpperCase()]
     );
     if (result.rows.length === 0) return res.status(409).json({ error: "Vendor code already exists" });
     logActivity(req.user, 'VENDOR_CREATED', vendor_code, { vendor_name });
