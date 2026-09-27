@@ -77,13 +77,19 @@
             <div class="fg"><label>Notes</label><input type="text" id="poNotes" placeholder="optional"></div>
         </div>
         <div class="form-row">
-            <div class="fg" style="flex:2;"><label>Item (SKU)</label><select id="itemSelect"></select></div>
+            <div class="fg"><label>Scan barcode / search SKU</label><input type="text" id="scanInput" autocomplete="off" placeholder="barcode or SKU + Enter"></div>
+            <div class="fg" style="max-width:100px;"><label>Qty</label><input type="number" id="scanQty" value="1" min="1"></div>
+            <button class="btn" onclick="scanAdd()">Scan add</button>
+        </div>
+        <div class="form-row">
+            <div class="fg" style="flex:2;"><label>…or pick from list</label><select id="itemSelect"></select></div>
             <div class="fg" style="max-width:100px;"><label>Qty</label><input type="number" id="lineQty" value="1" min="1"></div>
             <button class="btn" onclick="addLine()">Add line</button>
         </div>
+        <div class="msg" id="scanMsg"></div>
         <table id="linesTable">
             <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th></th></tr></thead>
-            <tbody id="linesBody"><tr><td colspan="4" class="hint">No lines yet — pick an item and add.</td></tr></tbody>
+            <tbody id="linesBody"><tr><td colspan="4" class="hint">No lines yet — scan a barcode / type a SKU, or pick from the list.</td></tr></tbody>
         </table>
         <button class="btn btn-go" style="margin-top:12px;" onclick="createPO()">Save Buyer PO</button>
 
@@ -118,10 +124,38 @@
             $('lineQty').value = 1;
             renderLines();
         }
+
+        const sm = (t, ok) => { const el = $('scanMsg'); el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
+
+        async function resolveSku(q) {
+            if (items.find(x => x.sku === q)) { const it = items.find(x => x.sku === q); return { sku: q, name: it.friendly_name }; }
+            try {
+                const res = await fetch('/api/sales/lookup?q=' + encodeURIComponent(q));
+                if (!res.ok) return null;
+                const d = await res.json();
+                return { sku: d.sku, name: d.friendly_name };
+            } catch (e) { return null; }
+        }
+
+        async function scanAdd() {
+            const q = $('scanInput').value.trim(), qty = parseInt($('scanQty').value, 10);
+            if (!q) return;
+            sm('Resolving ' + q + '…', true);
+            const hit = await resolveSku(q);
+            if (!hit) { sm('Not found: ' + q, false); return; }
+            const ex = poLines.find(l => l.sku === hit.sku);
+            if (ex) ex.qty += qty; else poLines.push({ sku: hit.sku, item_name: hit.name, qty });
+            renderLines();
+            sm('Added ' + hit.sku + ' x' + qty, true);
+            $('scanInput').value = ''; $('scanQty').value = 1;
+            $('scanInput').focus();
+        }
+        $('scanInput').addEventListener('keydown', e => { if (e.key === 'Enter') scanAdd(); });
+        $('scanQty').addEventListener('keydown', e => { if (e.key === 'Enter') scanAdd(); });
         function removeLine(i) { poLines.splice(i, 1); renderLines(); }
         function renderLines() {
             const tb = $('linesBody');
-            if (!poLines.length) { tb.innerHTML = '<tr><td colspan="4" class="hint">No lines yet — pick an item and add.</td></tr>'; return; }
+            if (!poLines.length) { tb.innerHTML = '<tr><td colspan="4" class="hint">No lines yet — scan a barcode / type a SKU, or pick from the list.</td></tr>'; return; }
             tb.innerHTML = '';
             poLines.forEach((l, i) => {
                 const tr = document.createElement('tr');
