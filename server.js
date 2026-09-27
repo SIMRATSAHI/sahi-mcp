@@ -747,6 +747,35 @@ async function ensureSchema() {
     console.error('customer_orders migration warning:', err.message);
   }
 
+  // Buyer POs (customer purchase orders): what a buyer ordered, fulfilled
+  // later by sales invoices created against the PO.
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS buyer_pos (
+        id SERIAL PRIMARY KEY,
+        po_number TEXT NOT NULL,
+        buyer_code TEXT NOT NULL,
+        po_date DATE,
+        notes TEXT,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS buyer_po_lines (
+        id SERIAL PRIMARY KEY,
+        buyer_po_id INTEGER NOT NULL REFERENCES buyer_pos(id) ON DELETE CASCADE,
+        sku TEXT NOT NULL,
+        item_name TEXT,
+        qty INTEGER NOT NULL,
+        invoiced_qty INTEGER NOT NULL DEFAULT 0
+      )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bpl_po ON buyer_po_lines(buyer_po_id)`);
+    await pool.query(`ALTER TABLE customer_orders ADD COLUMN IF NOT EXISTS buyer_po_id INTEGER`);
+  } catch (err) {
+    console.error('buyer_pos migration warning:', err.message);
+  }
+
   // Buyers + Vendors management: ensure tables/columns exist
   try {
     await pool.query(`
@@ -1503,6 +1532,116 @@ app.patch('/api/buyers/:code', requireAuthApi(['ADMIN']), async (req, res) => {
 });
 
 // PATCH /api/vendors/:code — edit a vendor (any provided field)
+// ---------- Buyer POs (customer purchase orders from buyers) ----------
+app.get('/api/buyer-pos', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    const params = [];
+    let where = '';
+    if (req.query.status) { params.push(req.query.status); where = 'WHERE p.status = $1'; }
+    const r = await pool.query(`
+      SELECT p.id, p.po_number, p.buyer_code, b.name AS buyer_name, p.po_date, p.notes, p.status,
+             p.created_at, p.created_by,
+             COALESCE(SUM(l.qty), 0) AS total_qty,
+             COALESCE(SUM(l.invoiced_qty), 0) AS invoiced_qty,
+             COUNT(l.id) AS line_count
+      FROM buyer_pos p
+      LEFT JOIN buyer_po_lines l ON l.buyer_po_id = p.id
+      LEFT JOIN buyers b ON b.code = p.buyer_code
+      ${where}
+      GROUP BY p.id, b.name
+      ORDER BY p.id DESC`, params);
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to list buyer POs: ' + err.message });
+  }
+});
+
+app.get('/api/buyer-pos/:id', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOGISTICS']), async (req, res) => {
+  try {
+    const h = await pool.query(
+      `SELECT p.*, b.name AS buyer_name, b.currency FROM buyer_pos p
+       LEFT JOIN buyers b ON b.code = p.buyer_code WHERE p.id = $1`, [req.params.id]);
+    if (h.rows.length === 0) return res.status(404).json({ error: 'Buyer PO not found' });
+    const l = await pool.query(
+      `SELECT id, sku, item_name, qty, invoiced_qty FROM buyer_po_lines WHERE buyer_po_id = $1 ORDER BY id`, [req.params.id]);
+    res.json({ ...h.rows[0], lines: l.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load buyer PO: ' + err.message });
+  }
+});
+
+app.post('/api/buyer-pos', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { po_number, buyer_code, po_date, notes, lines } = req.body || {};
+  if (!po_number || !po_number.trim()) return res.status(400).json({ error: 'po_number is required (the buyer\'s own PO number)' });
+  if (!buyer_code) return res.status(400).json({ error: 'buyer_code is required' });
+  if (!Array.isArray(lines) || lines.length === 0) return res.status(400).json({ error: 'Add at least one line item' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const b = await client.query(`SELECT code, name FROM buyers WHERE UPPER(code) = UPPER($1)`, [buyer_code]);
+    if (b.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer not found: ' + buyer_code }); }
+    const clean = [];
+    for (const l of lines) {
+      const qty = parseInt(l.qty, 10);
+      if (!l.sku || !qty || qty <= 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Each line needs a SKU and qty > 0' }); }
+      const im = await client.query(`SELECT friendly_name FROM item_master WHERE UPPER(sku) = UPPER($1)`, [l.sku]);
+      if (im.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Unknown SKU: ' + l.sku }); }
+      clean.push({ sku: l.sku, item_name: im.rows[0].friendly_name, qty });
+    }
+    const ins = await client.query(
+      `INSERT INTO buyer_pos (po_number, buyer_code, po_date, notes, status, created_by)
+       VALUES ($1, $2, $3, $4, 'OPEN', $5) RETURNING id`,
+      [po_number.trim(), b.rows[0].code, po_date || null, notes || null, req.user.email]);
+    const poId = ins.rows[0].id;
+    for (const c of clean) {
+      await client.query(
+        `INSERT INTO buyer_po_lines (buyer_po_id, sku, item_name, qty) VALUES ($1, $2, $3, $4)`,
+        [poId, c.sku, c.item_name, c.qty]);
+    }
+    await client.query('COMMIT');
+    logActivity(req.user, 'BUYER_PO_CREATED', String(poId), { po_number: po_number.trim(), buyer_code: b.rows[0].code, lines: clean.length });
+    res.json({ success: true, id: poId, po_number: po_number.trim(), buyer_code: b.rows[0].code });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create buyer PO: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.patch('/api/buyer-pos/:id/cancel', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE buyer_pos SET status = 'CANCELLED' WHERE id = $1 AND status = 'OPEN' RETURNING id, po_number`,
+      [req.params.id]);
+    if (r.rows.length === 0) return res.status(400).json({ error: 'Only OPEN buyer POs can be cancelled (or PO not found)' });
+    logActivity(req.user, 'BUYER_PO_CANCELLED', String(req.params.id), { po_number: r.rows[0].po_number });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to cancel buyer PO: ' + err.message });
+  }
+});
+
+app.delete('/api/buyer-pos/:id', requireAuthApi(['ADMIN']), async (req, res) => {
+  try {
+    const inv = await pool.query(`SELECT COALESCE(SUM(invoiced_qty), 0) AS n FROM buyer_po_lines WHERE buyer_po_id = $1`, [req.params.id]);
+    if (parseInt(inv.rows[0].n) > 0) {
+      return res.status(400).json({ error: 'This buyer PO already has invoiced qty — void those invoices first, or cancel the PO instead' });
+    }
+    const r = await pool.query(`DELETE FROM buyer_pos WHERE id = $1 RETURNING po_number`, [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Buyer PO not found' });
+    logActivity(req.user, 'BUYER_PO_DELETED', String(req.params.id), { po_number: r.rows[0].po_number });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete buyer PO: ' + err.message });
+  }
+});
+
 app.patch('/api/vendors/:code', requireAuthApi(['ADMIN']), async (req, res) => {
   try {
     const fields = ['vendor_name', 'category', 'city', 'contact', 'email', 'currency', 'is_active'];
@@ -1732,7 +1871,7 @@ async function deductInvoiceStock(client, sku, qty) {
 // POST /api/create-invoice-batch — one invoice, many lines, buyer currency.
 // Body: { buyer_code, po_reference, items: [{ sku, qty, markup_percent? }] }
 app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res) => {
-  const { buyer_code, po_reference, items } = req.body || {};
+  const { buyer_code, po_reference, items, buyer_po_id } = req.body || {};
   if (!buyer_code || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'buyer_code and items[] are required' });
   }
@@ -1743,6 +1882,16 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
       "SELECT name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers WHERE code = $1", [buyer_code]);
     if (buyerRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer not found' }); }
     const buyer = buyerRes.rows[0];
+    // Optional: fulfill a Buyer PO with this invoice
+    let buyerPo = null;
+    if (buyer_po_id) {
+      const bpRes = await client.query(`SELECT * FROM buyer_pos WHERE id = $1 FOR UPDATE`, [buyer_po_id]);
+      if (bpRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer PO not found: ' + buyer_po_id }); }
+      buyerPo = bpRes.rows[0];
+      if (buyerPo.status !== 'OPEN') { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer PO ' + buyerPo.po_number + ' is ' + buyerPo.status + ' — only OPEN POs can be invoiced' }); }
+      if (buyerPo.buyer_code !== buyer_code) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer PO ' + buyerPo.po_number + ' belongs to ' + buyerPo.buyer_code + ', but invoice buyer is ' + buyer_code }); }
+    }
+    const effectivePoRef = po_reference || (buyerPo ? buyerPo.po_number : '');
     // Order id from a Postgres sequence — collision-free by construction
     // (timestamp-based ids kept colliding with legacy rows on the unique
     // order_id constraint). Falls back to date+time+random if the sequence
@@ -1783,9 +1932,9 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
       const totalLocal = unitPriceLocal * qty;
       await client.query(`
         INSERT INTO customer_orders
-        (order_id, po_reference, buyer_code, sku, item_name, qty, markup_percent, unit_cost_usd, unit_price_usd, unit_price_local, total_local, order_currency, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [order_id, po_reference, buyer_code, it.sku, im.rows[0].friendly_name, qty, markup, costUsd, unitPriceUsd, unitPriceLocal, totalLocal, buyer.currency, req.user.email]);
+        (order_id, po_reference, buyer_code, sku, item_name, qty, markup_percent, unit_cost_usd, unit_price_usd, unit_price_local, total_local, order_currency, created_by, buyer_po_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [order_id, effectivePoRef, buyer_code, it.sku, im.rows[0].friendly_name, qty, markup, costUsd, unitPriceUsd, unitPriceLocal, totalLocal, buyer.currency, req.user.email, buyerPo ? buyerPo.id : null]);
       lines.push({
         sku: it.sku,
         item_name: im.rows[0].friendly_name,
@@ -1797,9 +1946,25 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
         stock_source: stock.source
       });
     }
+    // Fulfill the Buyer PO (when invoicing against one)
+    let poUnmatched = [];
+    if (buyerPo) {
+      for (const l of lines) {
+        const plRes = await client.query(
+          `SELECT id FROM buyer_po_lines WHERE buyer_po_id = $1 AND UPPER(sku) = UPPER($2) FOR UPDATE`,
+          [buyerPo.id, l.sku]);
+        if (plRes.rows.length === 0) { poUnmatched.push(l.sku); continue; }
+        await client.query(`UPDATE buyer_po_lines SET invoiced_qty = invoiced_qty + $1 WHERE id = $2`, [l.qty, plRes.rows[0].id]);
+      }
+      const remainRes = await client.query(
+        `SELECT COUNT(*)::int AS n FROM buyer_po_lines WHERE buyer_po_id = $1 AND invoiced_qty < qty`, [buyerPo.id]);
+      if (remainRes.rows[0].n === 0) {
+        await client.query(`UPDATE buyer_pos SET status = 'COMPLETED' WHERE id = $1`, [buyerPo.id]);
+      }
+    }
     await client.query('COMMIT');
     const grandTotal = lines.reduce((s, l) => s + l.total_local, 0);
-    logActivity(req.user, 'INVOICE_BATCH_CREATED', order_id, { buyer_code, lines: lines.length, total_local: grandTotal.toFixed(2), currency: buyer.currency });
+    logActivity(req.user, 'INVOICE_BATCH_CREATED', order_id, { buyer_code, lines: lines.length, total_local: grandTotal.toFixed(2), currency: buyer.currency, buyer_po: buyerPo ? buyerPo.po_number : null });
     res.json({
       success: true,
       order_id,
@@ -1809,7 +1974,8 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
       currency: buyer.currency,
       exchange_rate_to_usd: buyer.exchange_rate_to_usd,
       lines,
-      grand_total_local: Math.round(grandTotal * 100) / 100
+      grand_total_local: Math.round(grandTotal * 100) / 100,
+      buyer_po: buyerPo ? { id: buyerPo.id, po_number: buyerPo.po_number, unmatched_skus: poUnmatched } : null
     });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
@@ -1828,7 +1994,7 @@ app.delete('/api/invoice/:orderId', requireAuthApi(['ADMIN']), async (req, res) 
   try {
     await client.query('BEGIN');
     const linesRes = await client.query(
-      `SELECT id, sku, qty FROM customer_orders WHERE order_id = $1 FOR UPDATE`, [req.params.orderId]);
+      `SELECT id, sku, qty, buyer_po_id FROM customer_orders WHERE order_id = $1 FOR UPDATE`, [req.params.orderId]);
     if (linesRes.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found: ' + req.params.orderId });
@@ -1845,9 +2011,19 @@ app.delete('/api/invoice/:orderId', requireAuthApi(['ADMIN']), async (req, res) 
           [line.sku, line.qty, HQ_ORG_ID, 'void-restock']);
       }
     }
+    // If lines were fulfilling a Buyer PO, give the invoiced qty back to the PO
+    const poIds = [...new Set(linesRes.rows.map(l => l.buyer_po_id).filter(Boolean))];
+    for (const pid of poIds) {
+      for (const line of linesRes.rows.filter(l => l.buyer_po_id === pid)) {
+        await client.query(
+          `UPDATE buyer_po_lines SET invoiced_qty = GREATEST(0, invoiced_qty - $1) WHERE buyer_po_id = $2 AND UPPER(sku) = UPPER($3)`,
+          [line.qty, pid, line.sku]);
+      }
+      await client.query(`UPDATE buyer_pos SET status = 'OPEN' WHERE id = $1 AND status = 'COMPLETED'`, [pid]);
+    }
     await client.query(`DELETE FROM customer_orders WHERE order_id = $1`, [req.params.orderId]);
     await client.query('COMMIT');
-    logActivity(req.user, 'INVOICE_VOIDED', req.params.orderId, { lines_restored: linesRes.rows.length });
+    logActivity(req.user, 'INVOICE_VOIDED', req.params.orderId, { lines_restored: linesRes.rows.length, buyer_pos_restored: poIds });
     res.json({ success: true, order_id: req.params.orderId, lines_restored: linesRes.rows.length });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
