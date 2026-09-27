@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - Sourcing Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 1200px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; font-size: 13px; }
+        .nav a.active { color: #000; }
+        h2 { color: #333; margin-top: 0; }
+        h3.section { background: #87CEEB; color: #000; padding: 8px 14px; border-radius: 6px; margin: 25px 0 12px 0; font-size: 15px; }
+        .btn { padding: 9px 16px; background: #87CEEB; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; }
+        .btn:hover { background: #6bc3de; }
+        .btn-go { background: #4CAF50; color: #fff; }
+        .btn:disabled { background: #ccc; color: #888; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #87CEEB; color: #000; padding: 7px; text-align: left; }
+        td { padding: 6px 7px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .msg { margin: 10px 0; font-weight: bold; font-size: 13px; min-height: 18px; }
+        .ok { color: #2e7d32; } .err { color: #d32f2f; }
+        .hint { font-size: 11px; color: #888; }
+        input, select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        #searchBox { width: 320px; }
+        .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 10px 0 20px 0; }
+        .item-card { border: 1px solid #e2e2e2; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+        .item-card img { width: 100%; height: 150px; object-fit: cover; background: #fafafa; }
+        .item-card .b { padding: 8px 10px 10px 10px; display: flex; flex-direction: column; flex: 1; }
+        .item-card .sku { font-family: Consolas, monospace; font-weight: bold; font-size: 12px; color: #1e5b74; }
+        .item-card .nm { font-size: 12.5px; font-weight: bold; margin: 4px 0; flex: 1; }
+        .item-card .mt { font-size: 11px; color: #777; line-height: 1.5; }
+        .item-card .qtyline { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+        .item-card input[type=number] { width: 80px; }
+        .vsel { background: #f9f9f9; border: 2px dashed #87CEEB; border-radius: 8px; padding: 12px 14px; margin: 12px 0; }
+        .sumbar { position: sticky; top: 0; background: #fffbe8; border: 1px solid #e8d48b; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: bold; margin: 10px 0; z-index: 5; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+        .chip { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; background: #e3f2fd; color: #1565c0; }
+        .chip.new { background: #DDF3DD; color: #2e7d32; }
+        .chip.ex { background: #FFF3C4; color: #8a6d00; }
+        .stepnum { display: inline-block; background: #000; color: #fff; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 6px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="company-header">
+        <div class="info">
+            <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+            <div class="l2">Sourcing Orders - catalogue to vendor PO</div>
+        </div>
+        <div class="logo"><b>SAHI</b><br><span style="font-size:10px;">LONDON</span></div>
+    </div>
+    <div class="nav">
+        <a href="/">Buyer Invoice (Sell)</a>
+        <a href="/buyer-po.html">Buyer PO</a>
+        <a href="/create-po.html">Vendor PO (Buying)</a>
+        <a href="/sourcing.html" class="active">Sourcing Orders</a>
+        <a href="/invoices.html">Invoice to PO</a>
+        <a href="/receive-po.html">Receive Stock</a>
+        <a href="/items.html">Item Master</a>
+        <a href="/bulk-import-items.html">Bulk Import</a>
+        <a href="/opening-inventory.html">Opening Inventory</a>
+        <a href="/sales.html">Sales (Stock Out)</a>
+        <a href="/contacts.html">Buyers &amp; Vendors</a>
+        <a href="/transfer.html">Transfer Stock</a>
+        <a href="/accounts.html">Accounts</a>
+        <a href="/admin-users.html">Manage Users</a>
+        <a href="/b2b-orders.html">B2B Orders</a>
+    </div>
+
+        <h2>Sourcing Orders - catalogue to vendor PO</h2>
+        <p class="hint">Flow: select items + qty from the catalogue &rarr; download the order sheet and send it to the vendor &rarr; vendor confirms &rarr; import the confirmed sheet &rarr; item master is created (SAHI item code, vendor code, auto EAN-13 barcode, friendly name, unit price) &rarr; vendor PO is generated.</p>
+        <div class="msg" id="msg"></div>
+
+        <h3 class="section"><span class="stepnum">1</span>Select items + qty (per vendor)</h3>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
+            <input type="text" id="searchBox" placeholder="Search SKU, name, color..." oninput="renderCatalogue()">
+            <select id="vendorFilter" onchange="renderCatalogue()"><option value="">All vendors</option></select>
+            <span class="hint" id="catCount"></span>
+        </div>
+        <div id="catalogueArea"><p class="hint">Loading catalogue...</p></div>
+        <div class="sumbar" id="sumbar" style="display:none;"></div>
+
+        <h3 class="section"><span class="stepnum">2</span>Download order sheet to send to vendor</h3>
+        <div class="vsel">
+            <button class="btn" onclick="downloadOrderSheets()">&#11015; Download Order Sheet (CSV, one file per vendor with selection)</button>
+            <span class="hint">Columns: Vendor SKU, Product Name, Category, Colors, Size, Packing, Qty, Unit Price (RMB), SAHI Item Code (blank), Confirmed Price (blank). Send to vendor - vendor fills confirmed qty/price and returns the file.</span>
+        </div>
+
+        <h3 class="section"><span class="stepnum">3</span>Vendor confirmed - import the returned sheet</h3>
+        <div class="vsel">
+            <input type="file" id="confirmFile" accept=".csv,.xlsx,.xls">
+            <button class="btn" onclick="importConfirmed()">Import confirmed sheet</button>
+            <span class="hint">Must contain a Vendor SKU column and a Qty column. Confirmed Price / Unit Price column is optional.</span>
+        </div>
+        <div id="confirmArea"></div>
+
+        <h3 class="section"><span class="stepnum">4</span>Create item master + barcode, then generate PO</h3>
+        <div class="vsel">
+            <button class="btn btn-go" id="btnCreate" onclick="createItems()" disabled>Create Item Master (auto EAN-13 barcode)</button>
+            <button class="btn btn-go" id="btnPo" onclick="createPOs()" disabled>Create Vendor PO from these items</button>
+            <span class="hint">Items are created per vendor with: item code (SAHI code = vendor SKU, editable above), vendor code, auto EAN-13 barcode, friendly name, unit price. Then one PO per vendor is generated (RMB, DRAFT).</span>
+        </div>
+        <div id="resultArea"></div>
+    </div>
+
+    <script>
+    const NAV_PERMISSIONS = {
+        '/': ['ADMIN', 'BUYER', 'ACCOUNTS'],
+        '/buyer-po.html': ['ADMIN', 'BUYER'],
+        '/create-po.html': ['ADMIN', 'BUYER'],
+        '/sourcing.html': ['ADMIN', 'BUYER'],
+        '/invoices.html': ['ADMIN', 'BUYER'],
+        '/items.html': ['ADMIN', 'BUYER'],
+        '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
+        '/transfer.html': ['ADMIN'],
+        '/accounts.html': ['ADMIN', 'ACCOUNTS'],
+        '/admin-users.html': ['ADMIN'],
+        '/b2b-orders.html': ['ADMIN']
+    };
+    async function initAuthNav() {
+        try {
+            const res = await fetch('/api/me');
+            if (!res.ok) { window.location.href = '/login.html'; return; }
+            const me = await res.json();
+            document.querySelectorAll('.nav a').forEach(a => {
+                const allowed = NAV_PERMISSIONS[a.getAttribute('href')];
+                if (allowed && !allowed.includes(me.role)) a.style.display = 'none';
+            });
+            const nav = document.querySelector('.nav');
+            if (nav) {
+                const badge = document.createElement('span');
+                badge.style.marginLeft = 'auto';
+                badge.style.color = '#666';
+                badge.style.fontSize = '13px';
+                badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                nav.appendChild(badge);
+                document.getElementById('logoutLink').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; };
+            }
+        } catch (e) { window.location.href = '/login.html'; }
+    }
+    initAuthNav();
+
+    let CATALOGUE = { vendors: [] };
+    const sel = {};               // sku -> qty (selection, step 1)
+    const confirmLines = [];      // confirmed lines ready for step 4
+    const createdItems = [];      // results of create-items
+
+    function sm(ok, text) { const m = document.getElementById('msg'); m.className = 'msg ' + (ok ? 'ok' : 'err'); m.textContent = text; }
+
+    async function loadCatalogue() {
+        try {
+            const res = await fetch('/api/sourcing/catalogue');
+            if (!res.ok) throw new Error('failed ' + res.status);
+            CATALOGUE = await res.json();
+            const vf = document.getElementById('vendorFilter');
+            CATALOGUE.vendors.forEach(v => {
+                const o = document.createElement('option');
+                o.value = v.code;
+                o.textContent = v.name + ' (' + v.items.length + ')';
+                vf.appendChild(o);
+            });
+            renderCatalogue();
+        } catch (e) {
+            sm(false, 'Could not load catalogue: ' + e.message);
+        }
+    }
+
+    function allItems() {
+        const out = [];
+        CATALOGUE.vendors.forEach(v => v.items.forEach(it => out.push({ ...it, vendor_code: v.code, vendor_name: v.name })));
+        return out;
+    }
+
+    function renderCatalogue() {
+        const q = document.getElementById('searchBox').value.trim().toLowerCase();
+        const vf = document.getElementById('vendorFilter').value;
+        const area = document.getElementById('catalogueArea');
+        const items = allItems().filter(it =>
+            (!vf || it.vendor_code === vf) &&
+            (!q || (it.sku + ' ' + it.name + ' ' + it.colors + ' ' + it.sub).toLowerCase().includes(q))
+        );
+        document.getElementById('catCount').textContent = items.length + ' items shown';
+        if (!items.length) { area.innerHTML = '<p class="hint">No items match.</p>'; return; }
+        // group by vendor -> sub
+        const byV = {};
+        items.forEach(it => { (byV[it.vendor_name] = byV[it.vendor_name] || []).push(it); });
+        let html = '';
+        Object.keys(byV).forEach(vn => {
+            const bySub = {};
+            byV[vn].forEach(it => { (bySub[it.sub || 'Other'] = bySub[it.sub || 'Other'] || []).push(it); });
+            html += '<p style="margin:14px 0 4px 0; font-weight:bold;">' + vn + '</p>';
+            Object.keys(bySub).forEach(sub => {
+                html += '<p class="hint" style="margin:6px 0 2px 0;">' + sub + ' (' + bySub[sub].length + ')</p><div class="cat-grid">';
+                bySub[sub].forEach(it => {
+                    const v = sel[it.sku] || '';
+                    html += '<div class="item-card">' +
+                        '<img src="' + it.image + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+                        '<div class="b"><div class="sku">' + it.sku + '</div><div class="nm">' + it.name + '</div>' +
+                        '<div class="mt">' + (it.colors ? it.colors + '<br>' : '') + (it.price_rmb ? 'RMB ' + it.price_rmb : 'Price on request') + '</div>' +
+                        '<div class="qtyline"><label style="font-size:11px;">Qty</label><input type="number" min="0" value="' + v + '" onchange="setQty(\'' + it.sku + '\', this.value)"></div>' +
+                        '</div></div>';
+                });
+                html += '</div>';
+            });
+        });
+        area.innerHTML = html;
+        updateSumbar();
+    }
+
+    function setQty(sku, val) {
+        const q = parseInt(val, 10) || 0;
+        if (q > 0) sel[sku] = q; else delete sel[sku];
+        updateSumbar();
+    }
+
+    function updateSumbar() {
+        const bar = document.getElementById('sumbar');
+        const byV = {};
+        Object.keys(sel).forEach(sku => {
+            const it = allItems().find(x => x.sku === sku);
+            if (!it) return;
+            byV[it.vendor_name] = (byV[it.vendor_name] || 0) + 1;
+        });
+        const parts = Object.keys(byV).map(v => v + ': <span class="chip">' + byV[v] + ' items</span>');
+        bar.style.display = Object.keys(sel).length ? 'flex' : 'none';
+        bar.innerHTML = 'Selected: ' + parts.join(' ') + ' &nbsp; total ' + Object.keys(sel).length + ' items';
+    }
+
+    function csvCell(v) { v = (v === null || v === undefined) ? '' : String(v); return '"' + v.replace(/"/g, '""') + '"'; }
+
+    function downloadOrderSheets() {
+        if (!Object.keys(sel).length) { sm(false, 'Select items with qty first (step 1).'); return; }
+        const byV = {};
+        allItems().forEach(it => { if (sel[it.sku]) (byV[it.vendor_code] = byV[it.vendor_code] || { vendor: null, lines: [] }).lines.push({ ...it, qty: sel[it.sku] }); });
+        CATALOGUE.vendors.forEach(v => { if (byV[v.code]) byV[v.code].vendor = v; });
+        let n = 0;
+        Object.keys(byV).forEach(code => {
+            const g = byV[code];
+            const rows = [['Vendor SKU', 'Product Name', 'Category', 'Colors', 'Size', 'Packing', 'Qty', 'Unit Price (RMB)', 'SAHI Item Code', 'Confirmed Price (RMB)']];
+            g.lines.forEach(l => rows.push([l.sku, l.name, l.sub, l.colors, l.size, l.packing, l.qty, l.price_rmb || '', '', '']));
+            const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'order_sheet_' + code + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            n++;
+        });
+        sm(true, 'Downloaded ' + n + ' order sheet(s). Send to vendor; import the confirmed file in step 3.');
+    }
+
+    async function importConfirmed() {
+        const f = document.getElementById('confirmFile').files[0];
+        if (!f) { sm(false, 'Choose the confirmed file first.'); return; }
+        const fd = new FormData();
+        fd.append('file', f);
+        sm(true, 'Importing...');
+        try {
+            const res = await fetch('/api/sourcing/parse-order-file', { method: 'POST', body: fd });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || 'import failed');
+            confirmLines.length = 0;
+            j.lines.forEach(l => confirmLines.push({ ...l, sahi_code: l.sku, friendly_name: l.name }));
+            renderConfirmTable(j.notFound || []);
+            if (!confirmLines.length) sm(false, 'No valid lines found.' + (j.notFound && j.notFound.length ? ' Unknown SKUs: ' + j.notFound.join(', ') : ''));
+            else sm(true, 'Loaded ' + confirmLines.length + ' confirmed lines.' + (j.notFound.length ? ' Skipped (not in catalogue): ' + j.notFound.join(', ') : ''));
+        } catch (e) { sm(false, 'Import failed: ' + e.message); }
+    }
+
+    function renderConfirmTable(notFound) {
+        const area = document.getElementById('confirmArea');
+        if (!confirmLines.length) { area.innerHTML = ''; document.getElementById('btnCreate').disabled = true; return; }
+        let html = '<p class="hint">Review before creating. SAHI Item Code defaults to the vendor SKU - edit if you want a different code.</p>';
+        html += (notFound && notFound.length) ? '<p class="err" style="font-size:12px;">Not in catalogue (skipped): ' + notFound.join(', ') + '</p>' : '';
+        html += '<table><thead><tr><th>Vendor</th><th>Vendor SKU</th><th>SAHI Item Code</th><th>Friendly Name</th><th>Qty</th><th>Unit Price (RMB)</th></tr></thead><tbody>';
+        confirmLines.forEach((l, i) => {
+            html += '<tr><td>' + l.vendor_name + '</td><td>' + l.sku + '</td>' +
+                '<td><input style="width:130px" value="' + l.sahi_code + '" onchange="confirmLines[' + i + '].sahi_code=this.value"></td>' +
+                '<td><input style="width:260px" value="' + String(l.friendly_name).replace(/"/g, '&quot;') + '" onchange="confirmLines[' + i + '].friendly_name=this.value"></td>' +
+                '<td><input style="width:70px" type="number" min="1" value="' + l.qty + '" onchange="confirmLines[' + i + '].qty=parseInt(this.value,10)||1"></td>' +
+                '<td><input style="width:90px" type="number" step="0.01" min="0" value="' + l.unit_price + '" onchange="confirmLines[' + i + '].unit_price=parseFloat(this.value)||0"></td></tr>';
+        });
+        html += '</tbody></table>';
+        area.innerHTML = html;
+        document.getElementById('btnCreate').disabled = false;
+    }
+
+    async function createItems() {
+        if (!confirmLines.length) { sm(false, 'Import a confirmed sheet first (step 3).'); return; }
+        const byV = {};
+        confirmLines.forEach(l => { (byV[l.vendor_code] = byV[l.vendor_code] || { vendor_name: l.vendor_name, items: [] }).items.push({ sku: l.sahi_code, friendly_name: l.friendly_name, unit_price: l.unit_price, qty: l.qty, sub: l.sub }); });
+        document.getElementById('btnCreate').disabled = true;
+        sm(true, 'Creating items...');
+        try {
+            for (const code of Object.keys(byV)) {
+                const res = await fetch('/api/sourcing/create-items', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor_code: code, vendor_name: byV[code].vendor_name, items: byV[code].items })
+                });
+                const j = await res.json();
+                if (!res.ok) throw new Error(j.error || 'create failed for ' + code);
+                (j.created || []).forEach(c => createdItems.push({ ...c, vendor_code: code, status: 'new' }));
+                (j.existing || []).forEach(c => createdItems.push({ ...c, vendor_code: code, status: 'existing' }));
+                if (j.errors && j.errors.length) sm(false, 'Some errors: ' + j.errors.map(e => e.sku + ': ' + e.error).join('; '));
+            }
+            renderResults();
+            document.getElementById('btnPo').disabled = false;
+            sm(true, 'Item master ready: ' + createdItems.filter(c => c.status === 'new').length + ' created, ' + createdItems.filter(c => c.status === 'existing').length + ' already existed. Now create the PO (step 4).');
+        } catch (e) {
+            sm(false, 'Create items failed: ' + e.message);
+            document.getElementById('btnCreate').disabled = false;
+        }
+    }
+
+    function renderResults() {
+        const area = document.getElementById('resultArea');
+        if (!createdItems.length) { area.innerHTML = ''; return; }
+        let html = '<table><thead><tr><th>Status</th><th>Vendor</th><th>Item Code</th><th>Barcode (EAN-13)</th><th>Friendly Name</th><th>Unit Price (RMB)</th><th>PO Qty</th></tr></thead><tbody>';
+        createdItems.forEach(c => {
+            html += '<tr><td><span class="chip ' + (c.status === 'new' ? 'new' : 'ex') + '">' + (c.status === 'new' ? 'CREATED' : 'EXISTS') + '</span></td>' +
+                '<td>' + c.vendor_code + '</td><td style="font-family:Consolas,monospace;font-weight:bold;">' + c.sku + '</td>' +
+                '<td style="font-family:Consolas,monospace;">' + (c.barcode || '-') + '</td><td>' + (c.friendly_name || '') + '</td>' +
+                '<td>' + (c.unit_price || '-') + '</td><td>' + (c.qty || '-') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        area.innerHTML = html;
+    }
+
+    async function createPOs() {
+        const usable = createdItems.filter(c => c.status === 'new' || true); // include existing items too
+        if (!usable.length) { sm(false, 'No items to order.'); return; }
+        const byV = {};
+        confirmLines.forEach(l => { (byV[l.vendor_code] = byV[l.vendor_code] || []).push({ sku: l.sahi_code, qty: l.qty, unit_price: l.unit_price }); });
+        document.getElementById('btnPo').disabled = true;
+        sm(true, 'Creating POs...');
+        const poIds = [];
+        try {
+            for (const code of Object.keys(byV)) {
+                const res = await fetch('/api/create-po', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor_code: code, po_date: new Date().toISOString().slice(0, 10), po_currency: 'RMB', exchange_rate: 7.0, items: byV[code] })
+                });
+                const j = await res.json();
+                if (!res.ok) throw new Error((j.error || 'PO failed') + ' (' + code + ')');
+                poIds.push(j.po_id || j.poId || code);
+            }
+            sm(true, 'Vendor PO(s) created: ' + poIds.join(', ') + ' - status DRAFT. Open Vendor PO (Buying) to review, submit and approve.');
+            document.getElementById('resultArea').innerHTML += '<p class="ok" style="font-weight:bold;">PO: ' + poIds.join(', ') + '</p>';
+        } catch (e) {
+            sm(false, 'PO creation failed: ' + e.message);
+            document.getElementById('btnPo').disabled = false;
+        }
+    }
+
+    loadCatalogue();
+    </script>
+</body>
+</html>
