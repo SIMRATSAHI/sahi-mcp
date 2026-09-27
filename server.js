@@ -5160,6 +5160,71 @@ app.get('/api/sales/:id/pdf', requireAuthApi(['ADMIN', 'BUYER']), async (req, re
   }
 });
 
+// GET /api/invoice/:orderId/shopify-csv — Shopify PRODUCTS CSV from a created
+// customer invoice. One row per invoice line (Handle = SKU-based so re-uploading
+// the same SKU updates the existing Shopify listing). Price = invoice unit price
+// x ?factor= (default 1) so non-CAD invoices can be converted to store price.
+// Image Src auto-filled when a portal image exists for the SKU.
+app.get('/api/invoice/:orderId/shopify-csv', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const factor = parseFloat(req.query.factor) > 0 ? parseFloat(req.query.factor) : 1;
+    const rows = await pool.query(`
+      SELECT co.sku, co.item_name, co.qty, co.unit_price_local, co.order_currency,
+             im.description, im.material, im.color, im.vendor_item_number, im.category
+      FROM customer_orders co
+      LEFT JOIN item_master im ON co.sku = im.sku
+      WHERE co.order_id = $1
+      ORDER BY co.sku`, [orderId]);
+    if (rows.rows.length === 0) return res.status(404).json({ error: 'Invoice not found: ' + orderId });
+
+    const imgDir = path.join(__dirname, 'public', 'images');
+    const csvEscape = (v) => {
+      const s = String(v === null || v === undefined ? '' : v);
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const handle = (sku) => sku.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const header = [
+      'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
+      'Option1 Name', 'Option1 Value', 'Variant SKU', 'Variant Inventory Tracker',
+      'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Fulfillment Service',
+      'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
+      'Image Src', 'Image Position', 'Image Alt Text'
+    ];
+    const lines = [header.map(csvEscape).join(',')];
+    for (const r of rows.rows) {
+      const h = handle(r.sku);
+      const bodyHtml = [
+        r.description || r.item_name || '',
+        r.material ? 'Material: ' + r.material : '',
+        r.color ? 'Color: ' + r.color : ''
+      ].filter(Boolean).join('<br>');
+      const price = (parseFloat(r.unit_price_local) || 0) * factor;
+      const base = ((r.vendor_item_number || r.sku) + '').replace(/[^a-zA-Z0-9._-]/g, '_');
+      let imageSrc = '';
+      try {
+        if (fs.existsSync(path.join(imgDir, base + '.jpg'))) {
+          imageSrc = 'https://sahi-mcp.onrender.com/images/' + encodeURIComponent(base) + '.jpg';
+        }
+      } catch (e) { /* no image */ }
+      const type = (r.category && r.category.trim()) ? r.category.trim() : deriveCategory(r.sku);
+      lines.push([
+        h, r.item_name || r.sku, bodyHtml, 'SAHI LONDON', '', type, type, 'TRUE',
+        'Title', 'Default Title', r.sku, 'shopify',
+        parseInt(r.qty, 10) || 0, 'deny', 'manual',
+        price.toFixed(2), '', 'TRUE', 'TRUE',
+        imageSrc, imageSrc ? '1' : '', imageSrc ? (r.item_name || r.sku) : ''
+      ].map(csvEscape).join(','));
+    }
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="shopify_products_${orderId}.csv"`);
+    res.send('\ufeff' + lines.join('\r\n'));
+  } catch (err) {
+    console.error('Error generating Shopify CSV:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Compact A4 invoice PDF for a single sale — customer-facing: SKU, description,
 // qty, unit price, total. Cost/margin deliberately excluded.
 function generateSaleInvoicePDF(sale) {
