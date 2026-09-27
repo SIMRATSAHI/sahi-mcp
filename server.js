@@ -1574,7 +1574,8 @@ app.get('/api/buyer-pos/:id', requireAuthApi(['ADMIN', 'BUYER', 'ACCOUNTS', 'LOG
 
 app.post('/api/buyer-pos', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { po_number, buyer_code, po_date, notes, lines } = req.body || {};
-  if (!po_number || !po_number.trim()) return res.status(400).json({ error: 'po_number is required (the buyer\'s own PO number)' });
+  // Blank PO number is fine — the system auto-numbers it (BPO-<id>) after insert,
+  // so a scan session is never wasted on a validation error.
   if (!buyer_code) return res.status(400).json({ error: 'buyer_code is required' });
   if (!Array.isArray(lines) || lines.length === 0) return res.status(400).json({ error: 'Add at least one line item' });
   const client = await pool.connect();
@@ -1593,16 +1594,21 @@ app.post('/api/buyer-pos', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     const ins = await client.query(
       `INSERT INTO buyer_pos (po_number, buyer_code, po_date, notes, status, created_by)
        VALUES ($1, $2, $3, $4, 'OPEN', $5) RETURNING id`,
-      [po_number.trim(), b.rows[0].code, po_date || null, notes || null, req.user.email]);
+      [(po_number || '').trim() || 'PENDING', b.rows[0].code, po_date || null, notes || null, req.user.email]);
     const poId = ins.rows[0].id;
+    let finalPoNumber = (po_number || '').trim();
+    if (!finalPoNumber) {
+      finalPoNumber = 'BPO-' + poId;
+      await client.query(`UPDATE buyer_pos SET po_number = $1 WHERE id = $2`, [finalPoNumber, poId]);
+    }
     for (const c of clean) {
       await client.query(
         `INSERT INTO buyer_po_lines (buyer_po_id, sku, item_name, qty) VALUES ($1, $2, $3, $4)`,
         [poId, c.sku, c.item_name, c.qty]);
     }
     await client.query('COMMIT');
-    logActivity(req.user, 'BUYER_PO_CREATED', String(poId), { po_number: po_number.trim(), buyer_code: b.rows[0].code, lines: clean.length });
-    res.json({ success: true, id: poId, po_number: po_number.trim(), buyer_code: b.rows[0].code });
+    logActivity(req.user, 'BUYER_PO_CREATED', String(poId), { po_number: finalPoNumber, buyer_code: b.rows[0].code, lines: clean.length, auto_numbered: !(po_number || '').trim() });
+    res.json({ success: true, id: poId, po_number: finalPoNumber, buyer_code: b.rows[0].code });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) { /* noop */ }
     console.error(err);
