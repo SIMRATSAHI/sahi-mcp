@@ -1,288 +1,574 @@
 <!DOCTYPE html>
+
 <html>
+
 <head>
+
     <title>SAHI Portal - Buyer PO</title>
+
     <style>
+
         body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+
         .container { max-width: 1100px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+
         .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+
         .company-header .info { color: #000; }
+
         .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+
         .company-header .info .l2 { font-size: 11px; }
+
         .company-header .info .l3 { font-size: 9px; }
+
         .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+
         .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+
         .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; font-size: 13px; }
+
         .nav a.active { color: #000; }
+
         h2 { color: #333; margin-top: 0; }
+
         h3.section { background: #87CEEB; color: #000; padding: 8px 14px; border-radius: 6px; margin: 25px 0 12px 0; font-size: 15px; }
+
         .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; background: #f9f9f9; border: 2px dashed #87CEEB; border-radius: 8px; padding: 14px; margin-bottom: 15px; }
+
         .fg { flex: 1; min-width: 110px; }
+
         label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 12px; }
+
         input, select { width: 100%; padding: 7px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+
         .btn { padding: 9px 16px; background: #87CEEB; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; }
+
         .btn:hover { background: #6bc3de; }
+
         .btn-go { background: #4CAF50; color: #fff; }
+
         .btn-danger { background: #f44336; color: #fff; }
+
         .btn-warn { background: #888; color: #fff; }
+
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
         th { background: #87CEEB; color: #000; padding: 7px; text-align: left; }
+
         td { padding: 6px 7px; border-bottom: 1px solid #eee; }
+
         .msg { margin: 10px 0; font-weight: bold; font-size: 13px; min-height: 18px; }
+
         .ok { color: #2e7d32; } .err { color: #d32f2f; }
+
         .hint { font-size: 11px; color: #888; }
+
         .chip { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+
         .chip.OPEN { background: #FFF3C4; color: #8a6d00; }
+
         .chip.COMPLETED { background: #DDF3DD; color: #2e7d32; }
+
         .chip.CANCELLED { background: #eee; color: #888; text-decoration: line-through; }
+
         .line-actions button { margin-right: 4px; }
+
         #stockPopup { display: none; margin: 10px 0; padding: 12px 16px; border-radius: 8px; border: 2px solid #87CEEB; background: #FFF9E0; font-size: 14px; }
+
     </style>
+
 </head>
+
 <body>
+
     <div class="container">
+
     <div class="company-header">
+
         <div class="info">
+
             <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+
             <div class="l2">飒鹤（上海）贸易有限公司</div>
+
             <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+
         </div>
+
         <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+
     </div>
+
     <div class="nav">
+
         <a href="/">Buyer Invoice (Sell)</a>
+
         <a href="/buyer-po.html" class="active">Buyer PO</a>
+
         <a href="/create-po.html">Vendor PO (Buying)</a>
+
         <a href="/invoices.html">Invoice to PO</a>
+
         <a href="/receive-po.html">Receive Stock</a>
+
         <a href="/items.html">Item Master</a>
+
         <a href="/bulk-import-items.html">Bulk Import</a>
+
         <a href="/opening-inventory.html">Opening Inventory</a>
+
         <a href="/sales.html">Sales (Stock Out)</a>
+
         <a href="/contacts.html">Buyers &amp; Vendors</a>
+
         <a href="/transfer.html">Transfer Stock</a>
+
         <a href="/accounts.html">Accounts</a>
+
         <a href="/admin-users.html">Manage Users</a>
+
         <a href="/b2b-orders.html">B2B Orders</a>
+
     </div>
+
+
 
         <h2>Buyer PO — what the customer ordered</h2>
+
         <p class="hint">Record the purchase order a buyer sends you. Later, create the sales invoice against it (Buyer Invoice (Sell) &rarr; Load from Buyer PO) — invoiced qty is tracked here automatically.</p>
+
         <div class="msg" id="msg"></div>
 
+
+
         <h3 class="section">➕ Record a Buyer PO</h3>
+
         <div class="form-row">
+
             <div class="fg"><label>Buyer *</label><select id="buyerSelect"></select></div>
-            <div class="fg"><label>Buyer PO Number *</label><input type="text" id="poNumber" placeholder="e.g. LG-PO-2026-014"></div>
+
+            <div class="fg"><label>Buyer PO Number <span class="hint">(optional — blank = system auto-numbers BPO-1001, 1002…)</span></label><input type="text" id="poNumber" placeholder="buyer's PO ref, or leave blank"></div>
+
             <div class="fg" style="max-width:150px;"><label>PO Date</label><input type="date" id="poDate"></div>
+
             <div class="fg"><label>Notes</label><input type="text" id="poNotes" placeholder="optional"></div>
+
         </div>
+
         <div class="form-row">
+
             <div class="fg"><label>Scan barcode / search SKU</label><input type="text" id="scanInput" autocomplete="off" placeholder="barcode or SKU + Enter"></div>
+
             <div class="fg" style="max-width:100px;"><label>Qty</label><input type="number" id="scanQty" value="1" min="1"></div>
+
             <button class="btn" onclick="scanAdd()">Scan add</button>
+
         </div>
+
         <div class="form-row">
+
             <div class="fg" style="flex:2;"><label>…or pick from list</label><select id="itemSelect"></select></div>
+
             <div class="fg" style="max-width:100px;"><label>Qty</label><input type="number" id="lineQty" value="1" min="1"></div>
+
             <button class="btn" onclick="addLine()">Add line</button>
+
         </div>
+
         <div class="msg" id="scanMsg"></div>
+
         <div id="stockPopup"></div>
+
         <table id="linesTable">
+
             <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th></th></tr></thead>
+
             <tbody id="linesBody"><tr><td colspan="4" class="hint">No lines yet — scan a barcode / type a SKU, or pick from the list.</td></tr></tbody>
+
         </table>
+
         <button class="btn btn-go" style="margin-top:12px;" onclick="createPO()">Save Buyer PO</button>
 
+
+
         <h3 class="section">📋 Buyer POs</h3>
+
         <table id="poTable">
+
             <thead><tr><th>PO #</th><th>Buyer</th><th>Date</th><th>Lines</th><th>Qty ordered</th><th>Qty invoiced</th><th>Status</th><th>Actions</th></tr></thead>
+
             <tbody id="poRows"></tbody>
+
         </table>
+
         <p class="hint">OPEN = waiting to be invoiced · COMPLETED = fully invoiced · CANCELLED = closed without invoicing. "Invoice" opens the sell page with this PO pre-loaded.</p>
+
     </div>
 
+
+
     <script>
+
         let buyers = [], items = [], poLines = [], pos = [];
+
         const $ = (id) => document.getElementById(id);
+
         const msg = (t, ok) => { const el = $('msg'); el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
 
+
+
         async function load() {
+
             const [b, i] = await Promise.all([fetch('/api/buyers').then(r => r.json()), fetch('/api/items').then(r => r.json())]);
+
             buyers = b; items = i;
+
             buyers.forEach(x => { const o = document.createElement('option'); o.value = x.code; o.innerText = x.name + ' (' + x.currency + ')'; $('buyerSelect').appendChild(o); });
+
             items.forEach(x => { const o = document.createElement('option'); o.value = x.sku; o.innerText = x.sku + ' - ' + x.friendly_name; $('itemSelect').appendChild(o); });
+
             $('poDate').value = new Date().toISOString().slice(0, 10);
+
             await loadPOs();
+
         }
 
+
+
         async function addLine() {
+
             const sku = $('itemSelect').value, qty = parseInt($('lineQty').value, 10);
+
             if (!sku || !qty || qty <= 0) { msg('Pick an item and qty > 0', false); return; }
+
             const it = items.find(x => x.sku === sku);
+
             const ex = poLines.find(l => l.sku === sku);
+
             const lineQty = ex ? ex.qty + qty : qty;
+
             if (ex) ex.qty += qty; else poLines.push({ sku, item_name: it ? it.friendly_name : sku, qty });
+
             $('lineQty').value = 1;
+
             renderLines();
+
             const hit = await resolveSku(sku);
+
             if (hit) showStockPopup({ ...hit, name: hit.name || (it ? it.friendly_name : sku) }, lineQty);
+
         }
+
+
 
         const sm = (t, ok) => { const el = $('scanMsg'); el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
 
+
+
         async function resolveSku(q) {
+
             try {
+
                 const res = await fetch('/api/sales/lookup?q=' + encodeURIComponent(q));
+
                 if (!res.ok) return null;
+
                 const d = await res.json();
+
                 return { sku: d.sku, name: d.friendly_name, available: parseInt(d.available, 10) || 0 };
+
             } catch (e) { return null; }
+
         }
+
+
 
         function showStockPopup(hit, qty) {
+
             const el = $('stockPopup');
+
             const short = qty > hit.available;
+
             el.innerHTML =
+
                 '<b>' + hit.sku + '</b> — ' + (hit.name || '') + '<br>' +
+
                 '<span style="font-size:20px; font-weight:bold; color:' + (hit.available > 0 ? '#2e7d32' : '#d32f2f') + '">In stock: ' + hit.available + ' pcs</span>' +
+
                 (short ? '<br><span style="color:#d32f2f; font-weight:bold;">&#9888; Order qty ' + qty + ' exceeds stock by ' + (qty - hit.available) + ' — arrange stock before invoicing</span>'
+
                        : '<br><span style="color:#2e7d32;">Order qty ' + qty + ' — covered by stock</span>');
+
             el.style.display = 'block';
+
             clearTimeout(showStockPopup._t);
+
             showStockPopup._t = setTimeout(() => { el.style.display = 'none'; }, 10000);
+
         }
+
+
 
         async function scanAdd() {
+
             const q = $('scanInput').value.trim(), qty = parseInt($('scanQty').value, 10);
+
             if (!q) return;
+
             sm('Resolving ' + q + '…', true);
+
             const hit = await resolveSku(q);
+
             if (!hit) { sm('Not found: ' + q, false); return; }
+
             const ex = poLines.find(l => l.sku === hit.sku);
+
             const lineQty = ex ? ex.qty + qty : qty;
+
             if (ex) ex.qty += qty; else poLines.push({ sku: hit.sku, item_name: hit.name, qty });
+
             renderLines();
+
             showStockPopup({ ...hit, available: hit.available }, lineQty);
+
             sm('Added ' + hit.sku + ' x' + qty, true);
+
             $('scanInput').value = ''; $('scanQty').value = 1;
+
             $('scanInput').focus();
+
         }
+
         $('scanInput').addEventListener('keydown', e => { if (e.key === 'Enter') scanAdd(); });
+
         $('scanQty').addEventListener('keydown', e => { if (e.key === 'Enter') scanAdd(); });
+
         function removeLine(i) { poLines.splice(i, 1); renderLines(); }
+
         function renderLines() {
+
             const tb = $('linesBody');
+
             if (!poLines.length) { tb.innerHTML = '<tr><td colspan="4" class="hint">No lines yet — scan a barcode / type a SKU, or pick from the list.</td></tr>'; return; }
+
             tb.innerHTML = '';
+
             poLines.forEach((l, i) => {
+
                 const tr = document.createElement('tr');
+
                 tr.innerHTML = '<td><b>' + l.sku + '</b></td><td>' + l.item_name + '</td><td>' + l.qty + '</td>' +
+
                     '<td><button class="btn btn-danger" style="padding:3px 9px;" onclick="removeLine(' + i + ')">✕</button></td>';
+
                 tb.appendChild(tr);
+
             });
+
         }
+
+
 
         async function createPO() {
+
             const buyer_code = $('buyerSelect').value, po_number = $('poNumber').value.trim();
-            if (!po_number) { msg('Enter the buyer\'s PO number', false); return; }
-            if (!poLines.length) { msg('Add at least one line', false); return; }
+
+                        if (!poLines.length) { msg('Add at least one line — scan or pick items first', false); return; }
+
             const res = await fetch('/api/buyer-pos', {
+
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
+
                 body: JSON.stringify({ po_number, buyer_code, po_date: $('poDate').value, notes: $('poNotes').value.trim(), lines: poLines })
+
             });
+
             const d = await res.json();
+
             if (!res.ok || !d.success) { msg(d.error || 'Save failed', false); return; }
+
             msg('Buyer PO ' + d.po_number + ' saved (OPEN) — invoice it from the Buyer Invoice (Sell) page', true);
+
             poLines = []; renderLines();
+
             $('poNumber').value = ''; $('poNotes').value = '';
+
             await loadPOs();
+
         }
+
+
 
         async function loadPOs() {
+
             const r = await fetch('/api/buyer-pos');
+
             pos = await r.json();
+
             const tb = $('poRows');
+
             tb.innerHTML = '';
+
             if (!pos.length) { tb.innerHTML = '<tr><td colspan="8" class="hint">No buyer POs yet.</td></tr>'; return; }
+
             pos.forEach(p => {
+
                 const tr = document.createElement('tr');
+
                 if (p.status === 'CANCELLED') tr.style.opacity = 0.55;
+
                 const acts = [];
+
                 if (p.status === 'OPEN') acts.push('<button class="btn btn-go" style="padding:3px 9px;font-size:12px;" onclick="window.location=\'/?po=' + p.id + '\'">Invoice</button>');
+
                 if (p.status === 'OPEN') acts.push('<button class="btn btn-warn" style="padding:3px 9px;font-size:12px;" onclick="cancelPO(' + p.id + ')">Cancel</button>');
+
                 if (p.status !== 'CANCELLED' && parseInt(p.invoiced_qty) === 0) acts.push('<button class="btn btn-danger" style="padding:3px 9px;font-size:12px;" onclick="deletePO(' + p.id + ')">Delete</button>');
+
                 tr.innerHTML =
+
                     '<td><b>' + p.po_number + '</b></td>' +
+
                     '<td>' + (p.buyer_name || p.buyer_code) + '</td>' +
+
                     '<td>' + (p.po_date ? String(p.po_date).slice(0, 10) : '-') + '</td>' +
+
                     '<td>' + p.line_count + '</td>' +
+
                     '<td>' + p.total_qty + '</td>' +
+
                     '<td>' + p.invoiced_qty + '</td>' +
+
                     '<td><span class="chip ' + p.status + '">' + p.status + '</span></td>' +
+
                     '<td class="line-actions">' + acts.join('') + '</td>';
+
                 tb.appendChild(tr);
+
             });
+
         }
 
+
+
         async function cancelPO(id) {
+
             if (!confirm('Cancel this buyer PO?')) return;
+
             const r = await fetch('/api/buyer-pos/' + id + '/cancel', { method: 'PATCH' });
+
             const d = await r.json();
+
             if (!r.ok || !d.success) { msg(d.error || 'Cancel failed', false); return; }
+
             msg('Buyer PO cancelled', true);
+
             await loadPOs();
+
         }
+
         async function deletePO(id) {
+
             if (!confirm('Delete this buyer PO permanently?')) return;
+
             const r = await fetch('/api/buyer-pos/' + id, { method: 'DELETE' });
+
             const d = await r.json();
+
             if (!r.ok || !d.success) { msg(d.error || 'Delete failed', false); return; }
+
             msg('Buyer PO deleted', true);
+
             await loadPOs();
+
         }
+
         load();
+
     </script>
+
     <script>
+
         // --- Auth / role-based nav (shared pattern across all pages) ---
+
         const NAV_PERMISSIONS = {
+
             '/': ['ADMIN'],
+
             '/buyer-po.html': ['ADMIN', 'BUYER', 'ACCOUNTS'],
+
             '/create-po.html': ['ADMIN', 'BUYER'],
+
             '/items.html': ['ADMIN', 'BUYER'],
+
             '/receive-po.html': ['ADMIN', 'BUYER', 'LOGISTICS'],
+
             '/transfer.html': ['ADMIN'],
+
             '/accounts.html': ['ADMIN', 'ACCOUNTS'],
+
             '/admin-users.html': ['ADMIN'],
+
             '/b2b-orders.html': ['ADMIN']
+
         };
+
         async function initAuthNav() {
+
             try {
+
                 const res = await fetch('/api/me');
+
                 if (!res.ok) { window.location.href = '/login.html'; return; }
+
                 const me = await res.json();
+
                 document.querySelectorAll('.nav a').forEach(a => {
+
                     const allowed = NAV_PERMISSIONS[a.getAttribute('href')];
+
                     if (allowed && !allowed.includes(me.role)) a.style.display = 'none';
+
                 });
+
                 const nav = document.querySelector('.nav');
+
                 if (nav) {
+
                     const badge = document.createElement('span');
+
                     badge.style.marginLeft = 'auto';
+
                     badge.style.color = '#666';
+
                     badge.style.fontSize = '13px';
+
                     badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+
                     nav.appendChild(badge);
+
                     document.getElementById('logoutLink').addEventListener('click', async (e) => {
+
                         e.preventDefault();
+
                         await fetch('/api/logout', { method: 'POST' });
+
                         window.location.href = '/login.html';
+
                     });
+
                 }
+
             } catch (e) { window.location.href = '/login.html'; }
+
         }
+
         initAuthNav();
+
     </script>
+
 </body>
+
 </html>
+
