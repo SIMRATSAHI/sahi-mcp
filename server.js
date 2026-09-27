@@ -1636,7 +1636,12 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
       "SELECT name, currency, exchange_rate_to_usd, default_markup_pct FROM buyers WHERE code = $1", [buyer_code]);
     if (buyerRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Buyer not found' }); }
     const buyer = buyerRes.rows[0];
-    const order_id = `${buyer_code.substring(0, 2)}-${Date.now().toString().slice(-6)}`;
+    // Collision-proof order id: prefix + full date + time + 2 random chars
+    // (the old last-6-digits-of-timestamp format wrapped every ~16 min and
+    // collided with existing rows on the unique order_id constraint)
+    const _d = new Date();
+    const _pad = (n) => String(n).padStart(2, '0');
+    const order_id = `${buyer_code.substring(0, 2)}-${_d.getFullYear()}${_pad(_d.getMonth() + 1)}${_pad(_d.getDate())}-${_pad(_d.getHours())}${_pad(_d.getMinutes())}${_pad(_d.getSeconds())}-${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
     const lines = [];
     for (const it of items) {
       const qty = parseInt(it.qty, 10);
