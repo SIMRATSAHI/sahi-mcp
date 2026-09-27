@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - Buyers &amp; Vendors</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+        .container { max-width: 1000px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
+        .company-header { background: #87CEEB; padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: #000; }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .logo .l2 { font-size: 9px; }
+        .nav { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: #87CEEB; font-weight: bold; }
+        .nav a.active { color: #000; }
+        h2 { color: #333; margin-top: 0; }
+        h3.section { background: #87CEEB; color: #000; padding: 8px 14px; border-radius: 6px; margin: 25px 0 12px 0; font-size: 15px; }
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; background: #f9f9f9; border: 2px dashed #87CEEB; border-radius: 8px; padding: 14px; margin-bottom: 15px; }
+        .fg { flex: 1; min-width: 110px; }
+        label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 12px; }
+        input, select { width: 100%; padding: 7px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .btn { padding: 9px 16px; background: #87CEEB; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; }
+        .btn:hover { background: #6bc3de; }
+        .btn-save { background: #4CAF50; color: #fff; }
+        .btn-cancel { background: #888; color: #fff; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #87CEEB; color: #000; padding: 7px; text-align: left; }
+        td { padding: 6px 7px; border-bottom: 1px solid #eee; }
+        tr.inactive td { color: #aaa; text-decoration: line-through; }
+        .edit-btn { background: #FFB7C5; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .msg { margin: 10px 0; font-weight: bold; font-size: 13px; min-height: 18px; }
+        .ok { color: #2e7d32; } .err { color: #d32f2f; }
+        .hint { font-size: 11px; color: #888; }
+        .mode-badge { display: none; background: #FFB7C5; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="company-header">
+        <div class="info">
+            <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+            <div class="l2">飒鹤（上海）贸易有限公司</div>
+            <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+        </div>
+        <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+    </div>
+    <div class="nav">
+        <a href="/">Sell (Invoice)</a>
+        <a href="/create-po.html">Vendor PO (Buying)</a>
+        <a href="/invoices.html">Invoice to PO</a>
+        <a href="/receive-po.html">Receive Stock</a>
+        <a href="/items.html">Item Master</a>
+        <a href="/bulk-import-items.html">Bulk Import</a>
+        <a href="/opening-inventory.html">Opening Inventory</a>
+        <a href="/sales.html">Sales (Stock Out)</a>
+        <a href="/contacts.html" class="active">Buyers &amp; Vendors</a>
+        <a href="/transfer.html">Transfer Stock</a>
+        <a href="/accounts.html">Accounts</a>
+        <a href="/admin-users.html">Manage Users</a>
+        <a href="/b2b-orders.html">B2B Orders</a>
+    </div>
+
+        <h2>Buyers &amp; Vendors</h2>
+        <div class="msg" id="msg"></div>
+
+        <h3 class="section">🛒 BUYERS — customers SSCL sells to (Canada, India, world)</h3>
+        <div class="form-row" id="buyerForm">
+            <div class="fg" style="max-width:120px;"><label>Code *</label><input type="text" id="b_code" placeholder="SAC"></div>
+            <div class="fg"><label>Name *</label><input type="text" id="b_name" placeholder="SAHI Canada"></div>
+            <div class="fg" style="max-width:100px;"><label>Currency</label><input type="text" id="b_currency" value="CAD" placeholder="CAD"></div>
+            <div class="fg" style="max-width:120px;"><label>Rate / USD</label><input type="number" id="b_rate" value="1.36" step="0.01"></div>
+            <div class="fg" style="max-width:110px;"><label>Markup %</label><input type="number" id="b_markup" value="2.5" step="0.1"></div>
+            <div class="fg"><label>Contact</label><input type="text" id="b_contact"></div>
+            <div class="fg"><label>Email</label><input type="text" id="b_email"></div>
+            <button class="btn" id="buyerSubmitBtn" onclick="saveBuyer()">Add Buyer</button>
+            <button class="btn btn-cancel" style="display:none;" id="buyerCancelBtn" onclick="resetBuyerForm()">Cancel</button>
+        </div>
+        <span class="mode-badge" id="buyerEditBadge">Editing buyer</span>
+        <table id="buyerTable">
+            <thead><tr><th>Code</th><th>Name</th><th>Currency</th><th>Rate/USD</th><th>Markup %</th><th>Contact</th><th>Email</th><th></th></tr></thead>
+            <tbody id="buyerRows"></tbody>
+        </table>
+
+        <h3 class="section">🏭 VENDORS — factories SSCL buys from (YWG-001, …)</h3>
+        <div class="form-row" id="vendorForm">
+            <div class="fg" style="max-width:120px;"><label>Code *</label><input type="text" id="v_code" placeholder="YWG-002"></div>
+            <div class="fg"><label>Name *</label><input type="text" id="v_name" placeholder="Factory name"></div>
+            <div class="fg" style="max-width:100px;"><label>Category *</label><input type="text" id="v_category" placeholder="JW / AP / HB"></div>
+            <div class="fg" style="max-width:100px;"><label>Currency</label><input type="text" id="v_currency" value="RMB"></div>
+            <div class="fg"><label>City</label><input type="text" id="v_city"></div>
+            <div class="fg"><label>Contact</label><input type="text" id="v_contact"></div>
+            <div class="fg"><label>Email</label><input type="text" id="v_email"></div>
+            <button class="btn" id="vendorSubmitBtn" onclick="saveVendor()">Add Vendor</button>
+            <button class="btn btn-cancel" style="display:none;" id="vendorCancelBtn" onclick="resetVendorForm()">Cancel</button>
+        </div>
+        <span class="mode-badge" id="vendorEditBadge">Editing vendor</span>
+        <table id="vendorTable">
+            <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Currency</th><th>City</th><th>Contact</th><th>Email</th><th></th></tr></thead>
+            <tbody id="vendorRows"></tbody>
+        </table>
+        <p class="hint">Buyers appear in the Sell (Invoice) dropdown · Vendors appear in the Vendor PO dropdown. Inactive entries are hidden from dropdowns but keep their history.</p>
+    </div>
+
+    <script>
+        let buyers = [], vendors = [];
+        let editBuyerCode = null, editVendorCode = null;
+        const $ = (id) => document.getElementById(id);
+        const msg = (t, ok) => { const el = $('msg'); el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
+
+        async function load() {
+            const [b, v] = await Promise.all([fetch('/api/buyers').then(r => r.json()), fetch('/api/vendors').then(r => r.json())]);
+            buyers = b; vendors = v;
+            renderBuyers(); renderVendors();
+        }
+
+        function renderBuyers() {
+            const tb = $('buyerRows'); tb.innerHTML = '';
+            buyers.forEach(b => {
+                const tr = document.createElement('tr');
+                if (b.is_active === false) tr.className = 'inactive';
+                tr.innerHTML = '<td><b>' + b.code + '</b></td><td>' + (b.name || '') + '</td><td>' + (b.currency || '') + '</td><td>' +
+                    (b.exchange_rate_to_usd || 1) + '</td><td>' + (b.default_markup_pct != null ? b.default_markup_pct : '2.5') + '</td><td>' +
+                    (b.contact || '') + '</td><td>' + (b.email || '') + '</td>' +
+                    '<td><button class="edit-btn" onclick="editBuyer(\'' + b.code + '\')">Edit</button></td>';
+                tb.appendChild(tr);
+            });
+        }
+
+        function renderVendors() {
+            const tb = $('vendorRows'); tb.innerHTML = '';
+            vendors.forEach(v => {
+                const tr = document.createElement('tr');
+                if (v.is_active === false) tr.className = 'inactive';
+                tr.innerHTML = '<td><b>' + v.vendor_code + '</b></td><td>' + (v.vendor_name || '') + '</td><td>' + (v.category || '') + '</td><td>' +
+                    (v.currency || 'RMB') + '</td><td>' + (v.city || '') + '</td><td>' + (v.contact || '') + '</td><td>' + (v.email || '') + '</td>' +
+                    '<td><button class="edit-btn" onclick="editVendor(\'' + v.vendor_code + '\')">Edit</button></td>';
+                tb.appendChild(tr);
+            });
+        }
+
+        async function saveBuyer() {
+            const body = {
+                code: $('b_code').value.trim(), name: $('b_name').value.trim(),
+                currency: $('b_currency').value.trim(), exchange_rate_to_usd: $('b_rate').value,
+                default_markup_pct: $('b_markup').value, contact: $('b_contact').value.trim(), email: $('b_email').value.trim()
+            };
+            if (!body.code || !body.name) { msg('Buyer code and name are required', false); return; }
+            let res;
+            if (editBuyerCode) {
+                res = await fetch('/api/buyers/' + encodeURIComponent(editBuyerCode), {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: body.name, currency: body.currency, exchange_rate_to_usd: body.exchange_rate_to_usd, default_markup_pct: body.default_markup_pct, contact: body.contact, email: body.email })
+                });
+            } else {
+                res = await fetch('/api/buyers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            }
+            const data = await res.json();
+            if (!res.ok || !data.success) { msg(data.error || 'Save failed', false); return; }
+            msg(editBuyerCode ? 'Buyer ' + editBuyerCode + ' updated' : 'Buyer ' + body.code + ' added — now selectable on the invoice page', true);
+            resetBuyerForm(); load();
+        }
+
+        function editBuyer(code) {
+            const b = buyers.find(x => x.code === code); if (!b) return;
+            editBuyerCode = code;
+            $('b_code').value = b.code; $('b_code').disabled = true;
+            $('b_name').value = b.name || ''; $('b_currency').value = b.currency || '';
+            $('b_rate').value = b.exchange_rate_to_usd || 1; $('b_markup').value = b.default_markup_pct != null ? b.default_markup_pct : 2.5;
+            $('b_contact').value = b.contact || ''; $('b_email').value = b.email || '';
+            $('buyerSubmitBtn').textContent = 'Save Changes'; $('buyerSubmitBtn').className = 'btn btn-save';
+            $('buyerCancelBtn').style.display = 'inline-block'; $('buyerEditBadge').style.display = 'inline-block';
+            $('buyerForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function resetBuyerForm() {
+            editBuyerCode = null; $('b_code').disabled = false;
+            ['b_code', 'b_name', 'b_contact', 'b_email'].forEach(id => $(id).value = '');
+            $('b_currency').value = 'CAD'; $('b_rate').value = 1.36; $('b_markup').value = 2.5;
+            $('buyerSubmitBtn').textContent = 'Add Buyer'; $('buyerSubmitBtn').className = 'btn';
+            $('buyerCancelBtn').style.display = 'none'; $('buyerEditBadge').style.display = 'none';
+        }
+
+        async function saveVendor() {
+            const body = {
+                vendor_code: $('v_code').value.trim(), vendor_name: $('v_name').value.trim(),
+                category: $('v_category').value.trim().toUpperCase(), currency: $('v_currency').value.trim(),
+                city: $('v_city').value.trim(), contact: $('v_contact').value.trim(), email: $('v_email').value.trim()
+            };
+            if (!body.vendor_code || !body.vendor_name || !body.category) { msg('Vendor code, name, and category are required', false); return; }
+            let res;
+            if (editVendorCode) {
+                res = await fetch('/api/vendors/' + encodeURIComponent(editVendorCode), {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor_name: body.vendor_name, category: body.category, currency: body.currency, city: body.city, contact: body.contact, email: body.email })
+                });
+            } else {
+                res = await fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            }
+            const data = await res.json();
+            if (!res.ok || !data.success) { msg(data.error || 'Save failed', false); return; }
+            msg(editVendorCode ? 'Vendor ' + editVendorCode + ' updated' : 'Vendor ' + body.vendor_code + ' added — now selectable on the Vendor PO page', true);
+            resetVendorForm(); load();
+        }
+
+        function editVendor(code) {
+            const v = vendors.find(x => x.vendor_code === code); if (!v) return;
+            editVendorCode = code;
+            $('v_code').value = v.vendor_code; $('v_code').disabled = true;
+            $('v_name').value = v.vendor_name || ''; $('v_category').value = v.category || '';
+            $('v_currency').value = v.currency || 'RMB'; $('v_city').value = v.city || '';
+            $('v_contact').value = v.contact || ''; $('v_email').value = v.email || '';
+            $('vendorSubmitBtn').textContent = 'Save Changes'; $('vendorSubmitBtn').className = 'btn btn-save';
+            $('vendorCancelBtn').style.display = 'inline-block'; $('vendorEditBadge').style.display = 'inline-block';
+            $('vendorForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function resetVendorForm() {
+            editVendorCode = null; $('v_code').disabled = false;
+            ['v_code', 'v_name', 'v_category', 'v_city', 'v_contact', 'v_email'].forEach(id => $(id).value = '');
+            $('v_currency').value = 'RMB';
+            $('vendorSubmitBtn').textContent = 'Add Vendor'; $('vendorSubmitBtn').className = 'btn';
+            $('vendorCancelBtn').style.display = 'none'; $('vendorEditBadge').style.display = 'none';
+        }
+
+        load();
+    </script>
+    <script>
+        let userRole = null;
+        async function initAuthNav() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) { window.location.href = '/login.html'; return; }
+                const me = await res.json();
+                userRole = me.role;
+                const badge = document.createElement('span');
+                badge.style.marginLeft = 'auto'; badge.style.color = '#666'; badge.style.fontSize = '13px';
+                badge.innerHTML = `${me.name || me.email} (${me.role}) &nbsp; <a href="#" id="logoutLink" style="color:#d32f2f; text-decoration:none; font-weight:bold;">Logout</a>`;
+                document.querySelector('.nav').appendChild(badge);
+                document.getElementById('logoutLink').addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await fetch('/api/logout', { method: 'POST' });
+                    window.location.href = '/login.html';
+                });
+            } catch (e) { window.location.href = '/login.html'; }
+        }
+        initAuthNav();
+    </script>
+</body>
+</html>
