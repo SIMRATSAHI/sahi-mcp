@@ -175,6 +175,11 @@
             <button class="btn" onclick="addLine()">Add line</button>
 
         </div>
+        <div class="form-row">
+            <div class="fg" style="flex:2;"><label>…or import CSV / Excel file</label><input type="file" id="poFile" accept=".csv,.xlsx,.xls" style="padding:5px;"></div>
+            <button class="btn" onclick="importPoFile()">Import file</button>
+            <div class="fg" style="flex:3;"><span class="hint">Columns: SKU (or Barcode) + Qty — the Opening Inventory "Download CSV" file works as-is; just edit the Qty column to what the buyer ordered.</span></div>
+        </div>
 
         <div class="msg" id="scanMsg"></div>
 
@@ -263,6 +268,29 @@
 
 
         const sm = (t, ok) => { const el = $('scanMsg'); el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
+
+        async function importPoFile() {
+            const f = $('poFile').files[0];
+            if (!f) { sm('Choose a .csv / .xlsx file first', false); return; }
+            sm('Importing ' + f.name + '…', true);
+            const fd = new FormData();
+            fd.append('file', f);
+            const res = await fetch('/api/invoice/parse-file', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok) { sm(data.error || 'Import failed', false); return; }
+            let added = 0;
+            (data.items || []).forEach(it => {
+                const ex = poLines.find(l => l.sku === it.sku);
+                if (ex) ex.qty += parseInt(it.qty, 10) || 0;
+                else poLines.push({ sku: it.sku, item_name: it.item_name || it.sku, qty: parseInt(it.qty, 10) || 1 });
+                added++;
+            });
+            renderLines();
+            let msgTxt = 'Imported ' + added + ' line' + (added === 1 ? '' : 's') + ' from ' + f.name;
+            if (data.notFound && data.notFound.length) msgTxt += ' — NOT FOUND: ' + data.notFound.join(', ');
+            sm(msgTxt, (data.notFound || []).length === 0);
+            $('poFile').value = '';
+        }
 
 
 
