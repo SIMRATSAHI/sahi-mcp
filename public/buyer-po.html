@@ -36,6 +36,7 @@
         .chip.COMPLETED { background: #DDF3DD; color: #2e7d32; }
         .chip.CANCELLED { background: #eee; color: #888; text-decoration: line-through; }
         .line-actions button { margin-right: 4px; }
+        #stockPopup { display: none; margin: 10px 0; padding: 12px 16px; border-radius: 8px; border: 2px solid #87CEEB; background: #FFF9E0; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -87,6 +88,7 @@
             <button class="btn" onclick="addLine()">Add line</button>
         </div>
         <div class="msg" id="scanMsg"></div>
+        <div id="stockPopup"></div>
         <table id="linesTable">
             <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th></th></tr></thead>
             <tbody id="linesBody"><tr><td colspan="4" class="hint">No lines yet — scan a barcode / type a SKU, or pick from the list.</td></tr></tbody>
@@ -115,26 +117,41 @@
             await loadPOs();
         }
 
-        function addLine() {
+        async function addLine() {
             const sku = $('itemSelect').value, qty = parseInt($('lineQty').value, 10);
             if (!sku || !qty || qty <= 0) { msg('Pick an item and qty > 0', false); return; }
             const it = items.find(x => x.sku === sku);
             const ex = poLines.find(l => l.sku === sku);
+            const lineQty = ex ? ex.qty + qty : qty;
             if (ex) ex.qty += qty; else poLines.push({ sku, item_name: it ? it.friendly_name : sku, qty });
             $('lineQty').value = 1;
             renderLines();
+            const hit = await resolveSku(sku);
+            if (hit) showStockPopup({ ...hit, name: hit.name || (it ? it.friendly_name : sku) }, lineQty);
         }
 
         const sm = (t, ok) => { const el = $('scanMsg'); el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
 
         async function resolveSku(q) {
-            if (items.find(x => x.sku === q)) { const it = items.find(x => x.sku === q); return { sku: q, name: it.friendly_name }; }
             try {
                 const res = await fetch('/api/sales/lookup?q=' + encodeURIComponent(q));
                 if (!res.ok) return null;
                 const d = await res.json();
-                return { sku: d.sku, name: d.friendly_name };
+                return { sku: d.sku, name: d.friendly_name, available: parseInt(d.available, 10) || 0 };
             } catch (e) { return null; }
+        }
+
+        function showStockPopup(hit, qty) {
+            const el = $('stockPopup');
+            const short = qty > hit.available;
+            el.innerHTML =
+                '<b>' + hit.sku + '</b> — ' + (hit.name || '') + '<br>' +
+                '<span style="font-size:20px; font-weight:bold; color:' + (hit.available > 0 ? '#2e7d32' : '#d32f2f') + '">In stock: ' + hit.available + ' pcs</span>' +
+                (short ? '<br><span style="color:#d32f2f; font-weight:bold;">&#9888; Order qty ' + qty + ' exceeds stock by ' + (qty - hit.available) + ' — arrange stock before invoicing</span>'
+                       : '<br><span style="color:#2e7d32;">Order qty ' + qty + ' — covered by stock</span>');
+            el.style.display = 'block';
+            clearTimeout(showStockPopup._t);
+            showStockPopup._t = setTimeout(() => { el.style.display = 'none'; }, 10000);
         }
 
         async function scanAdd() {
@@ -144,8 +161,10 @@
             const hit = await resolveSku(q);
             if (!hit) { sm('Not found: ' + q, false); return; }
             const ex = poLines.find(l => l.sku === hit.sku);
+            const lineQty = ex ? ex.qty + qty : qty;
             if (ex) ex.qty += qty; else poLines.push({ sku: hit.sku, item_name: hit.name, qty });
             renderLines();
+            showStockPopup({ ...hit, available: hit.available }, lineQty);
             sm('Added ' + hit.sku + ' x' + qty, true);
             $('scanInput').value = ''; $('scanQty').value = 1;
             $('scanInput').focus();
