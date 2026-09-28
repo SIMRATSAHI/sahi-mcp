@@ -6221,6 +6221,17 @@ app.get('/api/sourcing/catalogue', requireAuthApi(['ADMIN', 'BUYER']), (req, res
   res.json(sourcingCatalogue);
 });
 
+// PUBLIC count-only diagnostic (no auth, no vendor names/SKUs/prices) —
+// verifies the portal loaded the current catalogue after a deploy.
+app.get('/api/diag/sourcing', (req, res) => {
+  res.json({
+    generated: sourcingCatalogue.generated || null,
+    vendors: sourcingCatalogue.vendors.length,
+    items: sourcingCatalogue.vendors.reduce((a, v) => a + (v.items ? v.items.length : 0), 0),
+    byVendor: sourcingCatalogue.vendors.map(v => ({ code: v.code, items: v.items ? v.items.length : 0 }))
+  });
+});
+
 // Valid EAN-13 in the GS1 200-299 internal-use range (no GS1 licence needed,
 // scans on any standard scanner, resolves only inside this portal).
 function sourcingGenEan13() {
