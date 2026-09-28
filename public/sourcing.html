@@ -244,9 +244,10 @@
             budHtml = ' &nbsp;|&nbsp; Left: <span class="chip" style="' + (left < 0 ? 'background:#fdd; color:#b00;' : 'background:#e6f7e6; color:#0a7a2f;') + '">' +
                 fmtRMB(left) + (left < 0 ? ' OVER' : '') + '</span>';
         }
-        bar.style.display = cnt ? 'flex' : 'none';
-        out.innerHTML = 'Selected: ' + parts.join(' ') +
-            ' &nbsp;|&nbsp; <b>TOTAL: ' + fmtRMB(grand) + '</b> (' + cnt + ' items)' + budHtml;
+        bar.style.display = 'flex';
+        out.innerHTML = (cnt
+            ? 'Selected: ' + parts.join(' ') + ' &nbsp;|&nbsp; <b>TOTAL: ' + fmtRMB(grand) + '</b> (' + cnt + ' items)' + budHtml
+            : '<span style="font-weight:normal;">Type a Qty on any card below &mdash; the total shows here. Set a budget to see how much is left.</span>');
     }
 
     function csvCell(v) { v = (v === null || v === undefined) ? '' : String(v); return '"' + v.replace(/"/g, '""') + '"'; }
