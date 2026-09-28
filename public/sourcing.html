@@ -101,7 +101,7 @@
 
         <h3 class="section"><span class="stepnum">4</span>Create item master + barcode, then generate PO</h3>
         <div class="vsel">
-            <button class="btn btn-go" id="btnCreate" onclick="createItems()" disabled>Create Item Master (auto EAN-13 barcode)</button>
+            <label style="font-size:12px; font-weight:bold; margin-right:6px;">Delivery date (agreed with vendor):</label><input type="date" id="deliveryDate" style="margin-right:14px;"><button class="btn btn-go" id="btnCreate" onclick="createItems()" disabled>Create Item Master (auto EAN-13 barcode)</button>
             <button class="btn btn-go" id="btnPo" onclick="createPOs()" disabled>Create Vendor PO from these items</button>
             <span class="hint">Items are created per vendor with: item code (SAHI code = vendor SKU, editable above), vendor code, auto EAN-13 barcode, friendly name, unit price. Then one PO per vendor is generated (RMB, DRAFT).</span>
         </div>
@@ -157,6 +157,8 @@
             const res = await fetch('/api/sourcing/catalogue');
             if (!res.ok) throw new Error('failed ' + res.status);
             CATALOGUE = await res.json();
+            const dd = document.getElementById('deliveryDate');
+            if (dd && !dd.value) { const d = new Date(); d.setDate(d.getDate() + 45); dd.value = d.toISOString().slice(0, 10); }
             const vf = document.getElementById('vendorFilter');
             CATALOGUE.vendors.forEach(v => {
                 const o = document.createElement('option');
@@ -260,8 +262,10 @@
         let n = 0;
         Object.keys(byV).forEach(code => {
             const g = byV[code];
-            const rows = [['Vendor SKU', 'Product Name', 'Category', 'Colors', 'Size', 'Packing', 'Qty per Carton', 'Carton Size (cm)', 'Volume (m3)', 'Order Qty', 'Unit Price (RMB)', 'SAHI Item Code', 'Confirmed Price (RMB)']];
-            g.lines.forEach(l => rows.push([l.sku, l.name, l.sub, l.colors, l.size, l.packing, l.qty_per_carton || '', l.carton || '', l.volume || '', l.qty, l.price_rmb || '', '', '']));
+            const rows = [['Vendor SKU', 'Product Name', 'Category', 'Colors', 'Size', 'Packing', 'Qty per Carton', 'Carton Size (cm)', 'Volume (m3)', 'Order Qty', 'Unit Price (RMB)', 'Line Total (RMB)', 'SAHI Item Code', 'Confirmed Price (RMB)']];
+            g.lines.forEach(l => rows.push([l.sku, l.name, l.sub, l.colors, l.size, l.packing, l.qty_per_carton || '', l.carton || '', l.volume || '', l.qty, l.price_rmb || '', ((parseFloat(l.price_rmb) || 0) * l.qty).toFixed(2), '', '']));
+            const grand = g.lines.reduce((a, l) => a + (parseFloat(l.price_rmb) || 0) * l.qty, 0);
+            rows.push(['TOTAL', '', '', '', '', '', '', '', '', '', '', grand.toFixed(2), '', '']);
             const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const a = document.createElement('a');
@@ -362,7 +366,7 @@
             for (const code of Object.keys(byV)) {
                 const res = await fetch('/api/create-po', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vendor_code: code, po_date: new Date().toISOString().slice(0, 10), po_currency: 'RMB', exchange_rate: 7.0, items: byV[code] })
+                    body: JSON.stringify({ vendor_code: code, po_date: new Date().toISOString().slice(0, 10), po_currency: 'RMB', exchange_rate: 7.0, items: byV[code], delivery_date: (document.getElementById('deliveryDate') || {}).value || null })
                 });
                 const j = await res.json();
                 if (!res.ok) throw new Error((j.error || 'PO failed') + ' (' + code + ')');
