@@ -88,7 +88,7 @@
         <h3 class="section"><span class="stepnum">2</span>Download order sheet to send to vendor</h3>
         <div class="vsel">
             <button class="btn" onclick="downloadOrderSheets()">&#11015; Download Order Sheet (CSV, one file per vendor with selection)</button>
-            <span class="hint">Columns: Vendor SKU, Product Name, Category, Colors, Size, Packing, Qty, Unit Price (RMB), SAHI Item Code (blank), Confirmed Price (blank). Send to vendor - vendor fills confirmed qty/price and returns the file.</span>
+            <span class="hint">Columns: Vendor SKU, Product Name, Category, Colors, Size, Packing, Qty per Carton, Carton Size, Volume, Order Qty, Unit Price (RMB), SAHI Item Code, Confirmed Price (RMB)</span>
         </div>
 
         <h3 class="section"><span class="stepnum">3</span>Vendor confirmed - import the returned sheet</h3>
@@ -201,7 +201,7 @@
                     html += '<div class="item-card">' +
                         '<img src="' + it.image + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
                         '<div class="b"><div class="sku">' + it.sku + '</div><div class="nm">' + it.name + '</div>' +
-                        '<div class="mt">' + (it.colors ? it.colors + '<br>' : '') + (it.price_rmb ? 'RMB ' + it.price_rmb : 'Price on request') + '</div>' +
+                        '<div class="mt">' + (it.colors ? it.colors + '<br>' : '') + (it.size ? it.size + '<br>' : '') + (it.packing ? it.packing + '<br>' : '') + ((it.qty_per_carton && it.qty_per_carton !== '-') ? 'Qty/carton: ' + it.qty_per_carton + (it.carton && it.carton !== '-' ? ' &middot; carton ' + it.carton : '') + '<br>' : '') + (it.volume && it.volume !== '-' ? it.volume + ' m&sup3;/carton<br>' : '') + (it.price_rmb ? 'RMB ' + it.price_rmb : 'Price on request') + '</div>' +
                         '<div class="qtyline"><label style="font-size:11px;">Qty</label><input type="number" min="0" value="' + v + '" onchange="setQty(\'' + it.sku + '\', this.value)"></div>' +
                         '</div></div>';
                 });
@@ -241,8 +241,8 @@
         let n = 0;
         Object.keys(byV).forEach(code => {
             const g = byV[code];
-            const rows = [['Vendor SKU', 'Product Name', 'Category', 'Colors', 'Size', 'Packing', 'Qty', 'Unit Price (RMB)', 'SAHI Item Code', 'Confirmed Price (RMB)']];
-            g.lines.forEach(l => rows.push([l.sku, l.name, l.sub, l.colors, l.size, l.packing, l.qty, l.price_rmb || '', '', '']));
+            const rows = [['Vendor SKU', 'Product Name', 'Category', 'Colors', 'Size', 'Packing', 'Qty per Carton', 'Carton Size (cm)', 'Volume (m3)', 'Order Qty', 'Unit Price (RMB)', 'SAHI Item Code', 'Confirmed Price (RMB)']];
+            g.lines.forEach(l => rows.push([l.sku, l.name, l.sub, l.colors, l.size, l.packing, l.qty_per_carton || '', l.carton || '', l.volume || '', l.qty, l.price_rmb || '', '', '']));
             const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const a = document.createElement('a');
