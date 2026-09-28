@@ -835,6 +835,13 @@ async function ensureSchema() {
     console.error('item_master defaults migration warning:', err.message);
   }
 
+  // PO delivery date (agreed with vendor at sourcing time).
+  try {
+    await pool.query(`ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS delivery_date DATE`);
+  } catch (err) {
+    console.error('purchase_orders delivery_date migration warning:', err.message);
+  }
+
   // Retail price (RMB) column on item_master — source: Item Master V2 'RSP RMB'.
   // Keeps cost (std_cost_rmb) + retail (mrp_rmb) side by side on the master row.
   try {
@@ -2041,7 +2048,7 @@ app.delete('/api/invoice/:orderId', requireAuthApi(['ADMIN']), async (req, res) 
 });
 
 app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
-  const { vendor_code, po_date, po_currency, exchange_rate, items, invoice_reference, invoice_id } = req.body;
+  const { vendor_code, po_date, po_currency, exchange_rate, items, invoice_reference, invoice_id, delivery_date } = req.body;
   const po_id = `PO-${Date.now().toString().slice(-6)}`;
   
   try {
@@ -2105,9 +2112,9 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
     const balance_usd = total_usd * 0.70;
 
     await pool.query(
-      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by, invoice_reference, invoice_id)
-       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10, $11, $12)`,
-      [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId]
+      `INSERT INTO purchase_orders (po_id, vendor_code, po_date, invoice_currency, exchange_rate_to_rmb, status, total_rmb, total_usd, deposit_usd, balance_usd, created_by, invoice_reference, invoice_id, delivery_date)
+       VALUES ($1, $2, $3, $4, $5, 'DRAFT', $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [po_id, vendor_code, po_date, po_currency, exchange_rate_to_rmb, total_rmb, total_usd, deposit_usd, balance_usd, req.user.email, resolvedInvoiceRef, resolvedInvoiceId, delivery_date || null]
     );
 
     for (const item of items) {
@@ -2149,6 +2156,7 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       balance_rmb: balance_rmb.toFixed(2),
       invoice_reference: resolvedInvoiceRef,
       invoice_id: resolvedInvoiceId,
+      delivery_date: delivery_date || null,
       items: lineItemsRes.rows
     });
 
@@ -6212,17 +6220,6 @@ try {
 app.get('/api/sourcing/catalogue', requireAuthApi(['ADMIN', 'BUYER']), (req, res) => {
   res.json(sourcingCatalogue);
 });
-// PUBLIC diagnostic (no auth) - catalogue inventory behind the sourcing pages.
-// Counts only: no vendor names, SKUs or prices are revealed.
-app.get('/api/diag/sourcing', (req, res) => {
-  res.json({
-    generated: sourcingCatalogue.generated,
-    vendors: sourcingCatalogue.vendors.length,
-    items: sourcingCatalogue.vendors.reduce((a, v) => a + v.items.length, 0),
-    byVendor: sourcingCatalogue.vendors.map(v => ({ code: v.code, items: v.items.length }))
-  });
-});
-
 
 // Valid EAN-13 in the GS1 200-299 internal-use range (no GS1 licence needed,
 // scans on any standard scanner, resolves only inside this portal).
@@ -6272,6 +6269,7 @@ app.post('/api/sourcing/parse-order-file', requireAuthApi(['ADMIN', 'BUYER']), i
       const price = (priceRaw !== undefined && priceRaw !== '' && !isNaN(parseFloat(priceRaw))) ? parseFloat(priceRaw) : null;
       if (skuRaw === undefined || String(skuRaw).trim() === '') continue;
       const key = String(skuRaw).trim().toUpperCase();
+      if (/^(TOTAL|GRAND\s*TOTAL|SUM|SUBTOTAL)$/.test(key.replace(/\s+/g, ''))) continue; // totals row
       const hit = bySku[key];
       if (!hit) { notFound.push(String(skuRaw).trim()); continue; }
       if (qty <= 0 && !(merged[key])) continue; // skip zero-qty rows unless already added
