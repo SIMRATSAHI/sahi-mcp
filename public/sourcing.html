@@ -83,7 +83,7 @@
             <span class="hint" id="catCount"></span>
         </div>
         <div id="catalogueArea"><p class="hint">Loading catalogue...</p></div>
-        <div class="sumbar" id="sumbar" style="display:none;"></div>
+        <div class="sumbar" id="sumbar" style="display:none; align-items:center;"><span id="sumTotals"></span><span style="font-weight:normal; margin-left:auto;">Budget RMB: <input type="number" id="budgetInput" placeholder="e.g. 5000" min="0" style="width:90px;" oninput="updateSumbar()"></span></div>
 
         <h3 class="section"><span class="stepnum">2</span>Download order sheet to send to vendor</h3>
         <div class="vsel">
@@ -218,17 +218,35 @@
         updateSumbar();
     }
 
+    function fmtRMB(n) { return 'RMB ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
     function updateSumbar() {
         const bar = document.getElementById('sumbar');
+        const out = document.getElementById('sumTotals');
         const byV = {};
+        let grand = 0, cnt = 0;
         Object.keys(sel).forEach(sku => {
             const it = allItems().find(x => x.sku === sku);
             if (!it) return;
-            byV[it.vendor_name] = (byV[it.vendor_name] || 0) + 1;
+            const amt = (parseFloat(it.price_rmb) || 0) * sel[sku];
+            grand += amt; cnt++;
+            if (!byV[it.vendor_name]) byV[it.vendor_name] = { n: 0, amt: 0 };
+            byV[it.vendor_name].n++;
+            byV[it.vendor_name].amt += amt;
         });
-        const parts = Object.keys(byV).map(v => v + ': <span class="chip">' + byV[v] + ' items</span>');
-        bar.style.display = Object.keys(sel).length ? 'flex' : 'none';
-        bar.innerHTML = 'Selected: ' + parts.join(' ') + ' &nbsp; total ' + Object.keys(sel).length + ' items';
+        const parts = Object.keys(byV).map(v =>
+            v.split(' ')[0] + ': <span class="chip">' + byV[v].n + ' items &middot; ' + fmtRMB(byV[v].amt) + '</span>');
+        const budEl = document.getElementById('budgetInput');
+        const bud = budEl ? (parseFloat(budEl.value) || 0) : 0;
+        let budHtml = '';
+        if (bud > 0) {
+            const left = bud - grand;
+            budHtml = ' &nbsp;|&nbsp; Left: <span class="chip" style="' + (left < 0 ? 'background:#fdd; color:#b00;' : 'background:#e6f7e6; color:#0a7a2f;') + '">' +
+                fmtRMB(left) + (left < 0 ? ' OVER' : '') + '</span>';
+        }
+        bar.style.display = cnt ? 'flex' : 'none';
+        out.innerHTML = 'Selected: ' + parts.join(' ') +
+            ' &nbsp;|&nbsp; <b>TOTAL: ' + fmtRMB(grand) + '</b> (' + cnt + ' items)' + budHtml;
     }
 
     function csvCell(v) { v = (v === null || v === undefined) ? '' : String(v); return '"' + v.replace(/"/g, '""') + '"'; }
