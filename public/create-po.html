@@ -510,7 +510,8 @@
                     <b>PO Number:</b> ${data.po_id}<br>
                     <b>Vendor:</b> ${data.vendor_code}<br>
                     <b>Invoice Ref:</b> ${data.invoice_reference || 'N/A'}<br>
-                    <b>Total:</b> ${data.po_currency === 'RMB' ? 'RMB ' : '$'}${data.po_currency === 'RMB' ? data.total_rmb : data.total_usd}
+                    <b>Total:</b> ${data.po_currency === 'RMB' ? 'RMB ' : '$'}${data.po_currency === 'RMB' ? data.total_rmb : data.total_usd}<br>
+                    <b>Delivery date:</b> ${data.delivery_date || 'TBD'}
                 `;
                 document.getElementById('result').style.display = 'block';
                 if (btn) { btn.disabled = false; btn.innerText = 'Create PO & Generate PDF'; }
@@ -709,6 +710,9 @@
             doc.text(`Status: ${data.status || 'DRAFT'}`, 120, infoY);
             if (data.invoice_reference) {
                 doc.text(`Invoice Ref: ${data.invoice_reference}`, 120, infoY + 7);
+            }
+            if (data.delivery_date) {
+                doc.text(`Delivery Date: ${data.delivery_date}`, 120, infoY + 14);
             }
             const curSym = data.po_currency === 'RMB' ? 'RMB ' : '$';
             doc.text(`30% Deposit: ${curSym}${data.deposit_rmb || data.deposit_usd}  |  70% Balance: ${curSym}${data.balance_rmb || data.balance_usd}`, 14, infoY + 21);
