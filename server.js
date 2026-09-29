@@ -6561,10 +6561,11 @@ app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), asy
     const photoMap = await soLoadPhotos(lines);
     for (const l of lines) {
       const unit = l.confirmed_price > 0 ? l.confirmed_price : l.unit_price;
+      const tbc = !(unit > 0);
       const row = ws.addRow({
         photo: '', sku: l.vendor_sku, name: l.name, cat: l.category, colors: l.colors, size: l.size,
         packing: l.packing, qpc: l.qty_per_carton || '', carton: l.carton || '', vol: l.volume || '',
-        qty: l.qty, price: unit, total: +(unit * l.qty).toFixed(2), sahi: l.sahi_code || '', conf: l.confirmed_price > 0 ? l.confirmed_price : ''
+        qty: l.qty, price: tbc ? 'TBC' : unit, total: tbc ? '' : +(unit * l.qty).toFixed(2), sahi: l.sahi_code || '', conf: l.confirmed_price > 0 ? l.confirmed_price : ''
       });
       row.height = 78;
       const ph = photoMap.get(l.image);
@@ -6578,6 +6579,11 @@ app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), asy
     const grand = lines.reduce((a, l) => a + (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) * l.qty, 0);
     const totalRow = ws.addRow({ sku: 'TOTAL', total: +grand.toFixed(2) });
     totalRow.font = { bold: true };
+    const tbcLines = lines.filter(l => !((l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) > 0));
+    if (tbcLines.length) {
+      const note = ws.addRow({ sku: 'TBC', name: tbcLines.length + ' line(s) above show TBC - no price in the vendor quotation yet, so they are NOT in the TOTAL. Ask the vendor to quote them before the deposit.' });
+      note.font = { bold: true, color: { argb: 'FFB71C1C' } };
+    }
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="' + o.order_no + '_order_sheet_' + o.vendor_code + '.xlsx"');
     await wb.xlsx.write(res);
