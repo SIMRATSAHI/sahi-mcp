@@ -6578,7 +6578,16 @@ app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), asy
             const imgId = wb.addImage({ buffer: buf, extension: ext });
             ws.addImage(imgId, { tl: { col: 0.05, row: row.number - 0.92 }, ext: { width: 92, height: 92 } });
           }
-        } catch (e) { /* image fetch failed - leave the cell blank */ }
+        } catch (e) {
+          try {
+            const lb = path.join(__dirname, 'public', 'catalogue-images', path.basename(new URL(l.image).pathname));
+            if (fs.existsSync(lb)) {
+              const buf2 = fs.readFileSync(lb);
+              const id2 = wb.addImage({ buffer: buf2, extension: /\.png$/i.test(lb) ? 'png' : 'jpeg' });
+              ws.addImage(id2, { tl: { col: 0.05, row: row.number - 0.92 }, ext: { width: 92, height: 92 } });
+            }
+          } catch (e2) { /* leave the cell blank */ }
+        }
       }
     }
     const grand = lines.reduce((a, l) => a + (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) * l.qty, 0);
@@ -6589,6 +6598,32 @@ app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), asy
     await wb.xlsx.write(res);
     res.end();
   } catch (err) { console.error('sourcing xlsx error:', err); res.status(500).json({ error: err.message }); }
+});
+
+// ---- Sourcing: photo reachability diagnostic (allowlisted hosts only) ----
+app.get('/api/diag/photo-fetch', async (req, res) => {
+  const ALLOW = ['hd-item-catalogue.app.workbuddy.host', 'sahi-mcp.onrender.com'];
+  let url = String(req.query.url || '');
+  if (!url) {
+    try { url = (sourcingCatalogue.vendors[0].items[0] || {}).image || ''; } catch (e) { }
+    if (!url) return res.json({ error: 'no catalogue image url available' });
+  }
+  try {
+    const u = new URL(url);
+    if (!ALLOW.includes(u.hostname)) return res.status(400).json({ error: 'host not allowed', host: u.hostname });
+  } catch (e) { return res.status(400).json({ error: 'bad url' }); }
+  const t0 = Date.now();
+  try {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 12000);
+    const r = await fetch(url, { signal: ac.signal });
+    clearTimeout(t);
+    const buf = Buffer.from(await r.arrayBuffer());
+    const f = path.join(__dirname, 'public', 'catalogue-images', path.basename(new URL(url).pathname));
+    res.json({ url: url, status: r.status, bytes: buf.length, contentType: r.headers.get('content-type'), ms: Date.now() - t0, localCopyExists: fs.existsSync(f) });
+  } catch (e) {
+    res.json({ url: url, error: e.message + ' | ' + ((e.cause && e.cause.message) || ''), ms: Date.now() - t0 });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
