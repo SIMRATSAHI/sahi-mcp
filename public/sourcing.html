@@ -158,7 +158,9 @@
     let addQuery = '';            // search text in the edit panel "add item" box
 
     function sm(ok, text) { const m = document.getElementById('msg'); m.className = 'msg ' + (ok ? 'ok' : 'err'); m.textContent = text; window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    function fmtRMB(n) { return 'RMB ' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function fmtMoney(n, cur) { return (String(cur || 'RMB').toUpperCase() === 'USD' ? '$' : 'RMB ') + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function fmtRMB(n) { return fmtMoney(n, 'RMB'); }
+    function curOf(code) { const v = (CATALOGUE.vendors || []).find(x => x.code === code); return (v && v.currency) || 'RMB'; }
     const lineUnit = (l) => (parseFloat(l.confirmed_price) > 0 ? parseFloat(l.confirmed_price) : parseFloat(l.unit_price) || 0);
     const lineTotal = (l) => lineUnit(l) * (parseInt(l.qty, 10) || 0);
     const orderTotal = (o) => (o.lines || []).reduce((a, l) => a + lineTotal(l), 0);
@@ -216,7 +218,7 @@
                     html += '<div class="item-card">' +
                         '<img src="' + it.image + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
                         '<div class="b"><div class="sku">' + it.sku + '</div><div class="nm">' + it.name + '</div>' +
-                        '<div class="mt">' + (it.colors ? it.colors + '<br>' : '') + (it.size ? it.size + '<br>' : '') + (it.packing ? it.packing + '<br>' : '') + ((it.qty_per_carton && it.qty_per_carton !== '-') ? 'Qty/carton: ' + it.qty_per_carton + (it.carton && it.carton !== '-' ? ' &middot; carton ' + it.carton : '') + '<br>' : '') + (it.volume && it.volume !== '-' ? it.volume + ' m&sup3;/carton<br>' : '') + (it.price_rmb ? 'RMB ' + it.price_rmb : 'Price on request') + '</div>' +
+                        '<div class="mt">' + (it.colors ? it.colors + '<br>' : '') + (it.size ? it.size + '<br>' : '') + (it.packing ? it.packing + '<br>' : '') + ((it.qty_per_carton && it.qty_per_carton !== '-') ? 'Qty/carton: ' + it.qty_per_carton + (it.carton && it.carton !== '-' ? ' &middot; carton ' + it.carton : '') + '<br>' : '') + (it.volume && it.volume !== '-' ? it.volume + ' m&sup3;/carton<br>' : '') + (it.price_rmb ? (curOf(it.vendor_code) === 'USD' ? '$' + it.price_rmb : 'RMB ' + it.price_rmb) : 'Price on request') + '</div>' +
                         '<div class="qtyline"><label style="font-size:11px;">Qty</label><input type="number" min="0" value="' + v + '" onchange="setQty(\'' + it.sku + '\', this.value)"></div>' +
                         '</div></div>';
                 });
@@ -245,18 +247,24 @@
             const amt = pr * sel[sku];
             grand += amt; cnt++;
             if (pr <= 0) tbc++;
-            if (!byV[it.vendor_name]) byV[it.vendor_name] = { n: 0, amt: 0, code: it.vendor_code };
+            if (!byV[it.vendor_name]) byV[it.vendor_name] = { n: 0, amt: 0, code: it.vendor_code, cur: curOf(it.vendor_code) };
             byV[it.vendor_name].n++;
             byV[it.vendor_name].amt += amt;
         });
         const parts = Object.keys(byV).map(v =>
-            v.split(' ')[0] + ': <span class="chip">' + byV[v].n + ' items &middot; ' + fmtRMB(byV[v].amt) + '</span>');
+            v.split(' ')[0] + ': <span class="chip">' + byV[v].n + ' items &middot; ' + fmtMoney(byV[v].amt, byV[v].cur) + '</span>');
+        const byCur = {};
+        Object.keys(byV).forEach(v => { const c = byV[v].cur || 'RMB'; byCur[c] = (byCur[c] || 0) + byV[v].amt; });
+        const curKeys = Object.keys(byCur);
+        const grandTxt = curKeys.map(c => fmtMoney(byCur[c], c)).join(' + ');
+        const hasUsd = curKeys.indexOf('USD') >= 0;
         const budEl = document.getElementById('budgetInput');
         const bud = budEl ? (parseFloat(budEl.value) || 0) : 0;
         let budHtml = '';
         if (bud > 0) {
-            const left = bud - grand;
-            budHtml = ' &nbsp;|&nbsp; Left: <span class="chip" style="' + (left < 0 ? 'background:#fdd; color:#b00;' : 'background:#e6f7e6; color:#0a7a2f;') + '">' +
+            const rmbTot = byCur['RMB'] || 0;
+            const left = bud - rmbTot;
+            budHtml = ' &nbsp;|&nbsp; Left' + (hasUsd ? ' (RMB orders only)' : '') + ': <span class="chip" style="' + (left < 0 ? 'background:#fdd; color:#b00;' : 'background:#e6f7e6; color:#0a7a2f;') + '">' +
                 fmtRMB(left) + (left < 0 ? ' OVER' : '') + '</span>';
         }
         const tbcHtml = tbc
@@ -265,7 +273,7 @@
             : '';
         bar.style.display = 'flex';
         out.innerHTML = (cnt
-            ? 'Selected: ' + parts.join(' ') + ' &nbsp;|&nbsp; <b>TOTAL: ' + fmtRMB(grand) + '</b> (' + cnt + ' items)' + tbcHtml + budHtml
+            ? 'Selected: ' + parts.join(' ') + ' &nbsp;|&nbsp; <b>TOTAL: ' + grandTxt + '</b> (' + cnt + ' items)' + tbcHtml + budHtml
             : '<span style="font-weight:normal;">Type a Qty on any card below &mdash; the total shows here. Set a budget to see how much is left.</span>');
     }
 
@@ -336,13 +344,13 @@
 
     function renderOrders() {
         const area = document.getElementById('ordersArea');
-        let html = '<table><thead><tr><th>Order</th><th>Vendor</th><th>Lines</th><th>Units</th><th>Amount (RMB)</th><th>Deposit</th><th>Delivery</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>Order</th><th>Vendor</th><th>Lines</th><th>Units</th><th>Amount</th><th>Deposit</th><th>Delivery</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
         ORDERS.forEach(o => {
-            const dep = parseFloat(o.deposit_amount) > 0 ? fmtRMB(parseFloat(o.deposit_amount)) : '<span class="hint">' + fmtRMB(depositDue(o)) + ' due</span>';
+            const ocur = curOf(o.vendor_code); const dep = parseFloat(o.deposit_amount) > 0 ? fmtMoney(parseFloat(o.deposit_amount), ocur) : '<span class="hint">' + fmtMoney(depositDue(o), ocur) + ' due</span>';
             html += '<tr><td style="font-family:Consolas,monospace;font-weight:bold;">' + o.order_no + '</td>' +
                 '<td>' + (o.vendor_name || o.vendor_code) + '</td>' +
                 '<td>' + (o.lines || []).length + '</td><td>' + orderUnits(o) + '</td>' +
-                '<td style="font-weight:bold;">' + fmtRMB(orderTotal(o)) + '</td><td>' + dep + '</td>' +
+                '<td style="font-weight:bold;">' + fmtMoney(orderTotal(o), ocur) + '</td><td>' + dep + '</td>' +
                 '<td>' + (o.delivery_date || '-') + '</td>' +
                 '<td><span class="st st-' + o.status + '">' + o.status + '</span>' + (o.po_id ? '<br><span class="hint">PO: ' + o.po_id + '</span>' : '') + '</td>' +
                 '<td>' + actionsHtml(o) + '</td></tr>';
@@ -376,17 +384,17 @@
             h += '<div style="margin:6px 0;"><span class="hint">Edit qty / confirmed price / SAHI item code if the vendor changed anything &mdash; or import the vendor\'s returned CSV:</span> ' +
                 '<input type="file" id="confirmFile" accept=".csv,.xlsx,.xls" style="font-size:11px;"> ' +
                 '<button class="btn btn-sm" onclick="importIntoPanel(' + o.id + ')">Import CSV</button></div>';
-            h += '<table><thead><tr><th>Vendor SKU</th><th>Item</th><th>Qty</th><th>Proposed Price</th><th>Confirmed Price (RMB)</th><th>SAHI Item Code</th><th>Line Total</th></tr></thead><tbody>';
+            h += '<table><thead><tr><th>Vendor SKU</th><th>Item</th><th>Qty</th><th>Proposed Price</th><th>Confirmed Price (' + (curOf(o.vendor_code) === 'USD' ? 'USD' : 'RMB') + ')</th><th>SAHI Item Code</th><th>Line Total</th></tr></thead><tbody>';
             editLines.forEach((l, i) => {
                 h += '<tr><td style="font-family:Consolas,monospace;">' + l.vendor_sku + '</td><td>' + (l.name || '') + '</td>' +
                     '<td><input type="number" min="1" style="width:70px;" value="' + l.qty + '" onchange="editLines[' + i + '].qty=parseInt(this.value,10)||1"></td>' +
-                    '<td>' + fmtRMB(l.unit_price) + '</td>' +
+                    '<td>' + fmtMoney(l.unit_price, curOf(o.vendor_code)) + '</td>' +
                     '<td><input type="number" step="0.01" min="0" style="width:95px;" value="' + (l.confirmed_price > 0 ? l.confirmed_price : '') + '" placeholder="' + l.unit_price + '" onchange="editLines[' + i + '].confirmed_price=parseFloat(this.value)||0"></td>' +
                     '<td><input style="width:130px;" value="' + (l.sahi_code || l.vendor_sku) + '" onchange="editLines[' + i + '].sahi_code=this.value"></td>' +
-                    '<td>' + fmtRMB(lineTotal(l)) + '</td></tr>';
+                    '<td>' + fmtMoney(lineTotal(l), curOf(o.vendor_code)) + '</td></tr>';
             });
             h += '</tbody></table>';
-            h += '<div style="margin-top:8px;"><b>New total: ' + fmtRMB(orderTotal({ lines: editLines })) + '</b> &nbsp; ' +
+            h += '<div style="margin-top:8px;"><b>New total: ' + fmtMoney(orderTotal({ lines: editLines }), curOf(o.vendor_code)) + '</b> &nbsp; ' +
                 '<button class="btn btn-sm btn-go" onclick="saveConfirm(' + o.id + ')">&#10003; Save Vendor Confirmation</button> ' +
                 '<button class="btn btn-sm" onclick="closePanel()">Cancel</button></div></div>';
             return h;
@@ -398,18 +406,18 @@
                 '<div id="addResults" class="panel" style="display:none; max-height:240px; overflow:auto; background:#fff;"></div></div>';
             if (!editLines.length) h += '<p class="hint">No items on this order &mdash; use the search box above to add items.</p>';
             else {
-                h += '<table><thead><tr><th>Vendor SKU</th><th>Item</th><th>Photo</th><th>Qty</th><th>Unit Price (RMB)</th><th>Line Total</th><th></th></tr></thead><tbody>';
+                h += '<table><thead><tr><th>Vendor SKU</th><th>Item</th><th>Photo</th><th>Qty</th><th>Unit Price (' + (curOf(o.vendor_code) === 'USD' ? 'USD' : 'RMB') + ')</th><th>Line Total</th><th></th></tr></thead><tbody>';
                 editLines.forEach((l, i) => {
                     h += '<tr><td style="font-family:Consolas,monospace;">' + l.vendor_sku + '</td><td>' + (l.name || '') + '</td>' +
                         '<td>' + (l.image ? '<img src="' + l.image + '" style="width:44px;height:44px;object-fit:cover;" onerror="this.style.display=\'none\'">' : '<span class="hint">-</span>') + '</td>' +
                         '<td><input type="number" min="1" style="width:70px;" value="' + l.qty + '" onchange="setLineQty(' + i + ', this.value)"></td>' +
                         '<td><input type="number" step="0.01" min="0" style="width:95px;" value="' + lineUnit(l) + '" onchange="setLinePrice(' + i + ', this.value)"></td>' +
-                        '<td id="lt_' + i + '">' + fmtRMB(lineTotal(l)) + '</td>' +
+                        '<td id="lt_' + i + '">' + fmtMoney(lineTotal(l), curOf(o.vendor_code)) + '</td>' +
                         '<td><button class="btn btn-sm" style="background:#ffcdd2;" onclick="removeLine(' + i + ')">Remove</button></td></tr>';
                 });
                 h += '</tbody></table>';
             }
-            h += '<div style="margin-top:8px;"><b>New total: <span id="editTotal">' + fmtRMB(orderTotal({ lines: editLines })) + '</span></b> &nbsp; ' +
+            h += '<div style="margin-top:8px;"><b>New total: <span id="editTotal">' + fmtMoney(orderTotal({ lines: editLines }), curOf(o.vendor_code)) + '</span></b> &nbsp; ' +
                 '<button class="btn btn-sm btn-go" onclick="saveLines(' + o.id + ')">&#10003; Save changes</button> ' +
                 '<button class="btn btn-sm" onclick="closePanel()">Cancel</button></div></div>';
             return h;
@@ -417,8 +425,8 @@
         if (openPanel.mode === 'deposit') {
             const due = depositDue(o);
             return '<div class="panel"><b>Record deposit - ' + o.order_no + '</b><br>' +
-                '<span class="hint">Order total: ' + fmtRMB(orderTotal(o)) + ' &middot; default deposit ' + (parseFloat(o.deposit_pct) || 30) + '%</span><br><br>' +
-                'Deposit paid (RMB): <input type="number" step="0.01" min="0" id="depAmount" style="width:120px;" value="' + due.toFixed(2) + '"> ' +
+                '<span class="hint">Order total: ' + fmtMoney(orderTotal(o), curOf(o.vendor_code)) + ' &middot; default deposit ' + (parseFloat(o.deposit_pct) || 30) + '%</span><br><br>' +
+                'Deposit paid' + (curOf(o.vendor_code) === 'USD' ? ' (USD)' : ' (RMB)') + ': <input type="number" step="0.01" min="0" id="depAmount" style="width:120px;" value="' + due.toFixed(2) + '"> ' +
                 '<button class="btn btn-sm btn-go" onclick="saveDeposit(' + o.id + ')">&#10003; Save Deposit</button> ' +
                 '<button class="btn btn-sm" onclick="closePanel()">Cancel</button></div>';
         }
@@ -468,9 +476,11 @@
     }
 
     function refreshEditTotals() {
-        editLines.forEach((l, i) => { const td = document.getElementById('lt_' + i); if (td) td.textContent = fmtRMB(lineTotal(l)); });
+        const eo = ORDERS.find(x => x.id === (openPanel && openPanel.id));
+        const cur = eo ? curOf(eo.vendor_code) : 'RMB';
+        editLines.forEach((l, i) => { const td = document.getElementById('lt_' + i); if (td) td.textContent = fmtMoney(lineTotal(l), cur); });
         const tt = document.getElementById('editTotal');
-        if (tt) tt.textContent = fmtRMB(orderTotal({ lines: editLines }));
+        if (tt) tt.textContent = fmtMoney(orderTotal({ lines: editLines }), cur);
     }
 
     function setLineQty(i, val) {
@@ -508,7 +518,7 @@
                 '<img src="' + it.image + '" style="width:40px;height:40px;object-fit:cover;" onerror="this.style.display=\'none\'">' +
                 '<span style="font-family:Consolas,monospace; font-size:11px;">' + it.sku + '</span>' +
                 '<span style="flex:1; font-size:12px;">' + it.name + '</span>' +
-                '<span class="hint">RMB ' + (it.price_rmb || 0) + '</span>' +
+                '<span class="hint">' + (it.price_rmb ? (curOf(it.vendor_code) === 'USD' ? '$' + it.price_rmb : 'RMB ' + it.price_rmb) : 'TBC') + '</span>' +
                 '<button class="btn btn-sm ' + (on ? '' : 'btn-go') + '" onclick="addLine(' + id + ',\'' + it.sku + '\')">' + (on ? 'Add again' : 'Add') + '</button></div>';
         }).join('');
     }
@@ -540,7 +550,7 @@
             const n = editLines.length;
             addQuery = '';
             closePanel();
-            sm(true, 'Order updated: ' + n + ' item(s), total ' + fmtRMB(j.total_rmb) + '.');
+            sm(true, 'Order updated: ' + n + ' item(s), total ' + fmtMoney(j.total_rmb, curOf((ORDERS.find(x => x.id === id) || {}).vendor_code)) + '.');
             loadOrders();
         } catch (e) { sm(false, e.message); }
     }
