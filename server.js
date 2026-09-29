@@ -6558,6 +6558,7 @@ app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), asy
     hdr.font = { bold: true };
     hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF87CEEB' } };
     const lines = o.lines || [];
+    const photoMap = await soLoadPhotos(lines);
     for (const l of lines) {
       const unit = l.confirmed_price > 0 ? l.confirmed_price : l.unit_price;
       const row = ws.addRow({
@@ -6566,28 +6567,12 @@ app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), asy
         qty: l.qty, price: unit, total: +(unit * l.qty).toFixed(2), sahi: l.sahi_code || '', conf: l.confirmed_price > 0 ? l.confirmed_price : ''
       });
       row.height = 78;
-      if (l.image) {
+      const ph = photoMap.get(l.image);
+      if (ph) {
         try {
-          const ac = new AbortController();
-          const t = setTimeout(() => ac.abort(), 12000);
-          const r2 = await fetch(l.image, { signal: ac.signal });
-          clearTimeout(t);
-          if (r2.ok) {
-            const buf = Buffer.from(await r2.arrayBuffer());
-            const ext = (/\.(png|gif)$/i.test(l.image)) ? (RegExp.$1 || 'png') : 'jpeg';
-            const imgId = wb.addImage({ buffer: buf, extension: ext });
-            ws.addImage(imgId, { tl: { col: 0.05, row: row.number - 0.92 }, ext: { width: 92, height: 92 } });
-          }
-        } catch (e) {
-          try {
-            const lb = path.join(__dirname, 'public', 'catalogue-images', path.basename(new URL(l.image).pathname));
-            if (fs.existsSync(lb)) {
-              const buf2 = fs.readFileSync(lb);
-              const id2 = wb.addImage({ buffer: buf2, extension: /\.png$/i.test(lb) ? 'png' : 'jpeg' });
-              ws.addImage(id2, { tl: { col: 0.05, row: row.number - 0.92 }, ext: { width: 92, height: 92 } });
-            }
-          } catch (e2) { /* leave the cell blank */ }
-        }
+          const imgId = wb.addImage({ buffer: ph.buf, extension: ph.ext });
+          ws.addImage(imgId, { tl: { col: 0.05, row: row.number - 0.92 }, ext: { width: 92, height: 92 } });
+        } catch (e) { }
       }
     }
     const grand = lines.reduce((a, l) => a + (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) * l.qty, 0);
@@ -6625,6 +6610,44 @@ app.get('/api/diag/photo-fetch', async (req, res) => {
     res.json({ url: url, error: e.message + ' | ' + ((e.cause && e.cause.message) || ''), ms: Date.now() - t0 });
   }
 });
+
+// ---- Sourcing: parallel photo loader (preview host answers in ~3.8 s/photo) ----
+const soPhotoCache = new Map();
+async function soLoadPhotos(lines) {
+  const out = new Map();
+  const uniq = Array.from(new Set((lines || []).map(l => l && l.image).filter(Boolean)));
+  const loadOne = async (url) => {
+    if (soPhotoCache.has(url)) { const c = soPhotoCache.get(url); if (c) out.set(url, c); return; }
+    try {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 15000);
+      const r = await fetch(url, { signal: ac.signal });
+      clearTimeout(t);
+      if (!r.ok) return;
+      const buf = Buffer.from(await r.arrayBuffer());
+      const rec = { buf: buf, ext: /\.png$/i.test(url) ? 'png' : 'jpeg' };
+      soPhotoCache.set(url, rec);
+      out.set(url, rec);
+    } catch (e) {
+      try {
+        const lb = path.join(__dirname, 'public', 'catalogue-images', path.basename(new URL(url).pathname));
+        if (fs.existsSync(lb)) {
+          const rec = { buf: fs.readFileSync(lb), ext: /\.png$/i.test(lb) ? 'png' : 'jpeg' };
+          soPhotoCache.set(url, rec);
+          out.set(url, rec);
+        }
+      } catch (e2) { }
+    }
+  };
+  let idx = 0;
+  const CONC = 8;
+  const workers = [];
+  for (let w = 0; w < Math.min(CONC, uniq.length); w++) {
+    workers.push((async () => { while (idx < uniq.length) { const u = uniq[idx++]; await loadOne(u); } })());
+  }
+  await Promise.all(workers);
+  return out;
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Portal running on port ${PORT}`));
