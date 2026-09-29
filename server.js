@@ -6369,5 +6369,227 @@ app.post('/api/sourcing/create-items', requireAuthApi(['ADMIN', 'BUYER']), async
   res.json({ success: true, created, existing, errors });
 });
 
+// ===== Sourcing proposed orders (SO): proposed list -> sent -> confirmed -> deposit -> items -> PO =====
+(async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS sourcing_orders (
+      id SERIAL PRIMARY KEY,
+      order_no TEXT UNIQUE NOT NULL,
+      vendor_code TEXT NOT NULL,
+      vendor_name TEXT,
+      status TEXT NOT NULL DEFAULT 'PROPOSED',
+      total_rmb NUMERIC(12,2) DEFAULT 0,
+      deposit_pct NUMERIC(5,2) DEFAULT 30,
+      deposit_amount NUMERIC(12,2) DEFAULT 0,
+      delivery_date DATE,
+      po_id TEXT,
+      lines JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_by TEXT,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )`);
+  } catch (e) { console.error('sourcing_orders migration warning:', e.message); }
+})();
+
+app.get('/api/sourcing/orders', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM sourcing_orders ORDER BY id DESC LIMIT 200');
+    res.json({ orders: r.rows });
+  } catch (err) { console.error('sourcing orders list error:', err); res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/sourcing/propose', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const { vendor_code, vendor_name, items, delivery_date } = req.body || {};
+  if (!vendor_code || !Array.isArray(items) || !items.length) return res.status(400).json({ error: 'vendor_code and items[] required' });
+  const lines = items.map(it => ({
+    vendor_sku: String(it.vendor_sku || it.sku || ''),
+    name: it.name || '', category: it.category || it.sub || '',
+    colors: it.colors || '', size: it.size || '', packing: it.packing || '',
+    qty_per_carton: it.qty_per_carton || '', carton: it.carton || '', volume: it.volume || '',
+    image: it.image || '',
+    qty: parseInt(it.qty, 10) || 0,
+    unit_price: parseFloat(it.unit_price) || 0,
+    confirmed_price: parseFloat(it.confirmed_price) || 0,
+    sahi_code: it.sahi_code || '', barcode: it.barcode || ''
+  })).filter(l => l.vendor_sku && l.qty > 0);
+  if (!lines.length) return res.status(400).json({ error: 'no valid lines (vendor sku + qty required)' });
+  const total = lines.reduce((a, l) => a + (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) * l.qty, 0);
+  try {
+    const ex = await pool.query(`SELECT id, order_no FROM sourcing_orders WHERE vendor_code = $1 AND status IN ('PROPOSED','SENT') ORDER BY id DESC LIMIT 1`, [vendor_code]);
+    let id, orderNo;
+    if (ex.rows.length) {
+      id = ex.rows[0].id; orderNo = ex.rows[0].order_no;
+      await pool.query(`UPDATE sourcing_orders SET vendor_name = $2, lines = $3::jsonb, total_rmb = $4, delivery_date = $5, status = 'PROPOSED', updated_at = now() WHERE id = $1`,
+        [id, vendor_name || vendor_code, JSON.stringify(lines), total, delivery_date || null]);
+    } else {
+      const n = await pool.query('SELECT COALESCE(MAX(id), 0) + 1 AS n FROM sourcing_orders');
+      orderNo = 'SO-' + (1000 + parseInt(n.rows[0].n, 10));
+      const ins = await pool.query(
+        `INSERT INTO sourcing_orders (order_no, vendor_code, vendor_name, status, total_rmb, delivery_date, lines, created_by)
+         VALUES ($1, $2, $3, 'PROPOSED', $4, $5, $6::jsonb, $7) RETURNING id`,
+        [orderNo, vendor_code, vendor_name || vendor_code, total, delivery_date || null, JSON.stringify(lines), req.user ? req.user.email : 'system']);
+      id = ins.rows[0].id;
+    }
+    logActivity(req.user, 'SOURCING_PROPOSED', orderNo, { vendor_code, lines: lines.length, total_rmb: total.toFixed(2) });
+    res.json({ success: true, id, order_no: orderNo, total_rmb: total, lines });
+  } catch (err) { console.error('sourcing propose error:', err); res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/sourcing/orders/:id/status', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { status, deposit_amount, confirmed_lines, delivery_date, po_id } = req.body || {};
+  const ALLOWED = ['PROPOSED', 'SENT', 'CONFIRMED', 'DEPOSIT_PAID', 'ITEMS_CREATED', 'PO_CREATED', 'CANCELLED'];
+  if (!ALLOWED.includes(status)) return res.status(400).json({ error: 'invalid status' });
+  try {
+    const cur = await pool.query('SELECT * FROM sourcing_orders WHERE id = $1', [id]);
+    if (!cur.rows.length) return res.status(404).json({ error: 'order not found' });
+    const o = cur.rows[0];
+    let lines = o.lines || [];
+    if (Array.isArray(confirmed_lines) && confirmed_lines.length) {
+      const bySku = {};
+      confirmed_lines.forEach(c => { bySku[String(c.vendor_sku)] = c; });
+      lines = lines.map(l => {
+        const c = bySku[String(l.vendor_sku)];
+        if (!c) return l;
+        return { ...l,
+          qty: parseInt(c.qty, 10) > 0 ? parseInt(c.qty, 10) : l.qty,
+          confirmed_price: parseFloat(c.price) > 0 ? parseFloat(c.price) : (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price),
+          sahi_code: c.sahi_code || l.sahi_code || '' };
+      });
+    }
+    const unit = (l) => (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price);
+    const total = lines.reduce((a, l) => a + unit(l) * l.qty, 0);
+    let deposit = parseFloat(o.deposit_amount) || 0;
+    if (status === 'DEPOSIT_PAID') {
+      const pct = parseFloat(o.deposit_pct) || 30;
+      deposit = (parseFloat(deposit_amount) > 0) ? parseFloat(deposit_amount) : total * pct / 100;
+    }
+    await pool.query(
+      `UPDATE sourcing_orders SET status = $2, lines = $3::jsonb, total_rmb = $4, deposit_amount = $5,
+         delivery_date = COALESCE($6, delivery_date), po_id = COALESCE($7, po_id), updated_at = now() WHERE id = $1`,
+      [id, status, JSON.stringify(lines), total, deposit, delivery_date || null, po_id || null]);
+    logActivity(req.user, 'SOURCING_STATUS', o.order_no, { status, total_rmb: total.toFixed(2), deposit_rmb: deposit ? deposit.toFixed(2) : undefined, po_id: po_id || undefined });
+    res.json({ success: true, status, total_rmb: total, deposit_amount: deposit, lines });
+  } catch (err) { console.error('sourcing status error:', err); res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/sourcing/orders/:id/items', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { mappings } = req.body || {};
+  try {
+    const cur = await pool.query('SELECT * FROM sourcing_orders WHERE id = $1', [id]);
+    if (!cur.rows.length) return res.status(404).json({ error: 'order not found' });
+    const o = cur.rows[0];
+    const bySku = {};
+    (mappings || []).forEach(m => { bySku[String(m.vendor_sku)] = m; });
+    const lines = (o.lines || []).map(l => bySku[String(l.vendor_sku)]
+      ? { ...l, sahi_code: bySku[String(l.vendor_sku)].sahi_code || l.sahi_code || '', barcode: bySku[String(l.vendor_sku)].barcode || l.barcode || '' }
+      : l);
+    await pool.query(`UPDATE sourcing_orders SET lines = $2::jsonb, status = 'ITEMS_CREATED', updated_at = now() WHERE id = $1`, [id, JSON.stringify(lines)]);
+    logActivity(req.user, 'SOURCING_STATUS', o.order_no, { status: 'ITEMS_CREATED' });
+    res.json({ success: true });
+  } catch (err) { console.error('sourcing items error:', err); res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/diag/sourcing-orders', async (req, res) => {
+  let exceljs = false;
+  try { require('exceljs'); exceljs = true; } catch (e) { exceljs = false; }
+  try {
+    const r = await pool.query('SELECT status, COUNT(*)::int AS n FROM sourcing_orders GROUP BY status ORDER BY status');
+    res.json({ exceljs: exceljs, orders: r.rows });
+  } catch (e) { res.json({ exceljs: exceljs, error: e.message }); }
+});
+
+app.post('/api/sourcing/orders/:id/lines', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { lines } = req.body || {};
+  if (!Array.isArray(lines) || !lines.length) return res.status(400).json({ error: 'lines[] required' });
+  try {
+    const cur = await pool.query('SELECT * FROM sourcing_orders WHERE id = $1', [id]);
+    if (!cur.rows.length) return res.status(404).json({ error: 'order not found' });
+    if (cur.rows[0].status === 'PO_CREATED') return res.status(400).json({ error: 'PO already created - order is locked' });
+    const clean = lines.map(it => ({
+      vendor_sku: String(it.vendor_sku || it.sku || ''),
+      name: it.name || '', category: it.category || it.sub || '',
+      colors: it.colors || '', size: it.size || '', packing: it.packing || '',
+      qty_per_carton: it.qty_per_carton || '', carton: it.carton || '', volume: it.volume || '',
+      image: it.image || '',
+      qty: parseInt(it.qty, 10) || 0,
+      unit_price: parseFloat(it.unit_price) || 0,
+      confirmed_price: parseFloat(it.confirmed_price) || 0,
+      sahi_code: it.sahi_code || '', barcode: it.barcode || ''
+    })).filter(l => l.vendor_sku && l.qty > 0);
+    if (!clean.length) return res.status(400).json({ error: 'no valid lines (vendor sku + qty required)' });
+    const total = clean.reduce((a, l) => a + (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) * l.qty, 0);
+    await pool.query(`UPDATE sourcing_orders SET lines = $2::jsonb, total_rmb = $3, updated_at = now() WHERE id = $1`, [id, JSON.stringify(clean), total]);
+    logActivity(req.user, 'SOURCING_LINES_EDITED', cur.rows[0].order_no, { lines: clean.length, total_rmb: total.toFixed(2) });
+    res.json({ success: true, total_rmb: total, lines: clean });
+  } catch (err) { console.error('sourcing lines error:', err); res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/sourcing/orders/:id/xlsx', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  let ExcelJS;
+  try { ExcelJS = require('exceljs'); } catch (e) { return res.status(500).json({ error: 'exceljs not installed on server' }); }
+  const id = parseInt(req.params.id, 10);
+  try {
+    const cur = await pool.query('SELECT * FROM sourcing_orders WHERE id = $1', [id]);
+    if (!cur.rows.length) return res.status(404).json({ error: 'order not found' });
+    const o = cur.rows[0];
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Order Sheet');
+    ws.columns = [
+      { header: 'Photo', key: 'photo', width: 14 },
+      { header: 'Vendor SKU', key: 'sku', width: 16 },
+      { header: 'Product Name', key: 'name', width: 34 },
+      { header: 'Category', key: 'cat', width: 18 },
+      { header: 'Colors', key: 'colors', width: 20 },
+      { header: 'Size', key: 'size', width: 16 },
+      { header: 'Packing', key: 'packing', width: 16 },
+      { header: 'Qty/Carton', key: 'qpc', width: 10 },
+      { header: 'Carton Size (cm)', key: 'carton', width: 14 },
+      { header: 'Volume (m3)', key: 'vol', width: 11 },
+      { header: 'Order Qty', key: 'qty', width: 10 },
+      { header: 'Unit Price (RMB)', key: 'price', width: 14 },
+      { header: 'Line Total (RMB)', key: 'total', width: 14 },
+      { header: 'SAHI Item Code', key: 'sahi', width: 16 },
+      { header: 'Confirmed Price (RMB)', key: 'conf', width: 16 }
+    ];
+    const hdr = ws.getRow(1);
+    hdr.font = { bold: true };
+    hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF87CEEB' } };
+    const lines = o.lines || [];
+    for (const l of lines) {
+      const unit = l.confirmed_price > 0 ? l.confirmed_price : l.unit_price;
+      const row = ws.addRow({
+        photo: '', sku: l.vendor_sku, name: l.name, cat: l.category, colors: l.colors, size: l.size,
+        packing: l.packing, qpc: l.qty_per_carton || '', carton: l.carton || '', vol: l.volume || '',
+        qty: l.qty, price: unit, total: +(unit * l.qty).toFixed(2), sahi: l.sahi_code || '', conf: l.confirmed_price > 0 ? l.confirmed_price : ''
+      });
+      row.height = 78;
+      if (l.image) {
+        try {
+          const ac = new AbortController();
+          const t = setTimeout(() => ac.abort(), 12000);
+          const r2 = await fetch(l.image, { signal: ac.signal });
+          clearTimeout(t);
+          if (r2.ok) {
+            const buf = Buffer.from(await r2.arrayBuffer());
+            const ext = (/\.(png|gif)$/i.test(l.image)) ? (RegExp.$1 || 'png') : 'jpeg';
+            const imgId = wb.addImage({ buffer: buf, extension: ext });
+            ws.addImage(imgId, { tl: { col: 0.05, row: row.number - 0.92 }, ext: { width: 92, height: 92 } });
+          }
+        } catch (e) { /* image fetch failed - leave the cell blank */ }
+      }
+    }
+    const grand = lines.reduce((a, l) => a + (l.confirmed_price > 0 ? l.confirmed_price : l.unit_price) * l.qty, 0);
+    const totalRow = ws.addRow({ sku: 'TOTAL', total: +grand.toFixed(2) });
+    totalRow.font = { bold: true };
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + o.order_no + '_order_sheet_' + o.vendor_code + '.xlsx"');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { console.error('sourcing xlsx error:', err); res.status(500).json({ error: err.message }); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Portal running on port ${PORT}`));
