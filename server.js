@@ -1795,6 +1795,13 @@ app.post('/api/create-invoice', requireAuthApi(['ADMIN']), async (req, res) => {
 
 const invoiceFileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+// Normalize a SKU for fuzzy matching: uppercase, "$" -> "S" (OCR/typing garble),
+// then strip separators (- / _ . and spaces). "JWX$SBC401/1" and "JWXSSBC401-1"
+// collapse to the same key JWXSSBC4011.
+function normSkuKey(s) {
+  return String(s || '').trim().toUpperCase().replace(/\$/g, 'S').replace(/[^A-Z0-9]/g, '');
+}
+
 // POST /api/invoice/parse-file — parse an uploaded CSV/XLSX with columns
 // SKU (or Barcode) + Qty. Resolves barcodes via opening_inventory / EAN
 // registry, validates every SKU against item_master, merges duplicates.
@@ -1828,6 +1835,13 @@ app.post('/api/invoice/parse-file', requireAuthApi(['ADMIN', 'BUYER']), invoiceF
     if (!raw.length) {
       return res.status(400).json({ error: 'No rows found. File needs a SKU (or Barcode) column and a Qty column.' });
     }
+    // normalized SKU index: one query, fuzzy-repairs $/separator garbles
+    const allSkus = await pool.query(`SELECT sku FROM item_master`);
+    const skuIndex = {};
+    for (const row of allSkus.rows) {
+      const k = normSkuKey(row.sku);
+      if (!(k in skuIndex)) skuIndex[k] = row.sku;
+    }
     const items = [];
     const notFound = [];
     for (const { q, qty } of raw) {
@@ -1840,6 +1854,10 @@ app.post('/api/invoice/parse-file', requireAuthApi(['ADMIN', 'BUYER']), invoiceF
       if (!sku) {
         const im = await pool.query(`SELECT sku FROM item_master WHERE UPPER(sku) = UPPER($1) LIMIT 1`, [q]);
         if (im.rows.length) sku = im.rows[0].sku;
+      }
+      if (!sku) {
+        const fuzzy = skuIndex[normSkuKey(q)];
+        if (fuzzy) sku = fuzzy;
       }
       if (!sku) { notFound.push(q); continue; }
       const meta = await pool.query(`SELECT friendly_name, std_cost_rmb FROM item_master WHERE sku = $1`, [sku]);
@@ -5360,6 +5378,13 @@ app.get('/api/sales/lookup', requireAuthApi(['ADMIN', 'BUYER']), async (req, res
     if (!sku) {
       r = await pool.query(`SELECT sku FROM item_master WHERE UPPER(sku) = UPPER($1) LIMIT 1`, [q]);
       if (r.rows.length) sku = r.rows[0].sku;
+    }
+    if (!sku) {
+      // fuzzy fallback: $ -> S, separators ignored (e.g. typed "JWX$SBC401/1")
+      const all = await pool.query(`SELECT sku FROM item_master`);
+      const key = normSkuKey(q);
+      const hit = all.rows.find(row => normSkuKey(row.sku) === key);
+      if (hit) sku = hit.sku;
     }
     if (!sku) return res.status(404).json({ error: `Not found: ${q}` });
 
