@@ -237,12 +237,14 @@
         const bar = document.getElementById('sumbar');
         const out = document.getElementById('sumTotals');
         const byV = {};
-        let grand = 0, cnt = 0;
+        let grand = 0, cnt = 0, tbc = 0;
         Object.keys(sel).forEach(sku => {
             const it = allItems().find(x => x.sku === sku);
             if (!it) return;
-            const amt = (parseFloat(it.price_rmb) || 0) * sel[sku];
+            const pr = parseFloat(it.price_rmb) || 0;
+            const amt = pr * sel[sku];
             grand += amt; cnt++;
+            if (pr <= 0) tbc++;
             if (!byV[it.vendor_name]) byV[it.vendor_name] = { n: 0, amt: 0, code: it.vendor_code };
             byV[it.vendor_name].n++;
             byV[it.vendor_name].amt += amt;
@@ -257,9 +259,13 @@
             budHtml = ' &nbsp;|&nbsp; Left: <span class="chip" style="' + (left < 0 ? 'background:#fdd; color:#b00;' : 'background:#e6f7e6; color:#0a7a2f;') + '">' +
                 fmtRMB(left) + (left < 0 ? ' OVER' : '') + '</span>';
         }
+        const tbcHtml = tbc
+            ? ' &nbsp;|&nbsp; <span class="chip" style="background:#ffe0b2; color:#a15c00;" title="These items have no price in the vendor quotation. They count as 0 in the total - ask the vendor to quote them.">' +
+              tbc + ' item' + (tbc > 1 ? 's' : '') + ' price TBC</span>'
+            : '';
         bar.style.display = 'flex';
         out.innerHTML = (cnt
-            ? 'Selected: ' + parts.join(' ') + ' &nbsp;|&nbsp; <b>TOTAL: ' + fmtRMB(grand) + '</b> (' + cnt + ' items)' + budHtml
+            ? 'Selected: ' + parts.join(' ') + ' &nbsp;|&nbsp; <b>TOTAL: ' + fmtRMB(grand) + '</b> (' + cnt + ' items)' + tbcHtml + budHtml
             : '<span style="font-weight:normal;">Type a Qty on any card below &mdash; the total shows here. Set a budget to see how much is left.</span>');
     }
 
