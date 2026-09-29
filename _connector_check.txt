@@ -1,1 +1,0 @@
-github-local MCP write test 2026-09-29 18:44 - direct node launch, token from user env var
