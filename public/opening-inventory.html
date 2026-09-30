@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>SAHI Portal - Opening Inventory</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
         .container { max-width: 900px; background: white; padding: 30px; margin: auto; border-radius: 8px; }
@@ -159,7 +160,8 @@
                oninput="renderSavedTable()"
                style="width:100%; max-width:520px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:6px; margin-bottom:10px;">
         <button class="btn" id="savedCsvBtn" onclick="downloadSavedCSV()" style="margin-bottom:10px; margin-left:8px; vertical-align:top;">&#11015; Download CSV (Barcode + SKU + Qty)</button>
-        <span class="hint" style="font-size:11px; color:#888; margin-left:8px;">Exports what you currently see (respects the search box) — edit the Qty column, then import the file on the Buyer PO page.</span>
+        <button class="btn" id="savedXlsxBtn" onclick="downloadSavedXLSX()" style="margin-bottom:10px; margin-left:8px; vertical-align:top;">&#11015; Download Excel (readable barcode)</button>
+        <span class="hint" style="font-size:11px; color:#888; margin-left:8px;">Exports what you currently see (respects the search box) — edit the Qty column, then import the file on the Buyer PO page. Use <b>Excel</b>: the CSV opens with 13-digit barcodes shown as 6.94118E+12.</span>
         <div id="savedMetaLine" style="display:none; margin-bottom:8px; font-size:13px; color:#555;">
             <span id="savedMetaText"></span>
         </div>
@@ -1018,13 +1020,52 @@
             const esc = (v) => { v = (v === null || v === undefined) ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
             const lines = ['SKU,Barcode,Qty,Item Name,Color,Department'];
             rows.forEach(r => {
-                lines.push([esc(r.sku), esc(r.barcode), parseInt(r.qty, 10) || 0, esc(r.friendly_name), esc(r.color), esc(deriveDepartment(r.sku))].join(','));
+                // Barcode is written as ="..." so Excel treats it as text. A bare
+                // 13-digit number gets shown as 6.94118E+12 and loses its last digits.
+                lines.push([esc(r.sku), esc('="' + (r.barcode === null || r.barcode === undefined ? '' : String(r.barcode).trim()) + '"'), parseInt(r.qty, 10) || 0, esc(r.friendly_name), esc(r.color), esc(deriveDepartment(r.sku))].join(','));
             });
             const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = 'opening_inventory' + (term ? '_' + term.replace(/[^a-z0-9]+/gi, '-') : '') + '.csv';
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+
+        // Same rows, but as a real .xlsx with the Barcode column typed as TEXT.
+        // Use this one when the barcode has to stay readable / re-importable:
+        // a 13-digit number formatted as a number renders as 6.94118E+12 in Excel.
+        function downloadSavedXLSX() {
+            const term = (document.getElementById('savedSearchInput').value || '').trim().toLowerCase();
+            let rows = savedInventory || [];
+            if (term) {
+                const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
+                rows = rows.filter(r => {
+                    const hay = [r.sku, r.barcode, deriveCollection(r.sku), orgNames[r.org_id] || String(r.org_id || ''), r.created_by].join(' ').toLowerCase();
+                    return hay.includes(term);
+                });
+            }
+            if (!rows.length) { alert('Nothing to download — no rows match the current search.'); return; }
+            const aoa = [['SKU', 'Barcode', 'Qty', 'Item Name', 'Color', 'Department']];
+            rows.forEach(r => {
+                aoa.push([
+                    r.sku === null || r.sku === undefined ? '' : String(r.sku),
+                    r.barcode === null || r.barcode === undefined ? '' : String(r.barcode).trim(),
+                    parseInt(r.qty, 10) || 0,
+                    r.friendly_name === null || r.friendly_name === undefined ? '' : String(r.friendly_name),
+                    r.color === null || r.color === undefined ? '' : String(r.color),
+                    deriveDepartment(r.sku) || ''
+                ]);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            // Force the Barcode column (index 1) to text so Excel never re-parses it.
+            for (let i = 1; i < aoa.length; i++) {
+                const addr = XLSX.utils.encode_cell({ r: i, c: 1 });
+                if (ws[addr]) { ws[addr].t = 's'; ws[addr].v = String(ws[addr].v); ws[addr].z = '@'; }
+            }
+            ws['!cols'] = [{ wch: 18 }, { wch: 17 }, { wch: 6 }, { wch: 44 }, { wch: 12 }, { wch: 14 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Opening Inventory');
+            XLSX.writeFile(wb, 'opening_inventory' + (term ? '_' + term.replace(/[^a-z0-9]+/gi, '-') : '') + '.xlsx');
         }
 
         function renderSavedTable() {
