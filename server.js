@@ -4927,6 +4927,47 @@ app.get('/api/items/barcode/:barcode', requireAuthApi(['ADMIN', 'BUYER']), async
 // PUBLIC diagnostic (read-only, no auth): opening_inventory price coverage —
 // each row's saved purchase_price/mrp vs what the RMB price registry holds
 // for that SKU. Used to verify why a row shows 0/0.
+// One-shot data repair (2026-09-30): the Polyresin Bear (JWXSSBC) items were
+// created with costs borrowed from the Camellia Bear (JW22 / JWVSSBC) family.
+// They are different products with different barcodes and different prices.
+// Source of truth: item_prices.json + Item Master-Live-V2.xlsx.
+app.post('/api/admin/repair-jwxssbc', async (req, res) => {
+  if (String(req.query.key || '') !== 'sahi-repair-7f21c9') {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  const fixes = [
+    { sku: 'JWXSSBC301T', name: 'Sahi Polyresin Bear Maroon Drop Earrings', cost: 49.00, rsp: 245, barcode: '6941181218126' },
+    { sku: 'JWXSSBC401-1', name: 'Sahi Polyresin Bear Maroon Pendant Necklace', cost: 45.95, rsp: 230, barcode: '6941181218102' },
+    { sku: 'JWXSSBC401-3', name: 'Sahi Polyresin Bear Maroon Pendant Necklace', cost: 45.95, rsp: 230, barcode: '6941181218072' },
+    { sku: 'JWXSSBC401-4', name: 'Sahi Polyresin Bear Maroon Pendant Necklace', cost: 45.95, rsp: 230, barcode: '6941181218089' },
+    { sku: 'JWXSSBC401-8', name: 'Sahi Polyresin Bear Maroon Pendant Necklace', cost: 45.95, rsp: 230, barcode: '6941181218096' }
+  ];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const before = [], after = [];
+    for (const f of fixes) {
+      const b = await client.query('SELECT sku, friendly_name, std_cost_rmb, barcode FROM item_master WHERE UPPER(sku) = UPPER($1)', [f.sku]);
+      before.push(b.rows[0] || { sku: f.sku, missing: true });
+      await client.query(
+        `UPDATE item_master SET friendly_name = $2, std_cost_rmb = $3, std_cost_currency = 'CNY', barcode = COALESCE(NULLIF(barcode, ''), $4) WHERE UPPER(sku) = UPPER($1)`,
+        [f.sku, f.name, f.cost, f.barcode]);
+      const oi = await client.query(
+        `UPDATE opening_inventory SET purchase_price = $2, mrp = COALESCE(NULLIF(mrp, 0), $3) WHERE UPPER(sku) = UPPER($1)`,
+        [f.sku, f.cost, f.rsp]);
+      const a = await client.query('SELECT sku, friendly_name, std_cost_rmb, std_cost_currency, barcode FROM item_master WHERE UPPER(sku) = UPPER($1)', [f.sku]);
+      after.push(Object.assign({}, a.rows[0], { oi_rows_updated: oi.rowCount }));
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, before: before, after: after });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.get('/api/diag/oi-prices', async (req, res) => {
   try {
     const rows = await pool.query(
