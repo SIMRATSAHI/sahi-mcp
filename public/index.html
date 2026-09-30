@@ -191,6 +191,21 @@
             el.className = 'feedback ' + (ok ? 'fb-ok' : 'fb-err');
         };
 
+        // Barcodes are printed on the invoice PDF. /api/items may not carry them,
+        // so top up from /api/items/all, which always exposes the EAN.
+        async function loadBarcodes() {
+            try {
+                const res = await fetch('/api/items/all', { credentials: 'same-origin' });
+                if (!res.ok) return;
+                const all = await res.json();
+                (Array.isArray(all) ? all : []).forEach(i => {
+                    if (!i || !i.sku) return;
+                    if (!itemMap[i.sku]) itemMap[i.sku] = { name: i.friendly_name, cost_usd: parseFloat(i.std_cost_usd) || 0, barcode: '' };
+                    if (i.barcode) itemMap[i.sku].barcode = String(i.barcode).trim();
+                });
+            } catch (e) { /* invoice simply shows a blank barcode */ }
+        }
+
         async function init() {
             const [buyersRes, itemsRes] = await Promise.all([
                 fetch('/api/buyers').then(r => r.json()),
@@ -206,12 +221,13 @@
             });
             const iSel = document.getElementById('itemSelect');
             itemsRes.forEach(i => {
-                itemMap[i.sku] = { name: i.friendly_name, cost_usd: parseFloat(i.std_cost_usd) || 0 };
+                itemMap[i.sku] = { name: i.friendly_name, cost_usd: parseFloat(i.std_cost_usd) || 0, barcode: i.barcode ? String(i.barcode).trim() : '' };
                 const opt = document.createElement('option');
                 opt.value = i.sku;
                 opt.innerText = `${i.sku} - ${i.friendly_name}`;
                 iSel.appendChild(opt);
             });
+            await loadBarcodes();
             bSel.addEventListener('change', onBuyerChange);
             if (buyers.length) onBuyerChange();
             await loadBuyerPOs();
@@ -488,16 +504,18 @@
             doc.text('Markup: ' + firstMarkup + '%', 14, 71);
             doc.autoTable({
                 startY: 80,
-                head: [['SKU', 'Item', 'Qty', 'Price', 'Total']],
+                head: [['SKU', 'Barcode', 'Item', 'Qty', 'Price', 'Total']],
                 body: data.lines.map(l => [
-                    l.sku, l.item_name, l.qty,
+                    l.sku,
+                    (itemMap[l.sku] && itemMap[l.sku].barcode) ? String(itemMap[l.sku].barcode) : '',
+                    l.item_name, l.qty,
                     data.currency + ' ' + l.unit_price_local.toFixed(2),
                     data.currency + ' ' + l.total_local.toFixed(2)
                 ]),
                 theme: 'grid',
                 headStyles: { fillColor: '#87CEEB', textColor: 0 },
                 didParseCell: function (d) {
-                    if (d.section === 'body' && d.column.index === 4) d.cell.styles.halign = 'right';
+                    if (d.section === 'body' && d.column.index === 5) d.cell.styles.halign = 'right';
                 }
             });
             const finalY = doc.lastAutoTable.finalY + 10;
