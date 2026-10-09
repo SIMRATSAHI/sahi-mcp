@@ -2017,6 +2017,23 @@ app.post('/api/create-invoice-batch', requireAuthApi(['ADMIN']), async (req, res
   }
 });
 
+// GET /api/invoice-batches — every issued sales invoice (customer_orders),
+// one row per line. The invoice page groups these by order and by the
+// collection token embedded in the SKU (RB, WL, PS, BC, ...).
+app.get('/api/invoice-batches', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const rows = await pool.query(
+      `SELECT order_id, po_reference, buyer_code, sku, item_name, qty,
+              unit_price_local, total_local, order_currency, status, created_at
+       FROM customer_orders
+       ORDER BY created_at DESC, id DESC`);
+    res.json({ orders: rows.rows });
+  } catch (err) {
+    console.error('Error fetching invoice batches:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/invoice/:orderId — void a sales invoice (ADMIN): deletes all
 // lines of the order and returns each line's qty back to opening_inventory
 // (org 1), so stock counts return to pre-invoice state.
