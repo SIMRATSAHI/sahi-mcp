@@ -168,6 +168,11 @@
             </div>
         </div>
 
+        <div class="add-box" style="margin-top:12px;">
+            <label style="margin-bottom:8px;">Invoices made — grouped by collection</label>
+            <div id="invHistory" class="hint">Loading invoice history&#8230;</div>
+        </div>
+
         <div id="result">
             <div class="success-box">
                 <h3 style="color:#333;">✅ Invoice Created!</h3>
@@ -206,6 +211,61 @@
             } catch (e) { /* invoice simply shows a blank barcode */ }
         }
 
+        // Collection token embedded in the SKU: JW23SSRB401 -> RB, JWXSSBC301T -> BC,
+        // APAPS404-OWT-2 -> PS, CDAXM101 -> AXM, JWZSM309T -> ZSM.
+        function collectionOf(sku) {
+            let s = String(sku || '').toUpperCase().split('/')[0].split('-')[0];
+            const m = s.match(/^(?:JW\d{2}|JWX|JWV|JWU|JWT|APA|CD|SG|BG)?(?:SS)?([A-Z]{2,4})\d/);
+            if (m) return m[1];
+            s = s.replace(/^JW/, '');
+            const m2 = s.match(/^(?:SS)?([A-Z]{2,4})\d/);
+            return m2 ? m2[1] : 'OTHER';
+        }
+
+        async function loadInvoiceHistory() {
+            const box = document.getElementById('invHistory');
+            if (!box) return;
+            try {
+                const res = await fetch('/api/invoice-batches');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const byOrder = {};
+                (data.orders || []).forEach(r => {
+                    if (!byOrder[r.order_id]) byOrder[r.order_id] = { id: r.order_id, date: r.created_at, buyer: r.buyer_code, cur: r.order_currency || 'CAD', units: 0, total: 0, cols: {} };
+                    const o = byOrder[r.order_id];
+                    o.units += parseInt(r.qty, 10) || 0;
+                    o.total += parseFloat(r.total_local) || 0;
+                    const c = collectionOf(r.sku);
+                    if (!o.cols[c]) o.cols[c] = { units: 0, total: 0 };
+                    o.cols[c].units += parseInt(r.qty, 10) || 0;
+                    o.cols[c].total += parseFloat(r.total_local) || 0;
+                });
+                const orders = Object.values(byOrder).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+                if (!orders.length) { box.innerHTML = 'No invoices made yet.'; return; }
+                const byCol = {};
+                orders.forEach(o => Object.keys(o.cols).forEach(c => {
+                    if (!byCol[c]) byCol[c] = { invs: 0, units: 0, total: 0 };
+                    byCol[c].invs++; byCol[c].units += o.cols[c].units; byCol[c].total += o.cols[c].total;
+                }));
+                const pad = 'padding:4px 8px; border-bottom:1px solid #eee;';
+                let html = '<div style="margin:2px 0 10px;"><b>' + orders.length + '</b> invoice(s) made &middot; <b>' + orders.reduce((s, o) => s + o.units, 0) + '</b> units total</div>';
+                html += '<table style="border-collapse:collapse; width:100%; font-size:13px; max-width:560px;">';
+                html += '<tr style="background:#87CEEB;">' + ['Collection', 'Invoices', 'Units', 'Value'].map(h => '<th style="text-align:left; padding:4px 8px;">' + h + '</th>').join('') + '</tr>';
+                Object.keys(byCol).sort().forEach(c => {
+                    html += '<tr><td style="' + pad + '"><b>' + c + '</b></td><td style="' + pad + '">' + byCol[c].invs + '</td><td style="' + pad + '">' + byCol[c].units + '</td><td style="' + pad + '">' + byCol[c].total.toFixed(2) + '</td></tr>';
+                });
+                html += '</table><div style="margin-top:12px; font-size:13px;">';
+                orders.forEach(o => {
+                    const cols = Object.keys(o.cols).sort().map(c => c + ' ' + o.cols[c].units + 'u').join(', ');
+                    html += '<div style="padding:3px 0; border-bottom:1px dotted #eee;"><b>' + o.id + '</b> &middot; ' + String(o.date).slice(0, 10) + ' &middot; ' + o.buyer + ' &middot; ' + o.units + 'u &middot; ' + o.cur + ' ' + o.total.toFixed(2) + ' <span style="color:#666;">(' + cols + ')</span></div>';
+                });
+                html += '</div>';
+                box.innerHTML = html;
+            } catch (e) {
+                box.innerHTML = '<span style="color:#d32f2f;">Could not load invoice history: ' + e.message + '</span>';
+            }
+        }
+
         async function init() {
             const [buyersRes, itemsRes] = await Promise.all([
                 fetch('/api/buyers').then(r => r.json()),
@@ -231,6 +291,7 @@
             bSel.addEventListener('change', onBuyerChange);
             if (buyers.length) onBuyerChange();
             await loadBuyerPOs();
+            loadInvoiceHistory();
             const urlPo = new URLSearchParams(window.location.search).get('po');
             if (urlPo) { document.getElementById('poLoad').value = urlPo; await onPoLoad(); }
         }
@@ -456,6 +517,7 @@
             document.getElementById('poLoad').value = '';
             renderLines();
             loadBuyerPOs();
+            loadInvoiceHistory();
             document.getElementById('summaryText').innerHTML =
                 '<b>Order ID:</b> ' + data.order_id + '<br>' +
                 '<b>Buyer:</b> ' + data.buyer_name + ' (' + data.currency + ')<br>' +
@@ -477,6 +539,7 @@
             if (!res.ok || !data.success) { fb(data.error || 'Void failed', false); return; }
             fb('Invoice ' + id + ' voided — stock restored (' + data.lines_restored + ' line(s))', true);
             document.getElementById('voidOrderId').value = '';
+            loadInvoiceHistory();
         }
 
         function downloadShopifyCSV(orderId, factor) {
