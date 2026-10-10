@@ -2817,29 +2817,38 @@ app.post('/api/upload-invoice', requireAuthApi(['ADMIN', 'BUYER']), upload.singl
     const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
     let headerRowIdx = -1, colItemNo = -1, colFriendly = -1, colPrice = -1;
-    let colDeptCode = -1, colDeptName = -1, colColor = -1, colMaterial = -1;
+    let colDeptCode = -1, colDeptName = -1, colColor = -1, colMaterial = -1, colQty = -1;
+
+    // Vendor templates differ: "Item No." vs "Vendor SKU", "UNIT PRICE" vs "Unit Price (RMB)",
+    // "FRIENDLY NAME" vs "Friendly Name". Match case-insensitively on trimmed text and accept
+    // the common aliases instead of failing the whole upload.
+    const h = (cell) => String(cell).trim().toLowerCase().replace(/\s+/g, ' ');
 
     for (let i = 0; i < rawRows.length; i++) {
       const row = rawRows[i];
-      const itemNoIndex = row.findIndex(cell => String(cell).trim().includes('Item No.') || String(cell).trim().includes('货号') || String(cell).trim().includes('ITEM NO'));
+      const itemNoIndex = row.findIndex(cell => {
+        const v = h(cell);
+        return v.includes('item no') || v.includes('货号') || v.includes('vendor sku') || v.includes('item code') || v === 'sku';
+      });
       if (itemNoIndex !== -1) {
         headerRowIdx = i;
         colItemNo = itemNoIndex;
-        colFriendly = row.findIndex(cell => String(cell).trim().includes('Friendly Name') || String(cell).trim().includes('Item Name') || String(cell).trim().includes('Name'));
-        colPrice = row.findIndex(cell => String(cell).trim().includes('UNTI PRICE') || String(cell).trim().includes('UNIT PRICE') || String(cell).trim().includes('单价') || String(cell).trim().includes('Price'));
-        colDeptCode = row.findIndex(cell => String(cell).trim().includes('Department Code'));
-        colDeptName = row.findIndex(cell => String(cell).trim().includes('Department Name'));
-        colColor = row.findIndex(cell => String(cell).trim().includes('Color') && !String(cell).trim().includes('Department'));
-        colMaterial = row.findIndex(cell => String(cell).trim().includes('Material'));
+        colFriendly = row.findIndex(cell => { const v = h(cell); return v.includes('friendly name') || v.includes('item name') || v.includes('product name') || v.includes('name'); });
+        colPrice = row.findIndex(cell => { const v = h(cell); return v.includes('unit price') || v.includes('单价') || v.includes('unti price') || (v.includes('price') && !v.includes('total') && !v.includes('confirmed')); });
+        colQty = row.findIndex(cell => { const v = h(cell); return v.includes('order qty'); });
+        colDeptCode = row.findIndex(cell => h(cell).includes('department code'));
+        colDeptName = row.findIndex(cell => h(cell).includes('department name'));
+        colColor = row.findIndex(cell => { const v = h(cell); return v.includes('color') && !v.includes('department'); });
+        colMaterial = row.findIndex(cell => h(cell).includes('material'));
 
         if (colFriendly === -1 || colDeptCode === -1 || colColor === -1) {
           for (let j = i+1; j < Math.min(i+4, rawRows.length); j++) {
             const nextRow = rawRows[j];
-            if (colFriendly === -1) colFriendly = nextRow.findIndex(cell => String(cell).trim().includes('Friendly Name') || String(cell).trim().includes('Item Name') || String(cell).trim().includes('Name'));
-            if (colDeptCode === -1) colDeptCode = nextRow.findIndex(cell => String(cell).trim().includes('Department Code'));
-            if (colDeptName === -1) colDeptName = nextRow.findIndex(cell => String(cell).trim().includes('Department Name'));
-            if (colColor === -1) colColor = nextRow.findIndex(cell => String(cell).trim().includes('Color'));
-            if (colMaterial === -1) colMaterial = nextRow.findIndex(cell => String(cell).trim().includes('Material'));
+            if (colFriendly === -1) colFriendly = nextRow.findIndex(cell => { const v = h(cell); return v.includes('friendly name') || v.includes('item name') || v.includes('name'); });
+            if (colDeptCode === -1) colDeptCode = nextRow.findIndex(cell => h(cell).includes('department code'));
+            if (colDeptName === -1) colDeptName = nextRow.findIndex(cell => h(cell).includes('department name'));
+            if (colColor === -1) colColor = nextRow.findIndex(cell => h(cell).includes('color'));
+            if (colMaterial === -1) colMaterial = nextRow.findIndex(cell => h(cell).includes('material'));
           }
         }
         break;
@@ -2850,7 +2859,7 @@ app.post('/api/upload-invoice', requireAuthApi(['ADMIN', 'BUYER']), upload.singl
       // Build a helpful error message showing what columns were found
       const foundHeaders = rawRows.length > 0 ? (rawRows[0] || []).map(c => String(c).trim()).filter(Boolean).join(', ') : '(empty file)';
       return res.status(400).json({
-        error: `Could not find required columns. Your file must have "Item No." and "UNIT PRICE" columns. Found headers: ${foundHeaders}`
+        error: `Could not find required columns. Your file must have an "Item No." (or "Vendor SKU") column and a "UNIT PRICE" column. Found headers: ${foundHeaders}`
       });
     }
 
@@ -2868,6 +2877,18 @@ app.post('/api/upload-invoice', requireAuthApi(['ADMIN', 'BUYER']), upload.singl
       priceStr = priceStr.replace(/[^0-9.]/g, '');
       const price = parseFloat(priceStr) || 0;
 
+      // Real ordered quantity when the sheet has an "Order Qty" column; 96 was a
+      // hardcoded placeholder that silently gave every item 96 pcs.
+      const qtyStr = (colQty !== -1 && row[colQty]) ? String(row[colQty]) : '';
+      const qty = parseInt(qtyStr.replace(/[^0-9.]/g, ''), 10) || 96;
+
+      // A Colors cell like "Red, Pink, Purple, Blue" cannot become a SKU color suffix —
+      // keep the first token as an uppercased code (existing templates use GLD / SLV style).
+      if (colorCode.length > 8 || /[,\s]/.test(colorCode)) {
+        const first = colorCode.split(/[,\s]+/).filter(Boolean)[0] || 'SLV';
+        colorCode = first.toUpperCase().slice(0, 6);
+      }
+
       if (!itemNo || price === 0) continue;
 
       items.push({
@@ -2880,7 +2901,7 @@ app.post('/api/upload-invoice', requireAuthApi(['ADMIN', 'BUYER']), upload.singl
         material: material,
         unit_price: price,
         currency: currency,
-        qty: 96
+        qty: qty
       });
     }
     res.json({ success: true, items });
