@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - MYNTRA India Strategy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root{
+            --brand:#87CEEB;
+            --brand-deep:#4FA8CE;
+            --pink:#E91E63;
+            --pink-soft:#FFB7C5;
+            --pink-deep:#AD1457;
+            --ink:#000000;
+            --ink-2:#20242A;
+            --muted:#5C6773;
+            --line:#CFE9F5;
+            --tint:#F2FAFD;
+            --good:#1D7A4F;
+            --bad:#C62828;
+        }
+        body { font-family: Arial, sans-serif; background: var(--brand); padding: 20px; color: var(--ink); margin: 0; }
+        .container { max-width: 1180px; background: #fff; padding: 30px; margin: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+        .company-header { background: var(--brand); padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: var(--ink); }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .company-header .logo .t { font-size: 12px; font-weight: bold; letter-spacing: 0.08em; }
+        .company-header .logo .s { font-size: 9px; color: var(--muted); }
+        .nav { display: flex; gap: 16px; margin-bottom: 16px; border-bottom: 2px solid var(--pink-soft); padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: var(--pink); font-weight: bold; font-size: 13px; }
+        .nav a.active { color: var(--ink); border-bottom: 2px solid var(--pink); padding-bottom: 8px; margin-bottom: -10px; }
+
+        h2.page { color: var(--ink); margin: 4px 0 2px; font-size: 22px; }
+        .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+        .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+        .chip { font-size: 11px; font-weight: bold; padding: 5px 11px; border-radius: 20px; border: 1px solid var(--line); background: var(--tint); color: var(--ink); }
+        .chip.hot { background: var(--pink); border-color: var(--pink); color: #fff; }
+
+        .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+        .tabs button { background: transparent; border: none; border-bottom: 3px solid transparent; font-family: inherit; font-size: 13px; font-weight: bold; color: var(--muted); padding: 10px 14px; cursor: pointer; }
+        .tabs button:hover { color: var(--pink); }
+        .tabs button.on { color: var(--ink); border-bottom-color: var(--pink); }
+        .view { display: none; }
+        .view.on { display: block; }
+
+        .tiles { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+        .tile { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--pink); border-radius: 6px; padding: 14px 15px; }
+        .tile .k { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: bold; }
+        .tile .v { font-size: 24px; font-weight: bold; color: var(--pink-deep); margin-top: 5px; line-height: 1.1; }
+        .tile .n { font-size: 11px; color: var(--muted); margin-top: 4px; }
+        .tile.blue { border-left-color: var(--brand-deep); }
+        .tile.blue .v { color: #1B7FA8; }
+        .tile.ink { border-left-color: var(--ink); }
+        .tile.ink .v { color: var(--ink); }
+        .tile.warn { border-left-color: var(--bad); }
+        .tile.warn .v { color: var(--bad); }
+
+        .box { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; margin-bottom: 14px; }
+        .box .bt { font-size: 15px; font-weight: bold; margin: 0 0 3px; }
+        .box .bs { font-size: 11px; color: var(--muted); margin: 0 0 12px; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+        .hold { background: var(--tint); border: 1px solid var(--line); border-left: 4px solid var(--pink); border-radius: 6px; padding: 14px 18px; margin-bottom: 16px; }
+        .hold .ht { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: bold; color: var(--pink-deep); }
+        .hold ul { margin: 8px 0 0; padding-left: 18px; }
+        .hold li { font-size: 13px; margin-bottom: 6px; color: var(--ink-2); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--brand); color: var(--ink); padding: 8px; text-align: left; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+        td { padding: 7px 8px; border-bottom: 1px solid #EAF6FB; vertical-align: top; color: var(--ink-2); }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+        tr.total td { font-weight: bold; background: var(--tint); color: var(--ink); }
+        tr.rej td { background: #FDECEF; }
+        tr.pend td { background: #FFF8E1; }
+        .sect { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: bold; color: var(--pink-deep); margin: 20px 0 6px; }
+
+        .scale { margin: 6px 0 18px; }
+        .scale .srow { display: grid; grid-template-columns: 190px 1fr; gap: 10px; align-items: center; margin-bottom: 5px; }
+        .scale .lbl { font-size: 11px; color: var(--ink-2); font-weight: bold; }
+        .scale .lbl .amt { font-weight: normal; color: var(--muted); display: block; font-size: 10px; }
+        .track { position: relative; height: 16px; background: var(--tint); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+        .seg { position: absolute; top: 0; bottom: 0; }
+        .seg.them { background: var(--brand); opacity: 0.75; }
+        .seg.them2 { background: #BEE3F2; }
+        .seg.us { background: var(--pink); }
+        .seg.usline { background: var(--pink-deep); width: 3px; }
+        .axis { display: grid; grid-template-columns: 190px 1fr; gap: 10px; }
+        .axis .ticks { display: flex; justify-content: space-between; font-size: 9px; color: var(--muted); }
+
+        .note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+        .pill { display: inline-block; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px; background: var(--tint); border: 1px solid var(--line); }
+        .pill.bad { background: #FDECEF; border-color: #F3C6CE; color: var(--bad); }
+        .pill.good { background: #E8F5EE; border-color: #BFE3CE; color: var(--good); }
+        .footer { font-size: 11px; color: var(--muted); margin-top: 22px; border-top: 1px solid var(--line); padding-top: 12px; line-height: 1.6; }
+        @media (max-width: 860px){
+            .tiles { grid-template-columns: 1fr 1fr; }
+            .grid2 { grid-template-columns: 1fr; }
+            .scale .srow, .axis { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="company-header">
+        <div class="info">
+            <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+            <div class="l2">飒鹤（上海）贸易有限公司</div>
+            <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+        </div>
+        <div class="logo">
+            <div class="t">MYNTRA</div>
+            <div class="s">India marketplace</div>
+        </div>
+    </div>
+
+    <div class="nav">
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/myntra.html" class="active">MYNTRA</a>
+        <a href="/">Buyer Invoice (Sell)</a>
+        <a href="/buyer-po.html">Buyer PO</a>
+        <a href="/sourcing.html">Sourcing Orders</a>
+        <a href="/create-po.html">Vendor PO (Buying)</a>
+        <a href="/invoices.html">Invoice to PO</a>
+        <a href="/receive-po.html">Receive Stock</a>
+        <a href="/items.html">Item Master</a>
+        <a href="/bulk-import-items.html">Bulk Import</a>
+        <a href="/opening-inventory.html">Opening Inventory</a>
+        <a href="/sales.html">Sales (Stock Out)</a>
+        <a href="/transfer.html">Transfer Stock</a>
+        <a href="/accounts.html">Accounts</a>
+        <a href="/admin-users.html">Manage Users</a>
+        <a href="/contacts.html">Buyers &amp; Vendors</a>
+    </div>
+
+    <h2 class="page">MYNTRA - India Marketplace Strategy</h2>
+    <p class="sub">Seller of record: SAHI CUBE PRIVATE LTD (Jalandhar Cantt, Punjab) &middot; customer-facing brand: Sahi London &middot; currency INR &middot; India-domestic lane only. Catalog figures read from the Myntra Partner Portal style-dashboard export of 09 Oct 2026. Competitor bands read from live Myntra listing data, Sep-Oct 2026.</p>
+
+    <div class="chips">
+        <span class="chip hot">BFF festive sale is live now</span>
+        <span class="chip">160 SKU rows / 130 styles</span>
+        <span class="chip">15 styles rejected &middot; 3 pending</span>
+        <span class="chip">Every listing shows 0% off</span>
+        <span class="chip">Shelf median badge 74%</span>
+    </div>
+
+    <div class="tabs" id="tabs">
+        <button data-v="v1" class="on">Overview</button>
+        <button data-v="v2">Competitors</button>
+        <button data-v="v3">Our Position</button>
+        <button data-v="v4">Price Strategy</button>
+        <button data-v="v5">Growth Plan</button>
+    </div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <div class="view on" id="v1">
+        <div class="tiles">
+            <div class="tile ink"><div class="k">Live SKU rows</div><div class="v">160</div><div class="n">Across 130 unique styles</div></div>
+            <div class="tile blue"><div class="k">Launch units in scope</div><div class="v">1,201</div><div class="n">Roughly 16 months of cover at target rate</div></div>
+            <div class="tile warn"><div class="k">Dead on a brand string</div><div class="v">15</div><div class="n">Legacy "SAHI" rings and bracelets, unsellable</div></div>
+            <div class="tile"><div class="k">Displayed discount</div><div class="v">0%</div><div class="n">On all 160 rows. Shelf median is 74%</div></div>
+        </div>
+
+        <div class="hold">
+            <div class="ht">The three things this page is built to answer</div>
+            <ul>
+                <li><b>Who are we actually up against?</b> Not the rupee-100 costume shelf. At our price point the credible set is a short list of branded fashion-jewellery and mid-premium bag houses. Tab 2 names them with their live bands.</li>
+                <li><b>Where does our catalogue sit against them?</b> Jewellery is defensible. Handbags are the hardest sell. T-shirts are the weakest position on the account. Tab 3 shows each category against its real competitor band.</li>
+                <li><b>What has to be true to hit the ramp?</b> Shelf breadth, price legibility and review depth. Tab 4 is the price architecture. Tab 5 is the week-by-week plan.</li>
+            </ul>
+        </div>
+
+        <div class="box">
+            <div class="bt">Live catalogue by category</div>
+            <div class="bs">Counts and bands from the portal export. Sellability is blocked only on the rejected set.</div>
+            <table>
+                <thead><tr>
+                    <th>Article type</th><th class="num">SKU rows</th><th class="num">Approved</th><th class="num">Rejected</th><th class="num">Pending</th>
+                    <th class="num">Units</th><th>Our price band (INR)</th>
+                </tr></thead>
+                <tbody>
+                    <tr><td>T-Shirts</td><td class="num">45</td><td class="num">42</td><td class="num">0</td><td class="num">3</td><td class="num">192</td><td>1,999 - 2,999</td></tr>
+                    <tr><td>Earrings</td><td class="num">37</td><td class="num">37</td><td class="num">0</td><td class="num">0</td><td class="num">293</td><td>4,499 - 14,599</td></tr>
+                    <tr class="rej"><td>Rings</td><td class="num">31</td><td class="num">19</td><td class="num">12</td><td class="num">0</td><td class="num">214</td><td>4,499 - 7,849</td></tr>
+                    <tr><td>Necklaces &amp; Chains</td><td class="num">17</td><td class="num">17</td><td class="num">0</td><td class="num">0</td><td class="num">135</td><td>5,399 - 14,599</td></tr>
+                    <tr><td>Handbags</td><td class="num">13</td><td class="num">13</td><td class="num">0</td><td class="num">0</td><td class="num">157</td><td>7,399 - 13,899</td></tr>
+                    <tr class="rej"><td>Bracelets</td><td class="num">13</td><td class="num">10</td><td class="num">3</td><td class="num">0</td><td class="num">196</td><td>6,149 - 8,399</td></tr>
+                    <tr><td>Pendants</td><td class="num">4</td><td class="num">4</td><td class="num">0</td><td class="num">0</td><td class="num">14</td><td>4,499 - 8,399</td></tr>
+                    <tr class="total"><td>Total</td><td class="num">160</td><td class="num">142</td><td class="num">15</td><td class="num">3</td><td class="num">1,201</td><td>1,999 - 14,599</td></tr>
+                </tbody>
+            </table>
+            <div class="note">Rejected rows are shaded. The 15 rejected styles are the legacy brand-string rows (rings and bracelets). The 3 pending rows are T-Shirts APAPS401-BLU-1/2/3, re-priced and now sitting in the approval queue.</div>
+        </div>
+
+        <div class="box">
+            <div class="bt">Revenue ladder for the quarter</div>
+            <div class="bs">Net of returns at roughly 69% realisation on jewellery-and-bag-heavy mix.</div>
+            <table>
+                <thead><tr><th>Month</th><th>Window</th><th>Demand driver</th><th class="num">Conservative</th><th class="num">Base</th><th class="num">Aggressive</th><th class="num">Base units</th></tr></thead>
+                <tbody>
+                    <tr><td>M1</td><td>10 Oct - 09 Nov 2026</td><td>BFF tail, Karwa Chauth, Dhanteras 06 Nov, Diwali 08 Nov</td><td class="num">50,000</td><td class="num">75,000</td><td class="num">100,000</td><td class="num">14</td></tr>
+                    <tr><td>M2</td><td>10 Nov - 09 Dec 2026</td><td>Black Friday, Winter end-of-season</td><td class="num">100,000</td><td class="num">150,000</td><td class="num">200,000</td><td class="num">27</td></tr>
+                    <tr><td>M3</td><td>10 Dec - 09 Jan 2027</td><td>Year-end bash, Christmas, Republic Day ramp</td><td class="num">200,000</td><td class="num">300,000</td><td class="num">400,000</td><td class="num">55</td></tr>
+                    <tr class="total"><td>Q1</td><td>Oct 2026 - Jan 2027</td><td>Three festive peaks back to back</td><td class="num">350,000</td><td class="num">525,000</td><td class="num">700,000</td><td class="num">96</td></tr>
+                </tbody>
+            </table>
+            <div class="note">Base case at an assumed AOV of INR 5,500. This is a traffic-and-conversion problem, not a stock problem: 1,201 units of cover against a month-three need of 55 units.</div>
+        </div>
+    </div>
+
+    <!-- ============ COMPETITORS ============ -->
+    <div class="view" id="v2">
+        <div class="hold">
+            <div class="ht">Read this first</div>
+            <ul>
+                <li>Myntra's jewellery shelf is a <b>discount shelf</b>. Across 100 necklace, earring and set listings read in September 2026, 97 carried a discount and the <b>median badge was 74% off</b>. The only listing at 0% off was the only one made of real gold.</li>
+                <li>Stated MRPs are routinely 3x to 10x the selling price. On a read of 71 sub-500-rupee pieces, 43 printed an MRP at least 3x the selling price and 21 at least 5x. The deepest badge was 90% off a 7,860 MRP.</li>
+                <li>So a listing with a 0% badge is not "premium", it is <b>unranked in every discount browse and every festival filter</b>. That is the single most important competitor fact on this page.</li>
+                <li>Festive timing is live now: Big Fashion Festival opened 08 Oct 2026, with Dussehra and Diwali sales following through November.</li>
+            </ul>
+        </div>
+
+        <div class="sect">Jewellery - earrings, rings, necklaces, bracelets, pendants</div>
+        <table>
+            <thead><tr><th>Brand</th><th>Segment</th><th>Selling band (INR)</th><th>Typical badge</th><th>Note</th></tr></thead>
+            <tbody>
+                <tr><td>Anouk, Dressberry, Jewels Galaxy, VAMA, MEENAZ, ZOeria</td><td>Commodity / in-house</td><td>107 - 1,071</td><td>55% - 90%</td><td>Plated brass and steel. Volume tier, no brand story.</td></tr>
+                <tr><td>Salty, Yellow Chimes, ZENEME, OOMPH, Pipa Bella, Karatcart</td><td>Trend / value fashion jewellery</td><td>239 - 2,000</td><td>65% - 88%</td><td>Trend-led. The tier that owns "affordable statement".</td></tr>
+                <tr><td>Rubans, Zaveri Pearls, Sohi</td><td>Mid fashion jewellery</td><td>500 - 5,000</td><td>60% - 80%</td><td>Kundan and ethnic. Strong festive gifting pull.</td></tr>
+                <tr><td>Voylla</td><td>Premium fashion jewellery</td><td>800 - 10,000</td><td>25% - 70%</td><td>The nearest credible neighbour to our band. 45,000 designs, established brand page.</td></tr>
+                <tr><td>Kushal's Fashion Jewellery</td><td>Premium / bridal</td><td>500 - 8,000 core; 17,000 - 50,000 MRP at the top</td><td>20% - 25% at the top</td><td>Proof that a 25% badge can sell at a high ticket when the brand is known.</td></tr>
+                <tr><td>GIVA, Palmonas</td><td>Sterling silver / lab-grown</td><td>2,000 - 10,000</td><td>0% - 65%</td><td>GIVA sells a 5,999 stud at 0% off. Real-metal brands are allowed to hold price.</td></tr>
+                <tr><td>Mia by Tanishq, Joyalukkas, Malabar</td><td>Fine gold</td><td>6,500 - 200,000+</td><td>0% - 20%</td><td>Not our shelf. Gold tracks a daily rate.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="sect">Handbags</div>
+        <table>
+            <thead><tr><th>Brand</th><th>Segment</th><th>Selling band (INR)</th><th>Typical badge</th><th>Note</th></tr></thead>
+            <tbody>
+                <tr><td>Lavie, Caprese, Lino Perros, Baggit</td><td>Value / everyday</td><td>449 - 4,300</td><td>60% - 80%</td><td>The default shelf. Lavie and Caprese run minimum 70% off in end-of-season.</td></tr>
+                <tr><td>Miraggio, Diana Korr</td><td>Mid / urban fashion</td><td>1,500 - 6,000</td><td>12% - 41%</td><td>Shallower badges than value tier, so ticket holds at 3,000 - 5,300.</td></tr>
+                <tr><td>Hidesign</td><td>Premium genuine leather</td><td>4,000 - 15,000</td><td>30% - 60%</td><td>Decades of equity, own stores. Our band sits inside theirs.</td></tr>
+                <tr><td>Da Milano, Aldo, Guess</td><td>Luxury</td><td>3,500 - 35,000</td><td>30% - 60%</td><td>International badge does the ranking work.</td></tr>
+            </tbody>
+        </table>
+
+        <div class="sect">T-Shirts</div>
+        <table>
+            <thead><tr><th>Brand</th><th>Segment</th><th>Selling band (INR)</th><th>Typical badge</th><th>Note</th></tr></thead>
+            <tbody>
+                <tr><td>Roadster, Zudio, Bewakoof, Mr Bowerbird, Glitchez</td><td>Value</td><td>199 - 999</td><td>42% - 88%</td><td>Roadster is the in-house benchmark: MRP 499, sells at 289.</td></tr>
+                <tr><td>H&amp;M, The Souled Store, Jockey, Max</td><td>Mid</td><td>399 - 1,499</td><td>30% - 67%</td><td>H&amp;M women's tops ran 269 - 500 during BFF.</td></tr>
+                <tr><td>U.S. Polo Assn., Wrogn, Marks &amp; Spencer</td><td>Premium basics</td><td>679 - 1,599 MRP</td><td>11% - 50%</td><td>Brand equity lets a badge sit in the teens. M&amp;S ran 11% - 15% off.</td></tr>
+            </tbody>
+        </table>
+        <div class="note">Bands are live listing prices observed September and October 2026, read logged out in India. They are a benchmark, not a quote. Verify a specific competitor before acting on it.</div>
+    </div>
+
+    <!-- ============ OUR POSITION ============ -->
+    <div class="view" id="v3">
+        <div class="hold">
+            <div class="ht">The diagnosis in one line</div>
+            <ul>
+                <li>Our catalogue is priced in the <b>premium band</b> but displays a <b>0% badge</b> - the worst of both worlds. A premium brand with zero discount legibility reads as over-priced, not as exclusive.</li>
+                <li>The price point itself is not the problem. At 4,499 - 14,599 our jewellery sits exactly where Voylla and Kushal's sit, and those brands sell.</li>
+                <li>The problem is that nobody browsing the category ever sees us. And the three categories are not equally exposed.</li>
+            </ul>
+        </div>
+
+        <div class="box">
+            <div class="bt">Jewellery - where our band lands</div>
+            <div class="bs">Scale 0 - 16,000 INR. Blue is the competitor band, pink is ours. Fine gold sits above this scale and is not our shelf.</div>
+            <div class="scale">
+                <div class="srow"><div class="lbl">Commodity<span class="amt">107 - 1,071</span></div><div class="track"><div class="seg them2" style="left:0.7%;width:6.0%;"></div></div></div>
+                <div class="srow"><div class="lbl">Trend / value<span class="amt">239 - 2,000</span></div><div class="track"><div class="seg them2" style="left:1.5%;width:11.0%;"></div></div></div>
+                <div class="srow"><div class="lbl">Mid fashion<span class="amt">500 - 5,000</span></div><div class="track"><div class="seg them" style="left:3.1%;width:28.1%;"></div></div></div>
+                <div class="srow"><div class="lbl">Voylla / Kushal's<span class="amt">500 - 10,000</span></div><div class="track"><div class="seg them" style="left:3.1%;width:59.4%;"></div></div></div>
+                <div class="srow"><div class="lbl"><b>SAHI - ours</b><span class="amt">4,499 - 14,599</span></div><div class="track"><div class="seg us" style="left:28.1%;width:63.1%;"></div></div></div>
+                <div class="axis"><div></div><div class="ticks"><span>0</span><span>4k</span><span>8k</span><span>12k</span><span>16k</span></div></div>
+            </div>
+            <div class="note"><b>Verdict: defensible.</b> We sit inside Voylla's and Kushal's range. Earrings and necklaces carry the strongest design story. Fix the badge and this category can compete on merit.</div>
+        </div>
+
+        <div class="box">
+            <div class="bt">Handbags - where our band lands</div>
+            <div class="bs">Scale 0 - 16,000 INR. Da Milano and above sit outside the scale.</div>
+            <div class="scale">
+                <div class="srow"><div class="lbl">Value shelf<span class="amt">449 - 4,300</span></div><div class="track"><div class="seg them2" style="left:2.8%;width:24.1%;"></div></div></div>
+                <div class="srow"><div class="lbl">Mid / urban<span class="amt">1,500 - 6,000</span></div><div class="track"><div class="seg them" style="left:9.4%;width:28.1%;"></div></div></div>
+                <div class="srow"><div class="lbl">Hidesign premium<span class="amt">4,000 - 15,000</span></div><div class="track"><div class="seg them" style="left:25.0%;width:68.8%;"></div></div></div>
+                <div class="srow"><div class="lbl"><b>SAHI - ours</b><span class="amt">7,399 - 13,899</span></div><div class="track"><div class="seg us" style="left:46.2%;width:40.6%;"></div></div></div>
+                <div class="axis"><div></div><div class="ticks"><span>0</span><span>4k</span><span>8k</span><span>12k</span><span>16k</span></div></div>
+            </div>
+            <div class="note"><b>Verdict: hardest sell.</b> We are inside Hidesign's band without Hidesign's leather story, stores or 40-year equity. Every value and mid bag brand sits far below us with badges of 60% - 80%. This is the category where the ticket has to be defended product-by-product, and where a badge alone will not close the gap.</div>
+        </div>
+
+        <div class="box">
+            <div class="bt">T-Shirts - where our band lands</div>
+            <div class="bs">Scale 0 - 3,500 INR.</div>
+            <div class="scale">
+                <div class="srow"><div class="lbl">Value shelf<span class="amt">199 - 999</span></div><div class="track"><div class="seg them2" style="left:5.7%;width:22.9%;"></div></div></div>
+                <div class="srow"><div class="lbl">Mid<span class="amt">399 - 1,499</span></div><div class="track"><div class="seg them" style="left:11.4%;width:31.4%;"></div></div></div>
+                <div class="srow"><div class="lbl">Premium basics<span class="amt">679 - 1,599 MRP</span></div><div class="track"><div class="seg them" style="left:19.4%;width:26.3%;"></div></div></div>
+                <div class="srow"><div class="lbl"><b>SAHI - ours</b><span class="amt">1,999 - 2,999</span></div><div class="track"><div class="seg us" style="left:57.1%;width:28.6%;"></div></div></div>
+                <div class="axis"><div></div><div class="ticks"><span>0</span><span>875</span><span>1,750</span><span>2,625</span><span>3,500</span></div></div>
+            </div>
+            <div class="note"><b>Verdict: weakest position.</b> Our entry price is above U.S. Polo Assn.'s MRP and 3x to 5x Roadster's selling price, with none of that brand's recognition. A brand with real equity can hold a shallow badge - M&amp;S runs 11% off. A new seller at 2,999 with a 0% badge and no reviews cannot. Recommendation: do not lead the quarter with apparel.</div>
+        </div>
+
+        <div class="box">
+            <div class="bt">Coverage - we do not carry our own range on either channel</div>
+            <div class="bs">Cross-checked against the live sahilondon.in catalogue.</div>
+            <table>
+                <thead><tr><th>Gap</th><th class="num">Count</th><th>What it means</th></tr></thead>
+                <tbody>
+                    <tr><td>Live Myntra SKUs absent from sahilondon.in</td><td class="num">51</td><td>Rings 19, necklaces 17, bracelets 9, pendants 4 - the festive jewellery core. No D2C page to send traffic to.</td></tr>
+                    <tr><td>Storefront SKUs absent from Myntra</td><td class="num">124</td><td>Includes the whole Love Affair collection and the hero handbag BGZPP201-BLK. Zero marketplace search surface.</td></tr>
+                    <tr><td>SKUs staged in the workbook but never listed</td><td class="num">110</td><td>No Myntra Style Id. Every unlisted SKU is zero impressions. This is the cheapest shelf expansion available.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============ PRICE STRATEGY ============ -->
+    <div class="view" id="v4">
+        <div class="hold">
+            <div class="ht">Phase 2 - framework set, numbers pending one input</div>
+            <ul>
+                <li>Competitor scan is done (tab 2). The price rule below follows from it directly. It is <b>not locked</b> until two things are supplied: the actual Myntra rate card for our sub-categories, and a COGS figure per SKU. Neither exists on disk today.</li>
+                <li>Public commission figures for fashion jewellery swing between 4% and 32% depending on the source. A three-point error moves margin more than every other lever on this page combined.</li>
+            </ul>
+        </div>
+
+        <div class="box">
+            <div class="bt">Rule 1 - badge parity</div>
+            <div class="bs">The shelf, not our preference, sets the required displayed discount.</div>
+            <table>
+                <thead><tr><th>Category</th><th>Observed competitor badge</th><th>Minimum badge we need to be seen</th><th>Why</th></tr></thead>
+                <tbody>
+                    <tr><td>Jewellery</td><td>Median 74%; most of the shelf 60% - 90%</td><td>45% - 55%</td><td>Discount sort and festival filters are the primary browse paths. Below 40% we drop out of the crawl.</td></tr>
+                    <tr><td>Handbags</td><td>Value 60% - 80%; mid 12% - 41%</td><td>45% - 55%</td><td>Our band is premium, so we do not have to match the value shelf - but we do have to clear the mid tier.</td></tr>
+                    <tr><td>T-Shirts</td><td>Value 42% - 88%; premium 11% - 50%</td><td>50% - 60%</td><td>We have no equity to justify a shallow badge. Anything less and the price simply reads as wrong.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="box">
+            <div class="bt">Rule 2 - one reference price brand-wide</div>
+            <div class="bs">Checked 10 Oct 2026: our Myntra selling price equals the sahilondon.in MRP to the rupee on 109 shared SKUs. That is why every listing shows 0% off.</div>
+            <table>
+                <thead><tr><th>Element</th><th>Decision</th></tr></thead>
+                <tbody>
+                    <tr><td>Reference price (MRP)</td><td>Keep the existing sahilondon.in MRP. It is already live, already credible, and already the brand's story. It is not missing - it is being used as the selling price.</td></tr>
+                    <tr><td>Myntra selling price</td><td>Re-base it against that MRP so the badge lands in the band on Rule 1. This is the only number that moves.</td></tr>
+                    <tr><td>What not to do</td><td>Do not invent an MRP above the D2C reference price. It fixes the badge and breaks the cross-channel price story at the same time.</td></tr>
+                    <tr><td>Segment the ladder</td><td>Entry, Core, Hero and Halo tiers per category, each with its own multiple, so the catalogue has an entry price point, a volume engine and a halo anchor instead of one flat line.</td></tr>
+                </tbody>
+            </table>
+            <div class="note">Worked example at a 50% badge, jewellery: earrings 4,499 - 14,599 becomes a 2,250 - 7,300 ticket - inside Voylla's and Kushal's live band. Handbags 7,399 - 13,899 becomes 3,700 - 6,950 - mid-tier Miraggio to Hidesign entry. Both land where the category already buys.</div>
+        </div>
+
+        <div class="box">
+            <div class="bt">Tier architecture</div>
+            <div class="bs">Applied per category, by price rank, so every category has its own entry and halo.</div>
+            <table>
+                <thead><tr><th>Tier</th><th>Role</th><th>Share of category SKUs</th><th>MRP multiple</th><th>Badge shown</th></tr></thead>
+                <tbody>
+                    <tr><td>Entry</td><td>Opening price point. Wins the price sort and the under-5,000 browse.</td><td>Bottom 20%</td><td>2.00x</td><td>50%</td></tr>
+                    <tr><td>Core</td><td>Volume engine. Where most orders should land.</td><td>20th - 60th pct</td><td>1.80x</td><td>44%</td></tr>
+                    <tr><td>Hero</td><td>Margin engine. Best design, best photography.</td><td>60th - 90th pct</td><td>1.75x</td><td>43%</td></tr>
+                    <tr><td>Halo</td><td>Brand anchor and AOV lifter. Rarely sells, always earns its place.</td><td>Top 10%</td><td>1.70x</td><td>41%</td></tr>
+                </tbody>
+            </table>
+            <div class="note">GST on the ticket is unchanged - this is a reference-price change, not a cost change. It is reversible, costs nothing to apply, and does not touch COGS.</div>
+        </div>
+
+        <div class="sect">Still open</div>
+        <table>
+            <thead><tr><th>Input needed</th><th>Owner</th><th>Blocks</th></tr></thead>
+            <tbody>
+                <tr><td>Myntra rate card for our sub-categories, exported from the Partner Portal</td><td>You (portal)</td><td>The margin model and the final price per SKU</td></tr>
+                <tr><td>COGS per SKU</td><td>Ops</td><td>Contribution margin. The model currently reports realisation before product cost.</td></tr>
+                <tr><td>Confirmation of the master colour spelling accepted by Myntra</td><td>You (portal)</td><td>Batch fix of the Multi Colour / Multi Color split on 102 rows</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ============ GROWTH PLAN ============ -->
+    <div class="view" id="v5">
+        <div class="box">
+            <div class="bt">Catalog repairs - the only blocked inventory on the account</div>
+            <div class="bs">Everything else is live and approved. This is the whole repair job.</div>
+            <table>
+                <thead><tr><th>#</th><th>Issue</th><th>Size</th><th>Fix</th><th>Owner</th></tr></thead>
+                <tbody>
+                    <tr class="rej"><td>1</td><td>15 styles rejected and unsellable</td><td>15 styles / 196 units - rings and bracelets</td><td>Partner Portal, Catalog, my-requests, single edits. Read the rejection reason, set brand to Sahi London, resubmit in one pass.</td><td>You</td></tr>
+                    <tr class="pend"><td>2</td><td>3 T-Shirt SKUs pending approval</td><td>APAPS401-BLU-1/2/3 - 28 units</td><td>Chase in the portal. Already uploaded and re-priced.</td><td>You</td></tr>
+                    <tr><td>3</td><td>Brand string split</td><td>16 rows read legacy "SAHI" instead of Sahi London</td><td>Normalise via single edits. This split is the direct cause of issue 1.</td><td>You</td></tr>
+                    <tr><td>4</td><td>Colour attribute split</td><td>102 rows - Multi Colour vs Multi Color</td><td>Confirm the master spelling, batch fix the other.</td><td>You</td></tr>
+                    <tr><td>5</td><td>Stock accuracy flags</td><td>7 SKU rows with no confirmed quantity</td><td>Physical count before the festive peak. A cancellation hurts the seller score more than a return.</td><td>Ops</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="box">
+            <div class="bt">Week by week</div>
+            <table>
+                <thead><tr><th>Week</th><th>Dates</th><th>Workstream</th><th>Action</th><th>Effect</th><th>Owner</th></tr></thead>
+                <tbody>
+                    <tr><td>W1</td><td>10 - 16 Oct</td><td>Catalog repair</td><td>Resubmit the 15 rejected styles under Sahi London</td><td>+15 sellable styles</td><td>You</td></tr>
+                    <tr><td>W1</td><td>10 - 16 Oct</td><td>Catalog repair</td><td>Chase the 3 pending T-Shirt SKUs</td><td>+28 units released</td><td>You</td></tr>
+                    <tr><td>W1</td><td>10 - 16 Oct</td><td>Pricing</td><td>Pull the rate card, then load the new selling-price ladder</td><td>Listings enter the discount browse</td><td>You</td></tr>
+                    <tr><td>W2</td><td>17 - 23 Oct</td><td>Catalog growth</td><td>Create listings for 48 staged jewellery SKUs</td><td>Shelf 142 to 190 live styles</td><td>You</td></tr>
+                    <tr><td>W2</td><td>17 - 23 Oct</td><td>Paid</td><td>Sponsored Products at 200/day on the 10 best-photographed SKUs</td><td>Seeds first impressions, target ROAS 4x</td><td>You</td></tr>
+                    <tr><td>W2</td><td>17 - 23 Oct</td><td>Content</td><td>Audit every product page: 6+ images, 1500x2000px, size chart present</td><td>Moves conversion and return rate together</td><td>You</td></tr>
+                    <tr><td>W3</td><td>24 - 30 Oct</td><td>Catalog growth</td><td>Create listings for 32 staged handbag SKUs</td><td>Shelf 190 to 222</td><td>You</td></tr>
+                    <tr><td>W3</td><td>24 - 30 Oct</td><td>Demand</td><td>Karwa Chauth and Navratri gifting push on earrings, pendants, bracelets</td><td>Gifting peak for jewellery</td><td>You</td></tr>
+                    <tr><td>W3</td><td>24 - 30 Oct</td><td>Reviews</td><td>Post-delivery message and packaging insert asking for honest feedback</td><td>Rating is a primary ranking input</td><td>Ops</td></tr>
+                    <tr><td>W4</td><td>31 Oct - 09 Nov</td><td>Demand</td><td>Dhanteras 06 Nov and Diwali 08 Nov push on the jewellery core</td><td>Biggest jewellery window of the Indian year</td><td>You</td></tr>
+                    <tr><td>W4</td><td>31 Oct - 09 Nov</td><td>Paid</td><td>Raise sponsored spend to 350/day, bid up SKUs that already sold</td><td>Double down on proven</td><td>You</td></tr>
+                    <tr><td>M2</td><td>10 Nov - 09 Dec</td><td>Catalog growth</td><td>List the 33 apparel SKUs once model shots exist</td><td>Shelf 222 to 255</td><td>You</td></tr>
+                    <tr><td>M2</td><td>10 Nov - 09 Dec</td><td>Demand</td><td>Black Friday and Winter end-of-season participation</td><td>Second demand peak</td><td>You</td></tr>
+                    <tr><td>M3</td><td>10 Dec - 09 Jan</td><td>Demand</td><td>Year-end bash and Republic Day ramp</td><td>Third demand peak</td><td>You</td></tr>
+                    <tr><td>M3</td><td>10 Dec - 09 Jan</td><td>Commercial</td><td>Walk the three-month GMV curve to the category buyer and ask for a commission review</td><td>Raises net on every future order</td><td>You</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="box">
+            <div class="bt">The levers beyond price</div>
+            <table>
+                <thead><tr><th>Lever</th><th>Why it matters here</th><th>Action</th><th>Cost</th></tr></thead>
+                <tbody>
+                    <tr><td>Shelf breadth</td><td>Myntra is a search-and-filter marketplace. 142 styles is a small net; 255 is a real one, with more keyword coverage at zero ad cost.</td><td>Close gaps 1 and 2. Get to 255 live styles by early December.</td><td>Nil</td></tr>
+                    <tr><td>Rating depth</td><td>A zero-review listing cannot outrank an established brand however good the product. Rating is a primary ranking input.</td><td>Honest-feedback request in the package and the post-delivery message. Never incentivised - that breaks platform policy.</td><td>Nil</td></tr>
+                    <tr><td>Paid seeding</td><td>Organic traction on a new seller account starts near zero. Sponsored Products buys the first impressions and quality decides the rest.</td><td>200/day in month one. Scale only against proven ROAS of 4x or better.</td><td>6,000 / 12,000 / 24,000 by month</td></tr>
+                    <tr><td>Mix control</td><td>Apparel returns run 25% - 35% and can erase the margin on that category. Jewellery and bags return far less.</td><td>Keep the quarter jewellery-and-bag heavy. Fuel apparel, do not lead with it.</td><td>Nil</td></tr>
+                    <tr><td>Seller score</td><td>Late dispatch and cancellations suppress the whole catalogue, not just the offending SKU.</td><td>24-hour dispatch discipline. Count the 7 flagged SKU rows before the peak.</td><td>Nil</td></tr>
+                    <tr><td>Social funnel</td><td>The India Instagram lane already exists. That audience is the cheapest qualified traffic available to a new listing.</td><td>Push the hero SKUs with a direct link to the Myntra listing.</td><td>Nil (organic)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        <b>Scope guard:</b> this page is the India-domestic lane only. Seller of record SAHI CUBE PRIVATE LTD, brand shown Sahi London, currency INR. No CAD, GBP or USD figures, no HST or GST, no sahilondon.com pricing belong on a Myntra decision.<br>
+        <b>Sources:</b> Myntra Partner Portal style-dashboard export 09 Oct 2026 (catalogue counts, statuses, prices, launch quantities); live sahilondon.in catalogue (coverage comparison); live Myntra listing data read Sep - Oct 2026 (competitor bands and discount depth). Benchmark bands are observations, not quotes.
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+    var tabs = document.getElementById('tabs');
+    tabs.addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (!b) { return; }
+        var v = b.getAttribute('data-v');
+        var i;
+        var btns = tabs.querySelectorAll('button');
+        for (i = 0; i < btns.length; i++) { btns[i].className = (btns[i] === b) ? 'on' : ''; }
+        var views = document.querySelectorAll('.view');
+        for (i = 0; i < views.length; i++) { views[i].className = (views[i].id === v) ? 'view on' : 'view'; }
+    });
+})();
+</script>
+</body>
+</html>
