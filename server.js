@@ -5628,6 +5628,32 @@ app.get('/api/sales/:id/pdf', requireAuthApi(['ADMIN', 'BUYER']), async (req, re
 // the same SKU updates the existing Shopify listing). Price = invoice unit price
 // x ?factor= (default 1) so non-CAD invoices can be converted to store price.
 // Image Src auto-filled when a portal image exists for the SKU.
+// GET /api/invoice/:orderId/json — re-fetch one issued invoice in the same
+// shape the invoice page's PDF generator uses (reprint button).
+app.get('/api/invoice/:orderId/json', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const head = await pool.query(
+      `SELECT co.order_id, co.po_reference, b.name AS buyer_name,
+              co.order_currency AS currency,
+              COALESCE(SUM(co.total_local), 0)::float AS grand_total_local
+         FROM customer_orders co
+         LEFT JOIN buyers b ON b.code = co.buyer_code
+        WHERE co.order_id = $1
+        GROUP BY co.order_id, co.po_reference, b.name, co.order_currency`, [orderId]);
+    if (head.rows.length === 0) return res.status(404).json({ error: 'Invoice not found: ' + orderId });
+    const lines = await pool.query(
+      `SELECT sku, item_name, qty::int AS qty, markup_percent::float AS markup_percent,
+              unit_price_local::float AS unit_price_local, total_local::float AS total_local
+         FROM customer_orders WHERE order_id = $1 ORDER BY id`, [orderId]);
+    res.json({ success: true, ...head.rows[0], lines: lines.rows });
+  } catch (err) {
+    console.error('Error fetching invoice:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/invoice/:orderId/shopify-csv — Shopify product CSV for an invoice
 app.get('/api/invoice/:orderId/shopify-csv', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   try {
     const orderId = req.params.orderId;
