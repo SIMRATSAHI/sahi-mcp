@@ -36,7 +36,7 @@
         .company-header .logo .l2 { font-size: 9px; }
         .section-box { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; margin-bottom: 20px; }
         .section-box h3 { margin-top: 0; color: #333; font-size: 15px; }
-        .price-warning { color: #e65100; font-size: 12px; font-weight: bold; }
+        .price-warning { color: #C2185B; font-size: 12px; font-weight: bold; }
         .price-ok { color: #2e7d32; font-size: 12px; }
         .vendor-currency-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; background: #E3F2FD; color: #1565C0; }
         .tab-btn { padding: 8px 16px; border: none; background: #D3D3D3; cursor: pointer; font-weight: bold; border-radius: 4px 4px 0 0; }
@@ -146,7 +146,7 @@
                         <button onclick="downloadPDF()" style="background:#FFB7C5;">Download PO PDF</button>
                         <button id="submitBtn" onclick="submitForApproval()" style="background:#4CAF50; color:white;">Submit for Approval</button>
                     </div>
-                    <div id="poStatusBadge" style="display:inline-block; margin-top:10px; padding:4px 12px; background:#fff3cd; color:#856404; border-radius:12px; font-size:12px; font-weight:bold;">DRAFT</div>
+                    <div id="poStatusBadge" style="display:inline-block; margin-top:10px; padding:4px 12px; background:#fff3cd; color:#AD1457; border-radius:12px; font-size:12px; font-weight:bold;">DRAFT</div>
                 </div>
             </div>
         </div>
@@ -442,7 +442,7 @@
                 priceInput.style.borderColor = '#4CAF50';
             } else {
                 priceInput.value = '0.00';
-                priceInput.style.borderColor = '#ff9800';
+                priceInput.style.borderColor = '#E91E63';
             }
         }
 
@@ -562,7 +562,7 @@
                 data.forEach(p => {
                     const statusBadge = p.status === 'ACTIVE'
                         ? '<span style="color:#2e7d32; font-weight:bold;">ACTIVE</span>'
-                        : `<span style="color:#e65100; font-weight:bold;">${p.status || 'PENDING'}</span>`;
+                        : `<span style="color:#C2185B; font-weight:bold;">${p.status || 'PENDING'}</span>`;
                     tbody.innerHTML += `
                         <tr>
                             <td>${p.sku}</td>
@@ -843,12 +843,12 @@
         }
 
         const STATUS_COLORS = {
-            DRAFT:     { bg: '#fff3cd', color: '#856404' },
+            DRAFT:     { bg: '#fff3cd', color: '#AD1457' },
             SUBMITTED: { bg: '#FFB7C5', color: '#880E4F' },
             APPROVED:  { bg: '#C8E6C9', color: '#1B5E20' },
             REJECTED:  { bg: '#FFCDD2', color: '#B71C1C' },
             ISSUED:    { bg: '#B3E5FC', color: '#01579B' },
-            PARTIAL:   { bg: '#FFE0B2', color: '#E65100' },
+            PARTIAL:   { bg: '#FCE4EC', color: '#C2185B' },
             RECEIVED:  { bg: '#E8F5E9', color: '#2E7D32' },
             CLOSED:    { bg: '#E0E0E0', color: '#424242' }
         };
@@ -879,7 +879,7 @@
                         actions += `<button onclick="rejectPO('${po.po_id}')" style="padding:4px 8px; background:#f44336; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Reject</button> `;
                     }
                     if (po.status === 'APPROVED') {
-                        actions += `<button onclick="issuePO('${po.po_id}')" style="padding:4px 8px; background:#FF9800; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Issue to Supplier</button> `;
+                        actions += `<button onclick="issuePO('${po.po_id}')" style="padding:4px 8px; background:#E91E63; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">Issue to Supplier</button> `;
                     }
                     actions += `<button onclick="viewPOPDF('${po.po_id}')" style="padding:4px 8px; background:#D3D3D3; border:none; border-radius:3px; cursor:pointer; font-size:11px;">View</button>`;
                     tbody.innerHTML += `
