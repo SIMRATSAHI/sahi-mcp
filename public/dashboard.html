@@ -172,7 +172,7 @@
         <div class="chips">
             <span class="chip hot">CAD $0 ad spend</span>
             <span class="chip">Soft launch 25 Oct &middot; clock starts 1 Nov 2026</span>
-            <span class="chip">7 agents</span>
+            <span class="chip">8 agents</span>
             <span class="chip">Q1 exit = 4x launch month</span>
             <span class="chip">China / XHS on hold</span>
         </div>
@@ -185,6 +185,7 @@
             <button data-v="channels">Channels</button>
             <button data-v="calendar">Q1 Calendar</button>
             <button data-v="gates">Gates &amp; Risk</button>
+            <button data-v="rivals">Competitors</button>
         </div>
 
         <div class="view on" id="v-overview">
@@ -192,7 +193,7 @@
                 <div class="tile"><div class="k">Media budget</div><div class="v">$0</div><div class="n">Permanent. No paid ads, any platform.</div></div>
                 <div class="tile blue"><div class="k">Q1 combined target</div><div class="v">19,645</div><div class="n">CAD equivalent: 14,000 CAD + 350,000 INR</div></div>
                 <div class="tile ink"><div class="k">Launch date</div><div class="v" style="font-size:19px">1 Nov 2026</div><div class="n">Soft launch 25 Oct test run, hard launch 1 Nov.</div></div>
-                <div class="tile"><div class="k">Agents online</div><div class="v">7 / 7</div><div class="n">Engine live at ACQ_ENGINE; all 7 agents runnable</div></div>
+                <div class="tile"><div class="k">Agents online</div><div class="v">8 / 8</div><div class="n">Engine live at ACQ_ENGINE; all 8 agents runnable</div></div>
             </div>
 
             <div class="hold">
@@ -359,7 +360,12 @@
                     <div class="bd"><p class="persona">"the librarian"</p><p class="job">SEO on all 290 Canada and 135 India product pages, buying guides, Google Business Profile, and visibility inside AI assistants. Reproduces Order C1653 at scale.</p><div class="kpi"><b>KPI</b> - 60 guides, 12 top-10 keywords, 100 sessions/day</div></div>
                 </div>
                 <div class="agent">
-                    <div class="ah"><div class="en">07</div><div><div class="an">DEV</div><div class="ar">Gate</div></div><span class="badge build">to build</span></div>
+                    <div class="ah"><div class="en">07</div><div><div class="an">VEER</div><div class="ar">Rival Watch</div></div><span class="badge live">live</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the scout on the other hill"</p><p class="job">Tracks 17 named rivals across 7 lanes and 3 markets, tests every rival price band against SAHI's own, and flags any lane with no rival identified.</p><div class="kpi"><b>KPI</b> - 17 brands, 7 lanes, zero lanes without a rival</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">08</div><div><div class="an">DEV</div><div class="ar">Gate</div></div><span class="badge build">to build</span></div>
                     <div class="hint">Click for detail</div>
                     <div class="bd"><p class="persona">"the scorekeeper"</p><p class="job">Board by 08:00, weekly scoreboard on Monday, and every kill-or-scale decision made by rule instead of mood.</p><div class="kpi"><b>KPI</b> - daily board on time, every gate documented</div></div>
                 </div>
@@ -473,6 +479,66 @@
                     </table>
                 </div>
             </div>
+
+        <div class="view" id="v-rivals">
+            <div class="tiles">
+                <div class="tile"><div class="k">Rivals tracked</div><div class="v">17</div><div class="n">VEER, agent 07. Zero cost, no scraping.</div></div>
+                <div class="tile"><div class="k">Inside SAHI's band</div><div class="v">12</div><div class="n">Real opponents, not ceiling references.</div></div>
+                <div class="tile"><div class="k">High threat</div><div class="v">7</div><div class="n">Each with a written counter in the registry.</div></div>
+                <div class="tile"><div class="k">Lanes with no rival</div><div class="v">3</div><div class="n">All three are T-shirt lanes.</div></div>
+            </div>
+
+            <div class="box">
+                <div class="bt">The only test that matters - band overlap, measured in CAD</div>
+                <table>
+                    <thead><tr><th style="width:19%">Brand</th><th>Market</th><th>Category</th><th>Their band</th><th>SAHI band</th><th style="width:18%">Verdict</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>Bill Skinner</b></td><td>CA</td><td>Jewelry</td><td>GBP 24-129</td><td>CAD 25-150</td><td><span class="sev hi">Direct</span> 41-150</td></tr>
+                        <tr><td><b>Swarovski</b></td><td>CA</td><td>Jewelry</td><td>CAD 79-550</td><td>CAD 25-150</td><td><span class="sev hi">Direct</span> 79-150</td></tr>
+                        <tr><td><b>Isharya</b></td><td>CA / IN</td><td>Jewelry</td><td>USD 70-248</td><td>CAD 25-150</td><td><span class="sev hi">Direct</span> 96-150</td></tr>
+                        <tr><td>Les Nereides</td><td>CA</td><td>Jewelry</td><td>EUR 85-490</td><td>CAD 25-150</td><td><span class="sev lo">Ceiling only</span></td></tr>
+                        <tr><td><b>Poppy &amp; Peonies</b></td><td>CA</td><td>Bags</td><td>CAD 29-174</td><td>CAD 99-199</td><td><span class="sev hi">Direct</span> 99-174</td></tr>
+                        <tr><td><b>Matt &amp; Nat</b></td><td>CA</td><td>Bags</td><td>CAD 95-215</td><td>CAD 99-199</td><td><span class="sev hi">Direct</span> full band</td></tr>
+                        <tr><td>Coach / Michael Kors</td><td>CA</td><td>Bags</td><td>CAD 250-700</td><td>CAD 99-199</td><td><span class="sev md">Ceiling</span> but MK clearance hits 29-75</td></tr>
+                        <tr><td><b>AZGA</b></td><td>IN</td><td>Jewelry</td><td>INR 1,150-13,650</td><td>INR 1,500-6,500</td><td><span class="sev hi">Direct</span> almost all</td></tr>
+                        <tr><td><b>Amama</b></td><td>IN</td><td>Jewelry + bags</td><td>INR 1,800-10,500</td><td>INR 1,500-6,500</td><td><span class="sev hi">Direct</span></td></tr>
+                        <tr><td>Salty</td><td>IN</td><td>Jewelry</td><td>INR 500-1,500</td><td>INR 1,500-6,500</td><td><span class="sev lo">No overlap</span> delivery speed</td></tr>
+                        <tr><td>Carlton London</td><td>IN</td><td>Jewelry</td><td>INR 294-1,078</td><td>INR 1,500-6,500</td><td><span class="sev lo">No overlap</span> the word London</td></tr>
+                        <tr><td><b>Caprese</b></td><td>IN</td><td>Bags</td><td>INR 1,200-6,000</td><td>INR 3,500-8,700</td><td><span class="sev hi">Direct</span></td></tr>
+                        <tr><td>Hidesign / Da Milano</td><td>IN</td><td>Bags</td><td>INR 3,500-40,000</td><td>INR 3,500-8,700</td><td><span class="sev md">Ceiling</span> enters at the top</td></tr>
+                    </tbody>
+                </table>
+                <div class="note"><b>Why this test:</b> a rival only competes with SAHI if its band genuinely overlaps SAHI's. Everything else is a ceiling reference - it proves the band exists but does not fight inside it. India bands are derived from CAD and stay provisional until the real sahilondon.in price list is supplied.</div>
+            </div>
+
+            <div class="box">
+                <div class="bt">The seven high threats and the counter</div>
+                <table>
+                    <thead><tr><th style="width:17%">Brand</th><th>Why they win</th><th>The counter</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>Bill Skinner</b><br>CA jewelry</td><td>Nature motifs as miniature sculpture. Hand-painted, brass with 18ct gold or rhodium plate. Entry GBP 24, core purchase GBP 44-70.</td><td>This is the emulation target. SAHI's gap is motif storytelling and photography, not capability.</td></tr>
+                        <tr><td><b>Poppy &amp; Peonies</b><br>CA bags</td><td>Not the bag - the attach. A CAD 99 bag sells with a wallet, a cosmetic case and a charm attached. Spec-led copy, points loyalty.</td><td>Build a SAHI attach ladder (bag + matching jewelry + Care Guide insert). Their design story is zero.</td></tr>
+                        <tr><td><b>Salty</b><br>IN jewelry</td><td>Availability, not craft. About 30% of revenue is Blinkit quick commerce, ~18,000 pin codes, ~40% repeat rate, ~40% of revenue on marketing.</td><td>Do not fight the 500-1,500 rupee impulse lane. Fight at 2,000-6,000 where they have no craft story.</td></tr>
+                        <tr><td><b>Isharya</b><br>IN + CA</td><td>Mirror work and glossy enamel, named collections each with a thesis, celebrity worn.</td><td>The benchmark on craft presentation. SAHI has no collection architecture - fix that first.</td></tr>
+                        <tr><td><b>AZGA</b><br>IN jewelry</td><td>Jaipur craft as story. Hand-painted by miniature artists. Chakras and zodiac built as collectable families.</td><td>Closest product-for-product match in India. Copy the collect-the-set mechanic and name the provenance.</td></tr>
+                        <tr><td><b>Amama</b><br>IN jewelry + bags</td><td>Heritage story, festive statement pieces, celebrity seeding. Also sells embroidered bags.</td><td>Their weakness is weight - occasion wear does not get worn on a Tuesday.</td></tr>
+                        <tr><td><b>Caprese</b><br>IN bags</td><td>VIP Industries muscle, Italian-inspired mid-premium, visible step-up in hardware and stitching.</td><td>Occupies SAHI's exact India bag band. SAHI wins on design, but only if the finish holds.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="box">
+                <div class="bt">The T-shirt is going into its off-season</div>
+                <table>
+                    <tbody>
+                        <tr><td style="width:26%"><b>Canada</b></td><td>Winter Nov-Feb. Jewelry and bags carry Q1; tees held back.</td></tr>
+                        <tr><td><b>India</b></td><td>Warm all year. Tees plus jewelry, both in season every month.</td></tr>
+                        <tr><td><b>Southern hemisphere</b></td><td><b>Summer Nov-Feb. The tee's real Q1 home.</b> AU, NZ, ZA first; BR, AR, CL only after duty is checked.</td></tr>
+                    </tbody>
+                </table>
+                <div class="note"><b>Honest gap:</b> no T-shirt rival is identified in any lane yet - CA, IN or southern hemisphere. The tee is the best performer and the least understood lane in the registry. VEER reports this as a blocker every run.</div>
+            </div>
+        </div>
         </div>
 
     </div>
