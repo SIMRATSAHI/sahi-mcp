@@ -812,16 +812,18 @@
             doc.text("WeChat / WhatsApp:", 14, y + 9);
             doc.text("+86 13817827547", 50, y + 9);
             doc.setDrawColor(180, 180, 180).setLineWidth(0.5);
-            doc.setDash(1, 1);
+            doc.setLineDash([1, 1], 0);
             doc.roundedRect(130, y, 60, 25, 2, 2, 'S');
-            doc.setDash(0, 0);
+            doc.setLineDash([], 0);
             doc.setFontSize(7).setFont("helvetica", "italic").setTextColor(120, 120, 120);
             doc.text("[space reserved for company seal]", 160, y + 13, { align: "center" });
             doc.save(`SAHI_${data.po_id}.pdf`);
         }
 
         async function downloadPDF() {
-            if (lastPO) await generatePDF(lastPO);
+            if (!lastPO) return;
+            try { await generatePDF(lastPO); }
+            catch (e) { alert('Could not build the PO PDF: ' + e.message); }
         }
 
         // --- PO State Machine ---
@@ -939,10 +941,14 @@
         }
 
         async function viewPOPDF(poId) {
-            const res = await fetch(`/api/purchase-orders/${poId}/full`);
-            const data = await res.json();
-            if (data.success) { lastPO = data; await generatePDF(data); }
-            else alert('Error: ' + data.error);
+            try {
+                const res = await fetch(`/api/purchase-orders/${poId}/full`);
+                const data = await res.json();
+                if (data.success) { lastPO = data; await generatePDF(data); }
+                else alert('Error: ' + (data.error || res.status));
+            } catch (e) {
+                alert('Could not build the PO PDF: ' + e.message);
+            }
         }
 
         // --- Init ---
