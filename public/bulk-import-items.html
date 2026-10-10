@@ -150,7 +150,7 @@
         };
 
         const collectionColors = {};
-        const colorPalette = ['#FFB7C5', '#87CEEB', '#FFD700', '#98FB98', '#DDA0DD', '#F0E68C', '#AFEEEE', '#FFA07A', '#B0C4DE', '#DB7093'];
+        const colorPalette = ['#FFB7C5', '#87CEEB', '#EC407A', '#98FB98', '#DDA0DD', '#F48FB1', '#AFEEEE', '#F06292', '#B0C4DE', '#DB7093'];
 
         function getCollectionColor(coll) {
             if (!collectionColors[coll]) {
@@ -425,7 +425,7 @@
             tbody.innerHTML = parsedItems.map((item, idx) => {
                 const badgeColor = getCollectionColor(item.collection);
                 const statusIcon = item.barcode ? 'Has Barcode' : 'No Barcode';
-                const stockColor = item.qty === 0 ? '#f44336' : (item.qty < 10 ? '#FF9800' : '#2e7d32');
+                const stockColor = item.qty === 0 ? '#f44336' : (item.qty < 10 ? '#E91E63' : '#2e7d32');
                 return `
                     <tr>
                         <td>${idx + 1}</td>
