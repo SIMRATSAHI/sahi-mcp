@@ -1290,6 +1290,7 @@ app.get(['/admin-users.html'], requireAuthPage(['ADMIN']), (req, res) => res.sen
 app.get(['/b2b-orders.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-orders.html')));
 app.get(['/b2b-customers.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'b2b-customers.html')));
 app.get(['/create-b2b-order.html'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'create-b2b-order.html')));
+app.get(['/dashboard.html', '/dashboard'], requireAuthPage(['ADMIN']), (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
 app.get('/lookbook.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lookbook.html')));
 
 app.use(express.static('public'));
