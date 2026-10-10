@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAHI Portal - Acquisition Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root{
+            --brand:#87CEEB;          /* portal brand blue */
+            --brand-deep:#4FA8CE;
+            --pink:#E91E63;           /* replaces the old orange accents */
+            --pink-soft:#FFB7C5;
+            --pink-deep:#AD1457;
+            --ink:#000000;
+            --ink-2:#20242A;
+            --muted:#5C6773;
+            --line:#CFE9F5;
+            --tint:#F2FAFD;
+        }
+        body { font-family: Arial, sans-serif; background: var(--brand); padding: 20px; color: var(--ink); margin: 0; }
+        .container { max-width: 1180px; background: #fff; padding: 30px; margin: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+        .company-header { background: var(--brand); padding: 12px 20px; margin: -30px -30px 15px -30px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .company-header .info { color: var(--ink); }
+        .company-header .info .l1 { font-weight: bold; font-size: 13px; }
+        .company-header .info .l2 { font-size: 11px; }
+        .company-header .info .l3 { font-size: 9px; }
+        .company-header .logo { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 5px 14px; text-align: center; }
+        .nav { display: flex; gap: 16px; margin-bottom: 16px; border-bottom: 2px solid var(--pink-soft); padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .nav a { text-decoration: none; color: var(--pink); font-weight: bold; font-size: 13px; }
+        .nav a.active { color: var(--ink); border-bottom: 2px solid var(--pink); padding-bottom: 8px; margin-bottom: -10px; }
+
+        h2.page { color: var(--ink); margin: 4px 0 2px; font-size: 22px; }
+        .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+        .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+        .chip { font-size: 11px; font-weight: bold; padding: 5px 11px; border-radius: 20px; border: 1px solid var(--line); background: var(--tint); color: var(--ink); }
+        .chip.hot { background: var(--pink); border-color: var(--pink); color: #fff; }
+
+        .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+        .tabs button { background: transparent; border: none; border-bottom: 3px solid transparent; font-family: inherit; font-size: 13px; font-weight: bold; color: var(--muted); padding: 10px 14px; cursor: pointer; }
+        .tabs button:hover { color: var(--pink); }
+        .tabs button.on { color: var(--ink); border-bottom-color: var(--pink); }
+        .view { display: none; }
+        .view.on { display: block; }
+
+        .tiles { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+        .tile { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--pink); border-radius: 6px; padding: 14px 15px; }
+        .tile .k { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: bold; }
+        .tile .v { font-size: 24px; font-weight: bold; color: var(--pink-deep); margin-top: 5px; line-height: 1.1; }
+        .tile .n { font-size: 11px; color: var(--muted); margin-top: 4px; }
+        .tile.blue { border-left-color: var(--brand-deep); }
+        .tile.blue .v { color: #1B7FA8; }
+        .tile.ink { border-left-color: var(--ink); }
+        .tile.ink .v { color: var(--ink); }
+
+        .box { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; margin-bottom: 14px; }
+        .box .bt { font-size: 15px; font-weight: bold; margin: 0 0 3px; }
+        .box .bs { font-size: 11px; color: var(--muted); margin: 0 0 12px; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+        .hold { background: var(--tint); border: 1px solid var(--line); border-left: 4px solid var(--pink); border-radius: 6px; padding: 14px 18px; margin-bottom: 16px; }
+        .hold .ht { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: bold; color: var(--pink-deep); }
+        .hold .hb { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--brand); color: var(--ink); padding: 8px; text-align: left; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+        td { padding: 7px 8px; border-bottom: 1px solid #EAF6FB; vertical-align: middle; color: var(--ink-2); }
+        tbody tr:last-child td { border-bottom: none; }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+        tr.total td { font-weight: bold; background: var(--tint); color: var(--ink); }
+        input.act { width: 92px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; font-family: inherit; font-size: 12px; text-align: right; background: var(--tint); color: var(--ink); }
+        input.act:focus { outline: 2px solid var(--pink-soft); background: #fff; }
+        .pbar { height: 9px; background: var(--tint); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; min-width: 70px; }
+        .pfill { height: 100%; background: var(--pink); border-radius: 5px; transition: width 0.25s; }
+        .pfill.blue { background: var(--brand-deep); }
+        .pct { font-size: 12px; color: var(--muted); font-weight: bold; }
+        .pct.hit { color: var(--pink-deep); }
+
+        .fleet { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 12px; }
+        .agent { background: #fff; border: 1px solid var(--line); border-top: 3px solid var(--pink); border-radius: 6px; padding: 13px 15px; cursor: pointer; }
+        .agent .ah { display: flex; align-items: center; gap: 10px; }
+        .agent .en { width: 26px; height: 26px; border-radius: 50%; background: var(--pink-soft); color: var(--pink-deep); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex: 0 0 auto; }
+        .agent .an { font-weight: bold; font-size: 14px; }
+        .agent .ar { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: bold; }
+        .agent .bd { display: none; margin-top: 10px; }
+        .agent.open .bd { display: block; }
+        .agent .persona { font-size: 11px; color: var(--pink-deep); font-weight: bold; font-style: italic; margin: 0 0 7px; }
+        .agent .job { font-size: 12px; margin: 0 0 9px; }
+        .agent .kpi { font-size: 11px; background: var(--tint); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
+        .agent .hint { font-size: 10px; color: var(--muted); margin-top: 8px; }
+        .agent.open .hint { display: none; }
+        .badge { display: inline-block; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: bold; padding: 3px 7px; border-radius: 3px; margin-left: auto; flex: 0 0 auto; }
+        .badge.live { background: var(--pink-soft); color: var(--pink-deep); }
+        .badge.part { background: #E3E8F0; color: #39485F; }
+        .badge.build { background: var(--tint); color: #1B7FA8; }
+
+        .chan-row { display: grid; grid-template-columns: 158px 1fr 76px; gap: 10px; align-items: center; padding: 6px 0; }
+        .chan-name { font-size: 12px; font-weight: bold; }
+        .chan-track { height: 10px; background: var(--tint); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+        .chan-fill { height: 100%; border-radius: 5px; }
+        .chan-fill.ca { background: var(--pink); }
+        .chan-fill.in { background: var(--brand-deep); }
+        .chan-val { font-size: 12px; text-align: right; color: var(--muted); font-weight: bold; }
+        .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+        .seg button { background: #fff; border: none; font-family: inherit; font-size: 12px; font-weight: bold; padding: 6px 14px; cursor: pointer; color: var(--muted); }
+        .seg button.on { background: var(--pink); color: #fff; }
+
+        .months { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+        .month { background: #fff; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+        .month .mh { padding: 12px 15px; background: var(--tint); border-bottom: 1px solid var(--line); }
+        .month .mt { font-size: 14px; font-weight: bold; }
+        .month .ms { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .month ul { margin: 0; padding: 11px 15px 14px; list-style: none; }
+        .month li { font-size: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+        .month li:last-child { border-bottom: none; }
+        .month li b { display: block; font-size: 12px; }
+        .month li .dt { font-size: 10px; font-weight: bold; color: var(--pink-deep); text-transform: uppercase; letter-spacing: 0.04em; }
+        .month li.peak { background: var(--tint); margin: 4px -7px; padding: 7px; border-radius: 4px; border-bottom: none; }
+
+        .sev { font-size: 9px; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 7px; border-radius: 3px; white-space: nowrap; }
+        .sev.hi { background: var(--pink-soft); color: var(--pink-deep); }
+        .sev.md { background: var(--tint); color: #1B7FA8; }
+        .sev.lo { background: #E6ECF4; color: #39485F; }
+        .chk { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
+        .chk input { width: 15px; height: 15px; accent-color: var(--pink); cursor: pointer; }
+        .chk.done { color: var(--pink-deep); text-decoration: line-through; }
+
+        ol.rules { margin: 0; padding: 0; list-style: none; counter-reset: r; }
+        ol.rules li { counter-increment: r; position: relative; padding: 7px 0 7px 32px; font-size: 12px; border-bottom: 1px dashed var(--line); }
+        ol.rules li:last-child { border-bottom: none; }
+        ol.rules li:before { content: counter(r, decimal-leading-zero); position: absolute; left: 0; top: 7px; font-size: 10px; font-weight: bold; color: var(--pink-deep); }
+        .note { font-size: 12px; color: var(--muted); margin-top: 10px; padding: 9px 12px; background: var(--tint); border-left: 3px solid var(--pink-soft); border-radius: 0 4px 4px 0; }
+
+        @media (max-width: 900px) {
+            .tiles { grid-template-columns: 1fr 1fr; }
+            .grid2, .months { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="company-header">
+            <div class="info">
+                <div class="l1">SAHI SHANGHAI COMPANY LTD.</div>
+                <div class="l2">飒鹤（上海）贸易有限公司</div>
+                <div class="l3">统一社会信用代码：91310000MAC67Y4R3QE</div>
+            </div>
+            <div class="logo"><img src="/sahi_logo.png" alt="SAHI LONDON" style="height:40px; display:block;"></div>
+        </div>
+
+        <div class="nav">
+            <a href="/dashboard.html" class="active">Dashboard</a>
+            <a href="/">Buyer Invoice (Sell)</a>
+            <a href="/buyer-po.html">Buyer PO</a>
+            <a href="/sourcing.html">Sourcing Orders</a>
+            <a href="/create-po.html">Vendor PO (Buying)</a>
+            <a href="/invoices.html">Invoice to PO</a>
+            <a href="/receive-po.html">Receive Stock</a>
+            <a href="/items.html">Item Master</a>
+            <a href="/bulk-import-items.html">Bulk Import</a>
+            <a href="/opening-inventory.html">Opening Inventory</a>
+            <a href="/sales.html">Sales (Stock Out)</a>
+            <a href="/transfer.html">Transfer Stock</a>
+            <a href="/accounts.html">Accounts</a>
+            <a href="/admin-users.html">Manage Users</a>
+            <a href="/contacts.html">Buyers &amp; Vendors</a>
+            <a href="/b2b-orders.html">B2B Orders</a>
+        </div>
+
+        <h2 class="page">Acquisition Dashboard - Q1</h2>
+        <p class="sub">SAHI London customer acquisition plan. Canada and India, organic channels only, permanent zero paid media.</p>
+
+        <div class="chips">
+            <span class="chip hot">CAD $0 ad spend</span>
+            <span class="chip">Launch locked 1 Nov 2026</span>
+            <span class="chip">7 agents</span>
+            <span class="chip">Q1 exit = 4x launch month</span>
+            <span class="chip">China / XHS on hold</span>
+        </div>
+
+        <div class="tabs" id="tabs">
+            <button class="on" data-v="overview">Overview</button>
+            <button data-v="ladder">Revenue Ladder</button>
+            <button data-v="funnel">Funnel Math</button>
+            <button data-v="fleet">Agent Fleet</button>
+            <button data-v="channels">Channels</button>
+            <button data-v="calendar">Q1 Calendar</button>
+            <button data-v="gates">Gates &amp; Risk</button>
+        </div>
+
+        <div class="view on" id="v-overview">
+            <div class="tiles">
+                <div class="tile"><div class="k">Media budget</div><div class="v">$0</div><div class="n">Permanent. No paid ads, any platform.</div></div>
+                <div class="tile blue"><div class="k">Q1 combined target</div><div class="v">19,645</div><div class="n">CAD equivalent: 14,000 CAD + 350,000 INR</div></div>
+                <div class="tile ink"><div class="k">Launch date</div><div class="v" style="font-size:19px">1 Nov 2026</div><div class="n">Locked. Build sprint 12-31 Oct.</div></div>
+                <div class="tile"><div class="k">Agents online</div><div class="v">1 / 7</div><div class="n">ARIA running; 6 to build in the sprint</div></div>
+            </div>
+
+            <div class="hold">
+                <div class="ht">China / Xiaohongshu - On Hold</div>
+                <div class="hb">
+                    Xiaohongshu requires a <b>RMB 20,000 deposit</b> before the account can be operated. China is paused and will not be chased this quarter. No China lane appears in the plan, no agent time is allocated to it, and the China template in the scout config stays disabled. Canada and India carry the full Q1 ladder on their own.
+                </div>
+            </div>
+
+            <div class="grid2">
+                <div class="box">
+                    <div class="bt">The ladder, at a glance</div>
+                    <div class="bs">Q1 exit = 4x launch month</div>
+                    <table>
+                        <thead><tr><th></th><th class="num">M1 Nov</th><th class="num">M2 Dec</th><th class="num">M3 Jan</th><th class="num">Q1</th></tr></thead>
+                        <tbody>
+                            <tr><td>Canada (CAD)</td><td class="num">2,000</td><td class="num">4,000</td><td class="num">8,000</td><td class="num">14,000</td></tr>
+                            <tr><td>India (INR)</td><td class="num">50,000</td><td class="num">100,000</td><td class="num">200,000</td><td class="num">350,000</td></tr>
+                            <tr class="total"><td>Ad spend</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="box">
+                    <div class="bt">Build sprint checklist</div>
+                    <div class="bs">12-31 Oct 2026, before the revenue clock starts</div>
+                    <table id="sprintTable">
+                        <tbody>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s1"><span>Fix ARIA Reddit routing (HTTP 403)</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s2"><span>Pull real CAD + INR AOV from Shopify</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s3"><span>Free capture stack: email + Care Guide page + WhatsApp catalogue</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s4"><span>Lock UTM scheme; verify analytics on both stores</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s5"><span>NEHA live: DM + WhatsApp first-response SLA</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s6"><span>KABIR: 40-boutique list built, wave 1 sent</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s7"><span>ISHAN: 20 buying guides drafted, profile claimed</span></label></td></tr>
+                            <tr><td><label class="chk"><input type="checkbox" data-sk="s8"><span>Bank 14 days of content before 1 Nov</span></label></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="box">
+                <div class="bt">The one proven mechanism</div>
+                <div class="bs">Verified, not assumed. £0 / $0 cost of acquisition.</div>
+                <table>
+                    <thead><tr><th>Evidence</th><th>Detail</th><th class="num">Cost of acquisition</th></tr></thead>
+                    <tbody>
+                        <tr><td>Order C1653</td><td>JWWSSRB301C SAHI Rabbit Stud Earrings, CAD 64.99, referring site google.com, no gclid</td><td class="num">$0</td></tr>
+                        <tr><td>Paid-ad orders ever</td><td>21 Meta ad sets frozen; no Google Ads ever run</td><td class="num">$0</td></tr>
+                        <tr class="total"><td>Q1 goal</td><td>A stranger finds SAHI through an unpaid result and buys, repeated about 80 times a month</td><td class="num">$0</td></tr>
+                    </tbody>
+                </table>
+                <div class="note">Organic search has already produced one full-price sale at zero cost. ISHAN exists to reproduce that event at volume. Every other agent feeds it or converts what it brings.</div>
+            </div>
+        </div>
+
+        <div class="view" id="v-ladder">
+            <div class="box">
+                <div class="bt">Canada (CAD)</div>
+                <div class="bs">Enter actual revenue as the quarter runs. Progress is calculated against target.</div>
+                <table>
+                    <thead><tr><th>Month</th><th class="num">Target</th><th class="num">Actual</th><th style="width:20%">Progress</th><th class="num">%</th><th class="num">Orders req.</th><th class="num">AOV</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>M1</b> Nov 26</td><td class="num" data-t="2000">2,000</td><td class="num"><input class="act" type="number" min="0" step="50" data-a="ca0" placeholder="0"></td><td><div class="pbar"><div class="pfill" data-p="ca0" style="width:0%"></div></div></td><td class="num"><span class="pct" data-pc="ca0">0%</span></td><td class="num">21</td><td class="num">95</td></tr>
+                        <tr><td><b>M2</b> Dec 26</td><td class="num" data-t="4000">4,000</td><td class="num"><input class="act" type="number" min="0" step="50" data-a="ca1" placeholder="0"></td><td><div class="pbar"><div class="pfill" data-p="ca1" style="width:0%"></div></div></td><td class="num"><span class="pct" data-pc="ca1">0%</span></td><td class="num">41</td><td class="num">97</td></tr>
+                        <tr><td><b>M3</b> Jan 27</td><td class="num" data-t="8000">8,000</td><td class="num"><input class="act" type="number" min="0" step="50" data-a="ca2" placeholder="0"></td><td><div class="pbar"><div class="pfill" data-p="ca2" style="width:0%"></div></div></td><td class="num"><span class="pct" data-pc="ca2">0%</span></td><td class="num">81</td><td class="num">99</td></tr>
+                        <tr class="total"><td>Q1 total</td><td class="num">14,000</td><td class="num" id="caTotal">-</td><td colspan="4"></td></tr>
+                    </tbody>
+                </table>
+                <div class="note">Multiple: 1.0x, then 2.0x, then 4.0x. Every month doubles the one before.</div>
+            </div>
+            <div class="box">
+                <div class="bt">India (INR)</div>
+                <div class="bs">Enter actual revenue as the quarter runs.</div>
+                <table>
+                    <thead><tr><th>Month</th><th class="num">Target</th><th class="num">Actual</th><th style="width:20%">Progress</th><th class="num">%</th><th class="num">Orders req.</th><th class="num">AOV</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>M1</b> Nov 26</td><td class="num" data-t="50000">50,000</td><td class="num"><input class="act" type="number" min="0" step="1000" data-a="in0" placeholder="0"></td><td><div class="pbar"><div class="pfill blue" data-p="in0" style="width:0%"></div></div></td><td class="num"><span class="pct" data-pc="in0">0%</span></td><td class="num">18</td><td class="num">2,900</td></tr>
+                        <tr><td><b>M2</b> Dec 26</td><td class="num" data-t="100000">100,000</td><td class="num"><input class="act" type="number" min="0" step="1000" data-a="in1" placeholder="0"></td><td><div class="pbar"><div class="pfill blue" data-p="in1" style="width:0%"></div></div></td><td class="num"><span class="pct" data-pc="in1">0%</span></td><td class="num">34</td><td class="num">2,950</td></tr>
+                        <tr><td><b>M3</b> Jan 27</td><td class="num" data-t="200000">200,000</td><td class="num"><input class="act" type="number" min="0" step="1000" data-a="in2" placeholder="0"></td><td><div class="pbar"><div class="pfill blue" data-p="in2" style="width:0%"></div></div></td><td class="num"><span class="pct" data-pc="in2">0%</span></td><td class="num">67</td><td class="num">3,000</td></tr>
+                        <tr class="total"><td>Q1 total</td><td class="num">350,000</td><td class="num" id="inTotal">-</td><td colspan="4"></td></tr>
+                    </tbody>
+                </table>
+                <div class="note">INR AOV of 2,900 is an assumption, not a verified figure. CAD 95 is anchored on real SKU prices. Verify the real INR AOV from Shopify India orders in Build Week 0. If it comes in at 2,200, January needs 91 orders instead of 67.</div>
+            </div>
+        </div>
+
+        <div class="view" id="v-funnel">
+            <div class="box">
+                <div class="bt">Canada (CAD)</div>
+                <div class="bs">290 products live on sahilondon.com</div>
+                <table>
+                    <thead><tr><th></th><th class="num">M1 Nov</th><th class="num">M2 Dec</th><th class="num">M3 Jan</th></tr></thead>
+                    <tbody>
+                        <tr><td>Revenue target</td><td class="num">2,000</td><td class="num">4,000</td><td class="num">8,000</td></tr>
+                        <tr><td>Blended AOV</td><td class="num">95</td><td class="num">97</td><td class="num">99</td></tr>
+                        <tr><td>Orders required</td><td class="num"><b>21</b></td><td class="num"><b>41</b></td><td class="num"><b>81</b></td></tr>
+                        <tr><td>Orders per week</td><td class="num">4.8</td><td class="num">9.5</td><td class="num">18.6</td></tr>
+                        <tr><td>Blended site CVR</td><td class="num">1.2%</td><td class="num">1.5%</td><td class="num">1.8%</td></tr>
+                        <tr class="total"><td>Sessions required / month</td><td class="num">1,750</td><td class="num">2,733</td><td class="num">4,500</td></tr>
+                        <tr><td>Sessions per day</td><td class="num">58</td><td class="num">91</td><td class="num">145</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="box">
+                <div class="bt">India (INR)</div>
+                <div class="bs">135 products live on sahilondon.in</div>
+                <table>
+                    <thead><tr><th></th><th class="num">M1 Nov</th><th class="num">M2 Dec</th><th class="num">M3 Jan</th></tr></thead>
+                    <tbody>
+                        <tr><td>Revenue target</td><td class="num">50,000</td><td class="num">100,000</td><td class="num">200,000</td></tr>
+                        <tr><td>Blended AOV</td><td class="num">2,900</td><td class="num">2,950</td><td class="num">3,000</td></tr>
+                        <tr><td>Orders required</td><td class="num"><b>18</b></td><td class="num"><b>34</b></td><td class="num"><b>67</b></td></tr>
+                        <tr><td>Orders per week</td><td class="num">4.1</td><td class="num">7.9</td><td class="num">15.4</td></tr>
+                        <tr><td>Blended site CVR</td><td class="num">1.3%</td><td class="num">1.6%</td><td class="num">2.0%</td></tr>
+                        <tr class="total"><td>Sessions required / month</td><td class="num">1,385</td><td class="num">2,125</td><td class="num">3,350</td></tr>
+                        <tr><td>Sessions per day</td><td class="num">46</td><td class="num">71</td><td class="num">108</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="box">
+                <div class="bt">The three things that decide this</div>
+                <table>
+                    <thead><tr><th style="width:26%">Factor</th><th>Why it matters</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>Peak load is only 253 sessions/day</b></td><td>Across both stores by January. This is a consistency problem, not a traffic problem, and roughly what five daily posts per store plus an indexed content library delivers.</td></tr>
+                        <tr><td><b>The CVR lift is the whole bet</b></td><td>1.2% to 1.8% does not come from more traffic. It comes from NEHA answering DMs and WhatsApp inside 15 minutes. Agent-assisted sessions convert 8-15%.</td></tr>
+                        <tr><td><b>AOV is the cheapest lever</b></td><td>CAD 95 to 99 and INR 2,900 to 3,000 is done with bundles and a free-shipping threshold, not discounts.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="view" id="v-fleet">
+            <p class="sub" style="margin-bottom:12px;">Click any agent to expand job, KPI and guardrails.</p>
+            <div class="fleet" id="fleet">
+                <div class="agent">
+                    <div class="ah"><div class="en">01</div><div><div class="an">ARIA</div><div class="ar">Scout</div></div><span class="badge part">v0.1 live</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the trend desk"</p><p class="job">Harvests public buying-intent signals daily and turns the best into content briefs. Running at D:\SAHI-Organic-Scout since 19 Sep.</p><div class="kpi"><b>KPI</b> - 25 leads/week, 10 briefs/week, 80% source health<br><b>Fix first</b> - Reddit returns HTTP 403 on every run (datacenter IP block)</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">02</div><div><div class="an">MIRA</div><div class="ar">Content</div></div><span class="badge build">to build</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the maker"</p><p class="job">One shoot yields a reel, three stills, three pins and a story. That multiplier is what makes 21 posts a week physically possible.</p><div class="kpi"><b>KPI</b> - 21 posts/week, 3 hero SKUs/week<br><b>Lead with</b> - jewelry close-ups (6.3% ER). Bags never as a standalone hook.</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">03</div><div><div class="an">NEHA</div><div class="ar">Concierge</div></div><span class="badge build">to build</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the studio assistant"</p><p class="job">Highest-value agent in the fleet. Answers every Instagram DM and WhatsApp inside 15 minutes, qualifies, sends a tagged catalogue, recovers carts.</p><div class="kpi"><b>KPI</b> - 90% answered under 15 min, 12% DM to order<br><b>Guardrail</b> - reply-only plus opt-in. No cold DMs.</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">04</div><div><div class="an">RHEA</div><div class="ar">Aftercare</div></div><span class="badge build">to build</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the aftercare voice"</p><p class="job">Owns the customer after the sale and grows the list. The Care and Styling Guide PDF already exists at D:\sahi-lead-magnet and needs a capture page.</p><div class="kpi"><b>KPI</b> - list to 1,200, 18% repeat, 60 reviews</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">05</div><div><div class="an">KABIR</div><div class="ar">Trade</div></div><span class="badge build">to build</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the trade rep"</p><p class="job">Opens wholesale accounts and chases POs. Wholesale ignores seasonality and the algorithm, which makes it the quiet fix for a soft January.</p><div class="kpi"><b>KPI</b> - 6 accounts, CAD 2,000/month wholesale<br><b>Guardrail</b> - no PO fulfilled without a confirmed shipping address</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">06</div><div><div class="an">ISHAN</div><div class="ar">Rank</div></div><span class="badge build">to build</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the librarian"</p><p class="job">SEO on all 290 Canada and 135 India product pages, buying guides, Google Business Profile, and visibility inside AI assistants. Reproduces Order C1653 at scale.</p><div class="kpi"><b>KPI</b> - 60 guides, 12 top-10 keywords, 100 sessions/day</div></div>
+                </div>
+                <div class="agent">
+                    <div class="ah"><div class="en">07</div><div><div class="an">DEV</div><div class="ar">Gate</div></div><span class="badge build">to build</span></div>
+                    <div class="hint">Click for detail</div>
+                    <div class="bd"><p class="persona">"the scorekeeper"</p><p class="job">Board by 08:00, weekly scoreboard on Monday, and every kill-or-scale decision made by rule instead of mood.</p><div class="kpi"><b>KPI</b> - daily board on time, every gate documented</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="view" id="v-channels">
+            <div class="box">
+                <div class="bt" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <span>Sessions per month at peak</span>
+                    <span class="seg" id="chanSeg"><button class="on" data-c="ca">Canada</button><button data-c="in">India</button></span>
+                </div>
+                <div id="chanBars"></div>
+                <div class="note" id="chanNote"></div>
+            </div>
+            <div class="box">
+                <div class="bt">Why this mix</div>
+                <table>
+                    <thead><tr><th style="width:24%">Decision</th><th>Reasoning</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>Pinterest gets a fifth</b></td><td>The only surface where a jewelry or bag image keeps delivering high-intent "where to buy" clicks months after posting, at zero cost, with every pin deep-linking to a product page.</td></tr>
+                        <tr><td><b>Nothing exceeds a third</b></td><td>With 12 TikTok followers and a thin Instagram base, concentration is the main risk. Seven zero-cost channels is what makes 253 sessions a day reliable instead of lucky.</td></tr>
+                        <tr><td><b>Myntra is optional</b></td><td>About 20% of India orders can arrive through the Myntra marketplace listing on its own traffic and conversion. An accelerator, not a dependency, and it needs the listing template finished first.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="view" id="v-calendar">
+            <div class="months">
+                <div class="month">
+                    <div class="mh"><div class="mt">Month 1 - November 2026</div><div class="ms">CAD 2,000 / INR 50,000</div></div>
+                    <ul>
+                        <li><span class="dt">Nov 1-5</span><b>Pre-Diwali gifting</b>India-heavy push. Build the list before peak.</li>
+                        <li class="peak"><span class="dt">Nov 6 - Dhanteras</span><b>Peak jewelry intent day of the Indian year</b>Full push, India.</li>
+                        <li class="peak"><span class="dt">Nov 8 - Diwali</span><b>Both markets at once</b>India primary, Canada via GTA diaspora. One shoot, two captions.</li>
+                        <li><span class="dt">Nov 10-11</span><b>Bhai Dooj</b>Sibling gifting angle.</li>
+                        <li><span class="dt">Nov 12-20</span><b>Retention window</b>Post-Diwali follow-up plus the first B2B reorder cycle.</li>
+                        <li class="peak"><span class="dt">Nov 27 - Black Friday</span><b>Bundle-led, not discount-led</b>Both markets.</li>
+                        <li class="peak"><span class="dt">Nov 30 - Cyber Monday</span><b>Last call</b>Email list conversion push.</li>
+                    </ul>
+                </div>
+                <div class="month">
+                    <div class="mh"><div class="mt">Month 2 - December 2026</div><div class="ms">CAD 4,000 / INR 100,000</div></div>
+                    <ul>
+                        <li><span class="dt">Dec 1-10</span><b>Christmas gifting</b>SEO gift guides live. Corporate gifting outreach.</li>
+                        <li><span class="dt">Dec 12-20</span><b>Shipping deadline</b>Urgency rounds. Free-shipping threshold push.</li>
+                        <li><span class="dt">Dec 21-25</span><b>Last minute</b>Digital gift card and in-stock only.</li>
+                        <li><span class="dt">Dec 26</span><b>Boxing Day</b>Single-day event, Canada only.</li>
+                        <li><span class="dt">Dec 27-31</span><b>New Year edit</b>Year-end styling content and list re-engagement.</li>
+                    </ul>
+                </div>
+                <div class="month">
+                    <div class="mh"><div class="mt">Month 3 - January 2027</div><div class="ms">CAD 8,000 / INR 200,000</div></div>
+                    <ul>
+                        <li><span class="dt">Jan 1-6</span><b>Reset</b>New Year content. Valentines pre-build.</li>
+                        <li class="peak"><span class="dt">Jan 7-20</span><b>Valentines early-bird</b>Highest-margin gift window of the quarter. Canada.</li>
+                        <li><span class="dt">Jan 14-26</span><b>Republic Day</b>India festive angle, a second wind after Diwali.</li>
+                        <li class="peak"><span class="dt">Jan 20-31</span><b>Q1 close push</b>Empty the board on the 4x target, then reconcile and publish the Q1 board.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="note"><b>Seasonality warning.</b> November and December are peak. January is a soft retail month in Canada, which makes the CAD 8,000 step the hardest single move in this plan. It leans on three things that do not depend on Christmas momentum: B2B wholesale reorders, Valentines early-bird gifting, and the email/WhatsApp list built during Nov-Dec finally being monetised directly. If the list is not built by 31 December, January will miss.</div>
+        </div>
+
+        <div class="view" id="v-gates">
+            <div class="box">
+                <div class="bt">Gates - decisions made by rule, not by mood</div>
+                <table>
+                    <thead><tr><th style="width:13%">Gate</th><th style="width:36%">Trigger</th><th>Action</th><th style="width:8%" class="num">Severity</th></tr></thead>
+                    <tbody>
+                        <tr><td><b>Format</b></td><td>A content format posts 3 consecutive times under 200 views</td><td>Swap the first 2 seconds and repost. Retire if it fails again.</td><td class="num"><span class="sev lo">Low</span></td></tr>
+                        <tr><td><b>Channel</b></td><td>Live 14 days with 0 attributed orders and under 0.5% CVR</td><td>Pause it. Reallocate effort to the best performer.</td><td class="num"><span class="sev md">Medium</span></td></tr>
+                        <tr><td><b>Hero SKU</b></td><td>Traffic but 0 orders in 21 days</td><td>Swap the hero. Stop promoting what nobody buys.</td><td class="num"><span class="sev md">Medium</span></td></tr>
+                        <tr><td><b>Stop</b></td><td>Two consecutive weeks below 70% of the weekly order target</td><td>Freeze all new content production. Run a full diagnostic.</td><td class="num"><span class="sev hi">High</span></td></tr>
+                        <tr><td><b>Ladder</b></td><td>A month closes below 80% of its revenue target</td><td>Re-forecast the remaining months before continuing.</td><td class="num"><span class="sev hi">High</span></td></tr>
+                        <tr><td><b>Spend</b></td><td>Any request for paid media</td><td>Explicit written approval required. Default answer is no.</td><td class="num"><span class="sev hi">High</span></td></tr>
+                        <tr><td><b>Credit</b></td><td>Any bulk AI generation run</td><td>Report estimated credits and runtime before executing.</td><td class="num"><span class="sev md">Medium</span></td></tr>
+                    </tbody>
+                </table>
+                <div class="note"><b>Scale rule:</b> a channel beating its session target by more than 30% for two straight weeks gets a proposed cadence increase. Winners are funded with time, losers are paused. That is how a zero budget still allocates capital.</div>
+            </div>
+            <div class="grid2">
+                <div class="box">
+                    <div class="bt">Guardrails</div>
+                    <ol class="rules">
+                        <li><b>No paid ads.</b> Ever. No boosted posts, no Promote, no sponsored placements.</li>
+                        <li><b>No GIFs</b> anywhere in the content pipeline.</li>
+                        <li><b>No "WorkBuddy"</b> or internal tooling names in public copy.</li>
+                        <li><b>Festival narrative in captions,</b> never baked into pixels.</li>
+                        <li><b>Manual publish stays manual.</b> Agents prepare; humans publish.</li>
+                        <li><b>Brand voice:</b> "made by hand. worn with intent." closing "Sahi London. Where art meets what you wear."</li>
+                        <li><b>SKU codes in all reporting.</b> No numeric listing IDs.</li>
+                        <li><b>Selling-floor prices never in customer-facing copy.</b></li>
+                        <li><b>Solemn dates respected:</b> nothing promotional on Truth and Reconciliation Day, or before 11:00 on Remembrance Day.</li>
+                        <li><b>One market per post.</b> Meta scope stays sahi_london and sahilondon_in.</li>
+                    </ol>
+                </div>
+                <div class="box">
+                    <div class="bt">Risk register</div>
+                    <table>
+                        <thead><tr><th>Risk</th><th style="width:20%">Exposure</th><th>Mitigation</th></tr></thead>
+                        <tbody>
+                            <tr><td>January seasonality breaks the 4x step</td><td><span class="sev hi">High</span></td><td>Front-load list building; B2B and Valentines carry January</td></tr>
+                            <tr><td>Real INR AOV below 2,900</td><td><span class="sev md">Medium</span></td><td>Verify in Week 0; add Myntra volume or a fourth channel</td></tr>
+                            <tr><td>TikTok pipeline fails again</td><td><span class="sev hi">High</span></td><td>Manual post is the fallback; never a single point of failure</td></tr>
+                            <tr><td>Scout Reddit source stays blocked</td><td><span class="sev lo">Low</span></td><td>Reddit is 4% of the mix; alternates identified</td></tr>
+                            <tr><td>Operator time is the bottleneck</td><td><span class="sev hi">High</span></td><td>Agents prepare everything; human only publishes and approves</td></tr>
+                            <tr><td>Content outruns asset supply</td><td><span class="sev md">Medium</span></td><td>One-shoot-many-assets rule; 156 SKU asset folders exist</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+    (function () {
+        "use strict";
+
+        var tabs = document.getElementById('tabs');
+        tabs.addEventListener('click', function (e) {
+            var b = e.target.closest('button');
+            if (!b) { return; }
+            var v = b.getAttribute('data-v');
+            Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (x) {
+                x.classList.toggle('on', x === b);
+            });
+            Array.prototype.forEach.call(document.querySelectorAll('.view'), function (s) {
+                s.classList.toggle('on', s.id === 'v-' + v);
+            });
+        });
+
+        var store = {
+            get: function (k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+            set: function (k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+        };
+
+        function wireLadder(prefix, totalId) {
+            function recount() {
+                var t = 0, has = false;
+                for (var i = 0; i < 3; i++) {
+                    var el = document.querySelector('[data-a="' + prefix + i + '"]');
+                    var v = parseFloat(el.value);
+                    if (!isNaN(v) && v > 0) { has = true; }
+                    t += (isNaN(v) ? 0 : v);
+                }
+                document.getElementById(totalId).textContent = has ? t.toLocaleString('en-US') : '-';
+            }
+            for (var i = 0; i < 3; i++) {
+                (function (idx) {
+                    var inp = document.querySelector('[data-a="' + prefix + idx + '"]');
+                    var fill = document.querySelector('[data-p="' + prefix + idx + '"]');
+                    var pctEl = document.querySelector('[data-pc="' + prefix + idx + '"]');
+                    var target = parseFloat(inp.closest('tr').querySelector('[data-t]').getAttribute('data-t'));
+                    var saved = store.get('acq-' + prefix + idx);
+                    if (saved !== null && saved !== '') { inp.value = saved; }
+                    function upd() {
+                        var v = parseFloat(inp.value);
+                        if (isNaN(v) || v < 0) { v = 0; }
+                        var pct = target ? (v / target) * 100 : 0;
+                        fill.style.width = Math.min(100, pct) + '%';
+                        pctEl.textContent = Math.round(pct) + '%';
+                        pctEl.classList.toggle('hit', pct >= 100);
+                        store.set('acq-' + prefix + idx, inp.value);
+                        recount();
+                    }
+                    inp.addEventListener('input', upd);
+                    upd();
+                })(i);
+            }
+        }
+        wireLadder('ca', 'caTotal');
+        wireLadder('in', 'inTotal');
+
+        Array.prototype.forEach.call(document.querySelectorAll('#sprintTable input[type=checkbox]'), function (cb) {
+            var k = 'acq-' + cb.getAttribute('data-sk');
+            if (store.get(k) === '1') { cb.checked = true; }
+            var lab = cb.closest('.chk');
+            if (cb.checked) { lab.classList.add('done'); }
+            cb.addEventListener('change', function () {
+                store.set(k, cb.checked ? '1' : '0');
+                lab.classList.toggle('done', cb.checked);
+            });
+        });
+
+        Array.prototype.forEach.call(document.querySelectorAll('#fleet .agent'), function (a) {
+            a.addEventListener('click', function () { a.classList.toggle('open'); });
+        });
+
+        var CHAN = {
+            ca: {
+                note: '<b>Canada total: 4,500 sessions/month by January.</b> Instagram carries the largest share, but Pinterest and organic search together deliver 1,700, nearly two-fifths of the plan, and both compound instead of resetting each time you post.',
+                rows: [['Instagram organic', 1100], ['Pinterest', 900], ['Google organic', 800], ['TikTok bio link', 700], ['Email + WhatsApp', 500], ['B2B / direct / ref.', 300], ['Communities', 200]]
+            },
+            in: {
+                note: '<b>India total: 3,350 sessions/month by January.</b> Myntra contributes 400 sessions on its own traffic and conversion, which is why the own-site requirement is lower here than the raw order count suggests. WhatsApp is the strongest owned channel in this market.',
+                rows: [['Instagram organic', 1100], ['Pinterest', 600], ['Google organic', 550], ['Email + WhatsApp', 450], ['Myntra', 400], ['Communities', 250]]
+            }
+        };
+        function drawChannels(key) {
+            var d = CHAN[key], max = 0, html = '';
+            d.rows.forEach(function (r) { if (r[1] > max) { max = r[1]; } });
+            d.rows.forEach(function (r) {
+                html += '<div class="chan-row"><div class="chan-name">' + r[0] + '</div>' +
+                        '<div class="chan-track"><div class="chan-fill ' + key + '" style="width:' + Math.round((r[1] / max) * 100) + '%"></div></div>' +
+                        '<div class="chan-val">' + r[1].toLocaleString('en-US') + '</div></div>';
+            });
+            document.getElementById('chanBars').innerHTML = html;
+            document.getElementById('chanNote').innerHTML = d.note;
+        }
+        drawChannels('ca');
+        var chanSeg = document.getElementById('chanSeg');
+        chanSeg.addEventListener('click', function (e) {
+            var b = e.target.closest('button');
+            if (!b) { return; }
+            Array.prototype.forEach.call(chanSeg.querySelectorAll('button'), function (x) {
+                x.classList.toggle('on', x === b);
+            });
+            drawChannels(b.getAttribute('data-c'));
+        });
+    })();
+    </script>
+</body>
+</html>
