@@ -568,8 +568,16 @@
                     if (d.section === 'body' && d.column.index === 5) d.cell.styles.halign = 'right';
                 }
             });
+            const skuSet = {};
+            let totalQty = 0;
+            data.lines.forEach(l => {
+                skuSet[l.sku] = true;
+                totalQty += parseInt(l.qty, 10) || 0;
+            });
+            const totalSkus = Object.keys(skuSet).length;
             const finalY = doc.lastAutoTable.finalY + 10;
             doc.setFontSize(12).setFont('helvetica', 'bold');
+            doc.text('TOTAL SKUs: ' + totalSkus + '   |   TOTAL QTY: ' + totalQty, 14, finalY);
             doc.text('GRAND TOTAL: ' + data.currency + ' ' + data.grand_total_local.toFixed(2), 195, finalY, { align: 'right' });
             doc.save('SAHI_Invoice_' + data.order_id + '.pdf');
         }
