@@ -19,7 +19,7 @@
         .btn:hover { background: #6bc3de; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
         .btn-go { background: #4CAF50; color: #fff; }
-        .btn-warn { background: #ff9800; color: #fff; }
+        .btn-warn { background: #E91E63; color: #fff; }
         .btn:disabled { background: #ccc; color: #888; cursor: not-allowed; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th { background: #87CEEB; color: #000; padding: 7px; text-align: left; }
@@ -38,11 +38,11 @@
         .item-card .mt { font-size: 11px; color: #777; line-height: 1.5; }
         .item-card .qtyline { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
         .item-card input[type=number] { width: 80px; }
-        .sumbar { position: sticky; top: 0; background: #fffbe8; border: 1px solid #e8d48b; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: bold; margin: 10px 0; z-index: 5; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+        .sumbar { position: sticky; top: 0; background: #fffbe8; border: 1px solid #F8BBD0; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: bold; margin: 10px 0; z-index: 5; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
         .chip { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; background: #e3f2fd; color: #1565c0; }
         .stepnum { display: inline-block; background: #000; color: #fff; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 6px; }
         .st { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; white-space: nowrap; }
-        .st-PROPOSED { background: #fff3c4; color: #8a6d00; }
+        .st-PROPOSED { background: #fff3c4; color: #AD1457; }
         .st-SENT { background: #e3f2fd; color: #1565c0; }
         .st-CONFIRMED { background: #ede7f6; color: #5e35b1; }
         .st-DEPOSIT_PAID { background: #e0f2f1; color: #00695c; }
@@ -269,7 +269,7 @@
                 fmtRMB(left) + (left < 0 ? ' OVER' : '') + '</span>';
         }
         const tbcHtml = tbc
-            ? ' &nbsp;|&nbsp; <span class="chip" style="background:#ffe0b2; color:#a15c00;" title="These items have no price in the vendor quotation. They count as 0 in the total - ask the vendor to quote them.">' +
+            ? ' &nbsp;|&nbsp; <span class="chip" style="background:#FCE4EC; color:#C2185B;" title="These items have no price in the vendor quotation. They count as 0 in the total - ask the vendor to quote them.">' +
               tbc + ' item' + (tbc > 1 ? 's' : '') + ' price TBC</span>'
             : '';
         bar.style.display = 'flex';
