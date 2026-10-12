@@ -2154,10 +2154,11 @@ app.post('/api/create-po', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) 
       const exists = await pool.query("SELECT sku FROM item_master WHERE sku = $1", [item.sku]);
       if (exists.rows.length === 0) {
         const newSku = `${vendorCategory}${yearCode}${collectionCode}-${departmentCode}${Date.now().toString().slice(-3)}-${colorCode}`;
+        const autoBarcode = await allocChinaEan13(pool);
         await pool.query(
-          `INSERT INTO item_master (sku, friendly_name, category_code, year_code, collection_code, department_code, color_code, hs_code, std_cost_rmb, description, material, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, '9505100090', $8, $9, $10, $11)`,
-          [newSku, `Auto-created ${newSku}`, vendorCategory, yearCode, collectionCode, departmentCode, colorCode, item.unit_price * 7.0, 'New Item', material, req.user.email]
+          `INSERT INTO item_master (sku, barcode, friendly_name, category_code, year_code, collection_code, department_code, color_code, hs_code, std_cost_rmb, description, material, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '9505100090', $9, $10, $11, $12)`,
+          [newSku, autoBarcode, `Auto-created ${newSku}`, vendorCategory, yearCode, collectionCode, departmentCode, colorCode, item.unit_price * 7.0, 'New Item', material, req.user.email]
         );
         await pool.query("INSERT INTO inventory (sku, org_id, quantity_on_hand) VALUES ($1, 1, 0)", [newSku]);
         item.sku = newSku;
@@ -6402,12 +6403,32 @@ app.get('/api/diag/sourcing', (req, res) => {
 
 // Valid EAN-13 in the GS1 200-299 internal-use range (no GS1 licence needed,
 // scans on any standard scanner, resolves only inside this portal).
-function sourcingGenEan13() {
-  let body = '200' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
-  let sum = 0;
-  for (let i = 0; i < 12; i++) sum += parseInt(body[i], 10) * (i % 2 === 0 ? 1 : 3);
-  const check = (10 - (sum % 10)) % 10;
-  return body + String(check);
+// GTIN allocation - COMPANY GS1 CHINA POOL ONLY (locked 2026-10-12).
+// 6941181 is the company's registered GS1 China prefix; the 5 digits that follow are the
+// item reference, allocated strictly sequentially from the highest value already in use.
+// The random 200-range "internal use" codes minted before 2026-10-12 are RETIRED and are
+// never re-issued. A barcode is allocated exactly once, at item creation, and never reused.
+const COMPANY_GTIN_PREFIX = '6941181';
+function gtinCheckDigit(body12) {
+  let s = 0;
+  for (let i = 0; i < 12; i++) s += parseInt(body12[i], 10) * (i % 2 === 0 ? 1 : 3);
+  return String((10 - (s % 10)) % 10);
+}
+async function allocChinaEan13(client) {
+  const db = client || pool;
+  const res = await db.query(
+    "SELECT COALESCE(MAX(CAST(substring(barcode from 8 for 5) AS integer)), 0) AS maxref " +
+    "FROM item_master WHERE barcode LIKE '6941181%' AND length(barcode) = 13"
+  );
+  let ref = Number(res.rows[0].maxref) + 1;
+  for (let guard = 0; guard < 2000; guard++, ref++) {
+    if (ref > 99999) throw new Error('GS1 China item-reference pool exhausted for prefix ' + COMPANY_GTIN_PREFIX);
+    const body = COMPANY_GTIN_PREFIX + String(ref).padStart(5, '0');
+    const code = body + gtinCheckDigit(body);
+    const dup = await db.query('SELECT 1 FROM item_master WHERE barcode = $1 LIMIT 1', [code]);
+    if (!dup.rows.length) return code;
+  }
+  throw new Error('could not allocate a free GTIN from the ' + COMPANY_GTIN_PREFIX + ' pool');
 }
 
 // Import the vendor-CONFIRMED order sheet (same format as the downloaded one:
@@ -6478,13 +6499,36 @@ app.post('/api/sourcing/parse-order-file', requireAuthApi(['ADMIN', 'BUYER']), i
   }
 });
 
-// Create item_master rows from the CONFIRMED order lines + auto EAN-13 barcode.
+// COMPLIANCE CHECKPOINT (Simrat, 2026-10-12) - NO "MIX" COLOUR ITEMS.
+// Every colour of a style must be its own item with its own barcode; a "MIX" code makes
+// colour-level sales tracking impossible (critical for BAG: the colour IS the SKU).
+function mixColorViolations(entries) {
+  const bad = [];
+  for (const e of (entries || [])) {
+    const code = String(e.sku || e.sahi_code || e.vendor_sku || '').trim();
+    const name = String(e.name || e.friendly_name || e.description || '');
+    const colorSeg = code.includes('-') ? code.split('-').pop() : '';
+    if (/^mix$/i.test(colorSeg) || /(^|[-_\s])mix($|[-_\s])/i.test(code) || /mix\s*colou?rs?/i.test(name)) {
+      bad.push(code || name);
+    }
+  }
+  return bad;
+}
+
+// Create item_master rows from the CONFIRMED order lines + auto GTIN barcode.
 // Ensures the vendor exists (category HD, currency RMB). Items start with 0 stock;
 // the PO that follows brings the qty in via receiving.
 app.post('/api/sourcing/create-items', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { vendor_code, vendor_name, items } = req.body;
   if (!vendor_code || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'vendor_code and items[] required' });
+  }
+  const mixBad = mixColorViolations(items);
+  if (mixBad.length) {
+    return res.status(400).json({
+      error: 'MIX colour items are not allowed. Define each colour as its own item with its own barcode.',
+      offending: mixBad
+    });
   }
   const client = await pool.connect();
   const created = [], existing = [], errors = [];
@@ -6507,7 +6551,7 @@ app.post('/api/sourcing/create-items', requireAuthApi(['ADMIN', 'BUYER']), async
           existing.push({ sku: it.sku, barcode: dup.rows[0].barcode });
           continue;
         }
-        const barcode = sourcingGenEan13();
+        const barcode = await allocChinaEan13(client);
         const price = parseFloat(it.unit_price) || 0;
         await client.query(
           `INSERT INTO item_master (sku, barcode, friendly_name,
@@ -6569,6 +6613,13 @@ app.get('/api/sourcing/orders', requireAuthApi(['ADMIN', 'BUYER']), async (req, 
 app.post('/api/sourcing/propose', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
   const { vendor_code, vendor_name, items, delivery_date } = req.body || {};
   if (!vendor_code || !Array.isArray(items) || !items.length) return res.status(400).json({ error: 'vendor_code and items[] required' });
+  const mixBad = mixColorViolations(items);
+  if (mixBad.length) {
+    return res.status(400).json({
+      error: 'MIX colour lines are not allowed. Split the style into one line per colour (own SAHI code + barcode).',
+      offending: mixBad
+    });
+  }
   const lines = items.map(it => ({
     vendor_sku: String(it.vendor_sku || it.sku || ''),
     name: it.name || '', category: it.category || it.sub || '',
