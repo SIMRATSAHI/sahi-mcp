@@ -914,9 +914,11 @@
             else alert('Error: ' + data.error);
         }
 
+        // Human-only actions: the server requires the X-Human-Confirm key, so these
+        // three calls can only ever originate from a real logged-in human clicking.
         async function approvePO(poId) {
             if (!confirm('Approve this PO?')) return;
-            const res = await fetch(`/api/purchase-orders/${poId}/approve`, { method: 'POST' });
+            const res = await fetch(`/api/purchase-orders/${poId}/approve`, { method: 'POST', headers: { 'X-Human-Confirm': poId } });
             const data = await res.json();
             if (data.success) { alert('PO approved!'); loadPOList(); }
             else alert('Error: ' + data.error);
@@ -927,7 +929,7 @@
             if (reason === null) return;
             const res = await fetch(`/api/purchase-orders/${poId}/reject`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-Human-Confirm': poId },
                 body: JSON.stringify({ reason })
             });
             const data = await res.json();
@@ -937,7 +939,7 @@
 
         async function issuePO(poId) {
             if (!confirm('Issue this PO to the supplier?')) return;
-            const res = await fetch(`/api/purchase-orders/${poId}/issue`, { method: 'POST' });
+            const res = await fetch(`/api/purchase-orders/${poId}/issue`, { method: 'POST', headers: { 'X-Human-Confirm': poId } });
             const data = await res.json();
             if (data.success) { alert('PO issued to supplier!'); loadPOList(); }
             else alert('Error: ' + data.error);
