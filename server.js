@@ -6524,12 +6524,14 @@ app.post('/api/sourcing/create-items', requireAuthApi(['ADMIN', 'BUYER']), async
     return res.status(400).json({ error: 'vendor_code and items[] required' });
   }
   const mixBad = mixColorViolations(items);
-  if (mixBad.length) {
+  const bagMix = mixBad.filter(c => /^BG/i.test(String(c)));
+  if (bagMix.length) {
     return res.status(400).json({
-      error: 'MIX colour items are not allowed. Define each colour as its own item with its own barcode.',
-      offending: mixBad
+      error: 'BAG: MIX colour items are not allowed. Every colour is its own item with its own barcode.',
+      offending: bagMix
     });
   }
+  if (mixBad.length) console.warn('[compliance] MIX colour codes outside BAG (flagged, not blocked): ' + mixBad.join(', '));
   const client = await pool.connect();
   const created = [], existing = [], errors = [];
   try {
@@ -6614,12 +6616,14 @@ app.post('/api/sourcing/propose', requireAuthApi(['ADMIN', 'BUYER']), async (req
   const { vendor_code, vendor_name, items, delivery_date } = req.body || {};
   if (!vendor_code || !Array.isArray(items) || !items.length) return res.status(400).json({ error: 'vendor_code and items[] required' });
   const mixBad = mixColorViolations(items);
-  if (mixBad.length) {
+  const bagMix = mixBad.filter(c => /^BG/i.test(String(c)));
+  if (bagMix.length) {
     return res.status(400).json({
-      error: 'MIX colour lines are not allowed. Split the style into one line per colour (own SAHI code + barcode).',
-      offending: mixBad
+      error: 'BAG: MIX colour lines are not allowed. Split the style into one line per colour (own SAHI code + barcode).',
+      offending: bagMix
     });
   }
+  if (mixBad.length) console.warn('[compliance] MIX colour codes outside BAG (flagged, not blocked): ' + mixBad.join(', '));
   const lines = items.map(it => ({
     vendor_sku: String(it.vendor_sku || it.sku || ''),
     name: it.name || '', category: it.category || it.sub || '',
