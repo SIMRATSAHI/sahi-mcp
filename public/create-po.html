@@ -676,10 +676,13 @@
             const logoDataUrl = await loadImageDataUrl('/sahi_logo.png');
             const items = data.items || [];
 
-            const imageUrls = items.map(i => {
-                const base = i.vendor_item_number || i.sku;
-                return `./images/${base}.jpg`;
-            });
+            const imageUrls = await Promise.all(items.map(async i => {
+                if (i.vendor_item_number) {
+                    const v = await loadImageDataUrl(`./images/${i.vendor_item_number}.jpg`);
+                    if (v) return `./images/${i.vendor_item_number}.jpg`;
+                }
+                return `./images/${i.sku || ''}.jpg`;
+            }));
             const images = await Promise.all(imageUrls.map(u => loadImageDataUrl(u)));
 
             doc.setFillColor('#87CEEB');
