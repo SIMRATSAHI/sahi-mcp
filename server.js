@@ -980,7 +980,7 @@ function getSessionUser(req) {
   // Signed cookie path — survives restarts
   const signed = verifySessionCookie(token);
   if (signed) {
-    return { userId: signed.userId, email: signed.email, role: signed.role, name: signed.name, company: signed.company, hst_gst: signed.hst_gst };
+    return { userId: signed.userId, email: signed.email, role: signed.role, name: signed.name, company: signed.company, hst_gst: signed.hst_gst, svc: signed.svc === true };
   }
   // Legacy: in-memory session id (kept as fallback for back-compat)
   return sessions.get(token) || null;
@@ -1022,6 +1022,42 @@ function requireAuthApi(rolesAllowed) {
     next();
   };
 }
+
+// ---------- STRICT COMPLIANCE GATE: PO approval authority is human-only ----------
+// A session minted with { svc: true } is a machine/service session (the PO build
+// pipeline). Service sessions may create items, create POs and SUBMIT them, but can
+// never approve, reject or issue one. Approval belongs to a human admin who is
+// logged in through /login. Two independent keys are required, so neither a stray
+// scripted POST nor a forgotten probe can ever flip a PO to APPROVED:
+//   key 1  the session must not be a service session (svc !== true)
+//   key 2  the request must carry X-Human-Confirm: <po_id> matching the target PO
+// Every refusal is written to activity_log as HUMAN_APPROVAL_BLOCKED.
+const HUMAN_ONLY_PO_ACTION = { approve: 'approve', reject: 'reject', issue: 'issue' };
+function requireHumanPOAction(action) {
+  return async (req, res, next) => {
+    const user = req.user || {};
+    const poId = req.params.po_id;
+    const confirm = String(req.get('X-Human-Confirm') || '').trim();
+    if (user.svc === true) {
+      await logActivity(user, 'HUMAN_APPROVAL_BLOCKED', poId, {
+        action, reason: 'service session may not perform this action', path: req.originalUrl
+      });
+      return res.status(403).json({
+        error: 'Service sessions may not approve, reject or issue purchase orders. Approval is human-only.'
+      });
+    }
+    if (confirm !== String(poId)) {
+      await logActivity(user, 'HUMAN_APPROVAL_BLOCKED', poId, {
+        action, reason: 'missing or mismatched X-Human-Confirm header', path: req.originalUrl
+      });
+      return res.status(428).json({
+        error: 'Human confirmation required. Re-send with header X-Human-Confirm: ' + poId
+      });
+    }
+    next();
+  };
+}
+// -------------------------------------------------------------------------------
 
 // Increase (or decrease, with a negative delta) on-hand quantity for a sku at a site.
 async function adjustInventory(client, sku, org_id, delta) {
@@ -2489,7 +2525,7 @@ app.post('/api/purchase-orders/:po_id/submit', requireAuthApi(['ADMIN', 'BUYER']
 });
 
 // Approve a SUBMITTED PO. Only ADMIN can approve.
-app.post('/api/purchase-orders/:po_id/approve', requireAuthApi(['ADMIN']), async (req, res) => {
+app.post('/api/purchase-orders/:po_id/approve', requireAuthApi(['ADMIN']), requireHumanPOAction(HUMAN_ONLY_PO_ACTION.approve), async (req, res) => {
   try {
     const r = await pool.query('SELECT status, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'PO not found' });
@@ -2516,7 +2552,7 @@ app.post('/api/purchase-orders/:po_id/approve', requireAuthApi(['ADMIN']), async
 });
 
 // Reject a SUBMITTED PO. Sends it back to DRAFT with a reason.
-app.post('/api/purchase-orders/:po_id/reject', requireAuthApi(['ADMIN']), async (req, res) => {
+app.post('/api/purchase-orders/:po_id/reject', requireAuthApi(['ADMIN']), requireHumanPOAction(HUMAN_ONLY_PO_ACTION.reject), async (req, res) => {
   const { reason } = req.body;
   try {
     const r = await pool.query('SELECT status, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
@@ -2544,7 +2580,7 @@ app.post('/api/purchase-orders/:po_id/reject', requireAuthApi(['ADMIN']), async 
 });
 
 // Issue an APPROVED PO to the supplier (dispatch). Transitions to ISSUED.
-app.post('/api/purchase-orders/:po_id/issue', requireAuthApi(['ADMIN', 'BUYER']), async (req, res) => {
+app.post('/api/purchase-orders/:po_id/issue', requireAuthApi(['ADMIN', 'BUYER']), requireHumanPOAction(HUMAN_ONLY_PO_ACTION.issue), async (req, res) => {
   try {
     const r = await pool.query('SELECT status, version FROM purchase_orders WHERE po_id = $1', [req.params.po_id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'PO not found' });
