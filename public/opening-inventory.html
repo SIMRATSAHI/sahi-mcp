@@ -159,8 +159,9 @@
             <span id="bulkPriceStatus" style="margin-left:8px; color:#888; font-size:13px;"></span>
         </div>
         <input type="text" id="savedSearchInput" placeholder="Search SKU / barcode / collection (FN, IB, BC, AI...) / warehouse / created by..."
-               oninput="renderSavedTable()"
+               oninput="renderSavedTable()" list="savedSkuList"
                style="width:100%; max-width:520px; padding:8px 12px; font-size:14px; border:1px solid #ddd; border-radius:6px; margin-bottom:10px;">
+        <datalist id="savedSkuList"></datalist>
         <button class="btn" id="savedCsvBtn" onclick="downloadSavedCSV()" style="margin-bottom:10px; margin-left:8px; vertical-align:top;">&#11015; Download CSV (Barcode + SKU + Qty)</button>
         <button class="btn" id="savedXlsxBtn" onclick="downloadSavedXLSX()" style="margin-bottom:10px; margin-left:8px; vertical-align:top;">&#11015; Download Excel (readable barcode)</button>
         <span class="hint" style="font-size:11px; color:#888; margin-left:8px;">Exports what you currently see (respects the search box) — edit the Qty column, then import the file on the Buyer PO page. Use <b>Excel</b>: the CSV opens with 13-digit barcodes shown as 6.94118E+12.</span>
@@ -1009,15 +1010,9 @@
         // (Excel-friendly, BOM + CRLF). Columns: SKU, Barcode, Qty — the same
         // format the Buyer PO file-import reads back.
         function downloadSavedCSV() {
-            const term = (document.getElementById('savedSearchInput').value || '').trim().toLowerCase();
-            let rows = savedInventory || [];
-            if (term) {
-                const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
-                rows = rows.filter(r => {
-                    const hay = [r.sku, r.barcode, deriveCollection(r.sku), orgNames[r.org_id] || String(r.org_id || ''), r.created_by].join(' ').toLowerCase();
-                    return hay.includes(term);
-                });
-            }
+            const picked = computeSavedRows();
+            const term = picked.term;
+            let rows = picked.rows.slice();
             if (!rows.length) { alert('Nothing to download — no rows match the current search.'); return; }
             const esc = (v) => { v = (v === null || v === undefined) ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
             const lines = ['SKU,Barcode,Qty,Item Name,Color,Department'];
@@ -1037,15 +1032,9 @@
         // Use this one when the barcode has to stay readable / re-importable:
         // a 13-digit number formatted as a number renders as 6.94118E+12 in Excel.
         function downloadSavedXLSX() {
-            const term = (document.getElementById('savedSearchInput').value || '').trim().toLowerCase();
-            let rows = savedInventory || [];
-            if (term) {
-                const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
-                rows = rows.filter(r => {
-                    const hay = [r.sku, r.barcode, deriveCollection(r.sku), orgNames[r.org_id] || String(r.org_id || ''), r.created_by].join(' ').toLowerCase();
-                    return hay.includes(term);
-                });
-            }
+            const picked = computeSavedRows();
+            const term = picked.term;
+            let rows = picked.rows.slice();
             if (!rows.length) { alert('Nothing to download — no rows match the current search.'); return; }
             const aoa = [['SKU', 'Barcode', 'Qty', 'Item Name', 'Color', 'Department']];
             rows.forEach(r => {
@@ -1070,28 +1059,99 @@
             XLSX.writeFile(wb, 'opening_inventory' + (term ? '_' + term.replace(/[^a-z0-9]+/gi, '-') : '') + '.xlsx');
         }
 
+
+        // ---- Saved-inventory search ------------------------------------
+        // Tolerant search. An exact substring miss falls back to the closest
+        // SKUs, because one collection gets typed many ways: "jwvssfn" when the
+        // real family is JW22SSFN (season block is 22, not V). The comparison
+        // also runs on the digit-stripped SKU so season digits never block a
+        // letter match. The table is never blanked -- worst case it shows every
+        // row, so "which SKU has what qty" is always answerable.
+        function levDistance(a, b) {
+            const m = a.length, n = b.length;
+            if (!m) return n;
+            if (!n) return m;
+            const prev = [];
+            for (let j = 0; j <= n; j++) prev[j] = j;
+            for (let i = 1; i <= m; i++) {
+                const cur = [i];
+                for (let j = 1; j <= n; j++) {
+                    cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                }
+                for (let k = 0; k <= n; k++) prev[k] = cur[k];
+            }
+            return prev[n];
+        }
+
+        function fillSavedSkuList() {
+            const dl = document.getElementById('savedSkuList');
+            if (!dl) return;
+            const seen = new Set();
+            const opts = [];
+            for (const r of (savedInventory || [])) {
+                const sku = String(r.sku || '').trim().toUpperCase();
+                if (!sku || seen.has(sku)) continue;
+                seen.add(sku);
+                const nm = String(r.friendly_name || '').replace(/[<>&"]/g, '');
+                opts.push('<option value="' + sku + '">' + nm + ' - qty ' + (parseInt(r.qty, 10) || 0) + '</option>');
+            }
+            dl.innerHTML = opts.join('');
+        }
+
+        function exactSavedRows(term) {
+            const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
+            return (savedInventory || []).filter(r => {
+                const hay = [
+                    r.sku, r.barcode, r.friendly_name, r.color,
+                    deriveCollection(r.sku), deriveDepartment(r.sku),
+                    orgNames[r.org_id] || String(r.org_id || ''), r.created_by
+                ].join(' ').toLowerCase();
+                return hay.includes(term);
+            });
+        }
+
+        function fuzzySavedRows(term, limit) {
+            const letters = term.replace(/[^a-z]/g, '');
+            if (letters.length < 3) return [];
+            const maxD = Math.max(2, Math.ceil(term.length / 4));
+            return (savedInventory || []).map(r => {
+                const sku = String(r.sku || '').toLowerCase();
+                const dLetters = levDistance(letters, sku.replace(/[^a-z]/g, ''));
+                const dRaw = levDistance(term, sku);
+                return { r: r, d: Math.min(dLetters, dRaw) };
+            }).filter(x => x.d <= maxD)
+              .sort((a, b) => a.d - b.d || (parseInt(b.r.qty, 10) || 0) - (parseInt(a.r.qty, 10) || 0))
+              .slice(0, limit || 15)
+              .map(x => x.r);
+        }
+
+        // One source of truth for "what am I looking at": the table and both
+        // exports call this, so a download can never disagree with the screen.
+        function computeSavedRows() {
+            const term = (document.getElementById('savedSearchInput').value || '').trim().toLowerCase();
+            const all = savedInventory || [];
+            if (!term) return { rows: all, term: '', note: '' };
+            let rows = exactSavedRows(term);
+            if (rows.length) return { rows: rows, term: term, note: '' };
+            rows = fuzzySavedRows(term, 15);
+            if (rows.length) {
+                return { rows: rows, term: term,
+                    note: 'No exact match for "' + term + '" - showing the closest ' + rows.length + ' SKU' + (rows.length === 1 ? '' : 's') + ':' };
+            }
+            return { rows: all, term: term,
+                note: 'No match for "' + term + '" - showing all ' + all.length + ' rows:' };
+        }
+
         function renderSavedTable() {
             const tbody = document.getElementById('savedTableBody');
             const table = document.getElementById('savedTable');
             const empty = document.getElementById('savedEmpty');
-            const term = (document.getElementById('savedSearchInput').value || '').trim().toLowerCase();
+            const picked = computeSavedRows();
+            const term = picked.term;
+            const rows = picked.rows;
 
             const orgNames = { 1: 'HQ Shanghai', 2: 'Canada', 3: 'UK' };
             const fmtPrice = (v) => (v !== null && v !== undefined && parseFloat(v) > 0) ? parseFloat(v).toFixed(2) : '';
-
-            let rows = savedInventory;
-            if (term) {
-                rows = savedInventory.filter(r => {
-                    const hay = [
-                        r.sku,
-                        r.barcode,
-                        deriveCollection(r.sku),
-                        orgNames[r.org_id] || String(r.org_id || ''),
-                        r.created_by
-                    ].join(' ').toLowerCase();
-                    return hay.includes(term);
-                });
-            }
 
             if (!savedInventory || savedInventory.length === 0) {
                 table.style.display = 'none';
@@ -1119,7 +1179,8 @@
             const metaText = document.getElementById('savedMetaText');
             const whs = [...new Set(rows.map(r => orgNames[r.org_id] || String(r.org_id || '')))].filter(Boolean);
             const who = [...new Set(rows.map(r => (r.created_by || '').trim()).filter(Boolean))];
-            metaText.innerHTML = `<b>Warehouse:</b> ${whs.join(', ') || '—'} &nbsp;·&nbsp; <b>Created By:</b> ${who.join(', ') || '—'}`;
+            metaText.innerHTML = (picked.note ? `<span style="color:#b45309; font-weight:600;">${picked.note}</span><br>` : '')
+                + `<b>Warehouse:</b> ${whs.join(', ') || '—'} &nbsp;·&nbsp; <b>Created By:</b> ${who.join(', ') || '—'}`;
             metaLine.style.display = '';
 
             renderSavedStats(rows);
@@ -1437,6 +1498,7 @@
                 }
 
                 savedInventory = data;  // cache for session-row hints + search
+                fillSavedSkuList();
                 renderSavedTable();
             } catch (err) {
                 console.error('Error loading saved inventory:', err);
