@@ -897,9 +897,17 @@ ensureSchema().then(() => backfillItemCategories()).then(() => backfillEanBarcod
   return fixGarbledSkus();
 }).then(() => loadDbPriceRegistryOverlay()).then(() => backfillPricesFromItemPrices()).then(() => reconcileOpeningInventoryPrices()).then(() => {
   console.log('[PRICE-REGISTRY] Startup self-heal done');
-  // Recurring self-heal: rows scanned after boot get registry prices within
-  // 10 minutes, no deploy needed.
-  setInterval(() => reconcileOpeningInventoryPrices(), 10 * 60 * 1000);
+  // Recurring self-heal is now a BACKUP ONLY. The real trigger lives inline in
+  // POST /api/opening-inventory (reconcile runs right after each save), because
+  // a 10-minute timer keeps the Neon compute permanently awake: the free plan
+  // includes ~50 CU-hours/month and constant pinging burns it in ~2-3 weeks.
+  // When the quota is hit Neon SUSPENDS the project until the next billing
+  // period and every query (login included) fails with 'Login failed' 500s.
+  // 6h = at most 4 wake-ups a day as a safety net; real traffic still lets the
+  // compute scale to zero between uses.
+  setInterval(() => reconcileOpeningInventoryPrices().catch((e) =>
+    console.error('[PRICE-REGISTRY] periodic reconcile error:', e.message)
+  ), 6 * 60 * 60 * 1000);
 }).catch((e) => console.error('[STARTUP] self-heal chain error:', e.message));
 
 // Record an action in the audit trail. Never lets a logging failure break the
@@ -5445,6 +5453,13 @@ app.post('/api/opening-inventory', requireAuthApi(['ADMIN', 'BUYER']), async (re
     }
 
     logActivity(req.user, 'OPENING_INVENTORY_SAVE', null, { saved, totalQty, org_id: targetOrg });
+
+    // Price self-heal inline (replaces the old 10-minute polling timer): a
+    // just-saved batch gets registry / item-master prices immediately, and the
+    // database is NOT pinged on a timer in between. Fire-and-forget so the scan
+    // response is never delayed; errors are logged, never fatal.
+    reconcileOpeningInventoryPrices().catch((e) =>
+      console.error('[PRICE-REGISTRY] post-save reconcile error:', e.message));
 
     res.json({ success: true, saved, total_qty: totalQty });
   } catch (err) {
